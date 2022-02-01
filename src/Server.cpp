@@ -16,26 +16,25 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Pty.hpp"
-#include "CheckedPOSIX.hpp"
+#include "Server.hpp"
+#include "Environment.hpp"
 
-#include <iostream>
+#include <utility>
 
-#include <pty.h>
+namespace monomux
+{
 
-namespace monomux {
-
-Pty::Pty() {
-  char DEVICE_NAME[1024];
-
-  CheckedPOSIXThrow([this, &DEVICE_NAME]() {
-    return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
-  }, "Failed to openpty()", -1);
-
-  std::clog << Master << ' ' << Slave << std::endl;
-  std::clog << DEVICE_NAME << std::endl;
-
+bool Server::currentProcessMarkedAsServer()
+{
+  return getEnv("MONOMUX_SERVER") == "YES";
 }
 
+std::string Server::getServerSocketPath()
+{
+  // TODO: Handle XDG_RUNTIME_DIR, etc.
+  return "monomux.server.sock";
+}
+
+Server::Server(Socket&& Sock) : Sock(std::move(Sock)) {}
 
 } // namespace monomux

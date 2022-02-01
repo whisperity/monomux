@@ -16,26 +16,37 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Pty.hpp"
-#include "CheckedPOSIX.hpp"
+#pragma once
 
-#include <iostream>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
 
-#include <pty.h>
+#include <unistd.h>
 
-namespace monomux {
+namespace monomux
+{
 
-Pty::Pty() {
-  char DEVICE_NAME[1024];
+/// Responsible for creating, executing, and handling processes on the
+/// system.
+class Process
+{
+public:
+  using handle = ::pid_t;
 
-  CheckedPOSIXThrow([this, &DEVICE_NAME]() {
-    return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
-  }, "Failed to openpty()", -1);
+  struct SpawnOptions
+  {
+    std::string Program;
+    std::vector<std::string> Arguments;
+    std::map<std::string, std::optional<std::string>> Environment;
+  };
 
-  std::clog << Master << ' ' << Slave << std::endl;
-  std::clog << DEVICE_NAME << std::endl;
-
-}
-
+  /// Replaces the current process (as if by calling the \p exec() family) in
+  /// the system with the started one.
+  ///
+  /// \note WARNING: This command does *NOT* \p fork()!
+  [[noreturn]] static void exec(const SpawnOptions& Opts);
+};
 
 } // namespace monomux

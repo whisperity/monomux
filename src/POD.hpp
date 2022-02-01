@@ -16,26 +16,28 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Pty.hpp"
-#include "CheckedPOSIX.hpp"
+#include <cstring>
+#include <type_traits>
 
-#include <iostream>
+/// This class wraps a C-style struct, a "Plain Old Data" (POD) into a C++
+/// structure which ensures that the data is created zero-filled.
+template <typename T>
+struct POD {
+  static_assert(std::is_pod_v<T>, "Only supporting PODs!");
+  static_assert(std::is_standard_layout_v<T> && std::is_trivial_v<T>,
+                "Only supporting PODs!");
 
-#include <pty.h>
+  T& operator*() { return Data; }
+  const T& operator*() const { return Data; }
+  T* operator&() { return &Data; }
+  const T* operator&() const { return &Data; }
+  T* operator->() { return &Data; }
+  const T* operator->() const { return &Data; }
 
-namespace monomux {
+  POD() {
+    std::memset(&Data, 0, sizeof(T));
+  }
 
-Pty::Pty() {
-  char DEVICE_NAME[1024];
-
-  CheckedPOSIXThrow([this, &DEVICE_NAME]() {
-    return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
-  }, "Failed to openpty()", -1);
-
-  std::clog << Master << ' ' << Slave << std::endl;
-  std::clog << DEVICE_NAME << std::endl;
-
-}
-
-
-} // namespace monomux
+private:
+  T Data;
+};

@@ -16,26 +16,31 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Pty.hpp"
-#include "CheckedPOSIX.hpp"
+#pragma once
 
-#include <iostream>
+#include "Socket.hpp"
 
-#include <pty.h>
+#include <optional>
+#include <string>
 
-namespace monomux {
+namespace monomux
+{
 
-Pty::Pty() {
-  char DEVICE_NAME[1024];
+/// This class represents a connection to a running \p Server - or rather,
+/// a wrapper over the communication channel that allows talking to the
+/// server.
+///
+/// In networking terminology, this is effectively a client, but we reserve
+/// that word for the "Monomux Client" which deals with attaching to a
+/// process.
+class ServerConnection
+{
+public:
+  static std::optional<ServerConnection> create(std::string SocketPath);
 
-  CheckedPOSIXThrow([this, &DEVICE_NAME]() {
-    return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
-  }, "Failed to openpty()", -1);
-
-  std::clog << Master << ' ' << Slave << std::endl;
-  std::clog << DEVICE_NAME << std::endl;
-
-}
-
+  ServerConnection(Socket&& ConnSock);
+private:
+  Socket Connection;
+};
 
 } // namespace monomux

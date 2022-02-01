@@ -16,26 +16,27 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Pty.hpp"
-#include "CheckedPOSIX.hpp"
+#pragma once
 
-#include <iostream>
+#include "Socket.hpp"
 
-#include <pty.h>
+namespace monomux
+{
 
-namespace monomux {
+/// The monomux server is responsible for creating child processes of sessions.
+/// Clients communicate with a \p Server instance to obtain information about
+/// a session and to initiate attachment procedures.
+class Server
+{
+public:
+  static bool currentProcessMarkedAsServer();
+  static std::string getServerSocketPath();
 
-Pty::Pty() {
-  char DEVICE_NAME[1024];
+  /// Create a new server that will listen on the associated socket.
+  Server(Socket&& Sock);
 
-  CheckedPOSIXThrow([this, &DEVICE_NAME]() {
-    return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
-  }, "Failed to openpty()", -1);
-
-  std::clog << Master << ' ' << Slave << std::endl;
-  std::clog << DEVICE_NAME << std::endl;
-
-}
-
+private:
+  Socket Sock;
+};
 
 } // namespace monomux

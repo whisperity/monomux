@@ -16,26 +16,27 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Pty.hpp"
-#include "CheckedPOSIX.hpp"
+#include "ServerConnection.hpp"
 
 #include <iostream>
-
-#include <pty.h>
+#include <utility>
 
 namespace monomux {
 
-Pty::Pty() {
-  char DEVICE_NAME[1024];
-
-  CheckedPOSIXThrow([this, &DEVICE_NAME]() {
-    return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
-  }, "Failed to openpty()", -1);
-
-  std::clog << Master << ' ' << Slave << std::endl;
-  std::clog << DEVICE_NAME << std::endl;
-
+  std::optional<ServerConnection> ServerConnection::create(std::string SocketPath)
+{
+  try {
+  ServerConnection Conn{Socket::open(SocketPath)};
+  return Conn;
+  } catch (const std::system_error& Err) {
+    std::cerr << "Failed to connect to '" << SocketPath << "' " << Err.what()
+              << std::endl;
+  }
+  return std::nullopt;
 }
 
+ServerConnection::ServerConnection(Socket&& ConnSock)
+  : Connection(std::move(ConnSock))
+{}
 
 } // namespace monomux
