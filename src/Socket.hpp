@@ -59,7 +59,7 @@ public:
   Socket& operator=(Socket&&);
 
   /// Returns the raw file descriptor for the underlying resource.
-  raw_fd raw_fd() const { return Handle.get(); }
+  raw_fd raw() const { return Handle.get(); }
 
   /// Returns the associated path with the socket.
   const std::string& getPath() const { return Path; }

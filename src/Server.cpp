@@ -183,8 +183,8 @@ int Server::listen()
   POD<struct ::sockaddr_storage> SocketAddr;
   POD<::socklen_t> SocketLen;
 
-  addStatusFlag(Sock.raw_fd(), O_NONBLOCK);
-  Poll = new detail::EPoll{Sock.raw_fd(), 16};
+  addStatusFlag(Sock.raw(), O_NONBLOCK);
+  Poll = new detail::EPoll{Sock.raw(), 16};
 
   while (TerminateListenLoop.load() == false)
   {
@@ -192,12 +192,12 @@ int Server::listen()
     std::clog << NumTriggeredFDs << " events received!" << std::endl;
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
-      if ((*Poll)[I].data.fd == Sock.raw_fd())
+      if ((*Poll)[I].data.fd == Sock.raw())
       {
         // Event occured on the main socket.
         auto Established = CheckedPOSIX(
           [this, &SocketAddr, &SocketLen] {
-            return ::accept(Sock.raw_fd(),
+            return ::accept(Sock.raw(),
                             reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
                             &SocketLen);
           },
@@ -265,12 +265,12 @@ int Server::listen()
 
 void Server::acceptCallback(Socket& Client)
 {
-  std::cout << "Client connected " << Client.raw_fd() << std::endl;
+  std::cout << "Client connected " << Client.raw() << std::endl;
 }
 
 void Server::readCallback(Socket& Client)
 {
-  std::cout << "Client " << Client.raw_fd() << " has data!" << std::endl;
+  std::cout << "Client " << Client.raw() << " has data!" << std::endl;
 
   std::string Data;
   try
@@ -279,7 +279,7 @@ void Server::readCallback(Socket& Client)
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when reading data from " << Client.raw_fd() << ": "
+    std::cerr << "Error when reading data from " << Client.raw() << ": "
               << Err.what() << std::endl;
     return;
   }
@@ -289,8 +289,8 @@ void Server::readCallback(Socket& Client)
     // We realise the client disconnected during an attempt to read.
     exitCallback(Client);
     if (Poll)
-      Poll->stopListenOn(Client.raw_fd());
-    ClientSockets.erase(Client.raw_fd());
+      Poll->stopListenOn(Client.raw());
+    ClientSockets.erase(Client.raw());
     return;
   }
 
@@ -313,7 +313,7 @@ void Server::readCallback(Socket& Client)
 
 void Server::exitCallback(Socket& Client)
 {
-  std::cout << "Client " << Client.raw_fd() << " is leaving..." << std::endl;
+  std::cout << "Client " << Client.raw() << " is leaving..." << std::endl;
 }
 
 void Server::setUpDispatch()
