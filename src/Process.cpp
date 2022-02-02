@@ -18,8 +18,12 @@
  */
 #include "Process.hpp"
 #include "CheckedPOSIX.hpp"
+#include "Pty.hpp"
 
 #include <cstring>
+
+#include <pty.h>
+#include <utmp.h>
 
 namespace monomux
 {
@@ -65,16 +69,33 @@ static void allocCopyString(const std::string& Source,
   ::_Exit(EXIT_FAILURE); // [[noreturn]]
 }
 
-Process::handle Process::spawn(const SpawnOptions& Opts)
+Process Process::spawn(const SpawnOptions& Opts)
 {
+  std::optional<Pty> PTY;
+  if (Opts.CreatePTY)
+    PTY.emplace(Pty{});
+
   handle ForkResult =
     CheckedPOSIXThrow([] { return ::fork(); }, "fork() failed in spawn()", -1);
-  if (ForkResult != 0)
+  if (ForkResult != 0) {
     // We are in the parent.
-    return ForkResult;
+    if (PTY)
+      CheckedPOSIXThrow(
+        [&PTY] { return ::close(PTY->Slave); }, "close pty in parent", -1);
+
+    Process P;
+    P.Handle = ForkResult;
+    return P;
+  }
 
   // We are in the child.
   CheckedPOSIXThrow([] { return ::setsid(); }, "setsid()", -1);
+  if (PTY) {
+    CheckedPOSIXThrow(
+      [&PTY] { return ::close(PTY->Master); }, "close pty in child", -1);
+    CheckedPOSIXThrow(
+      [&PTY] { return ::login_tty(PTY->Slave); }, "login_tty in child", -1);
+  }
   Process::exec(Opts);
   throw std::runtime_error{"Unreachable."};
   // return static_cast<Process::handle>(0);

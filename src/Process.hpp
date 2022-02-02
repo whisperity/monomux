@@ -40,7 +40,11 @@ public:
     std::string Program;
     std::vector<std::string> Arguments;
     std::map<std::string, std::optional<std::string>> Environment;
+
+    bool CreatePTY = false;
   };
+
+  handle Handle;
 
   /// Replaces the current process (as if by calling the \p exec() family) in
   /// the system with the started one.
@@ -56,7 +60,7 @@ public:
   /// parent.
   ///
   /// This call does NOT return in the child.
-  static handle spawn(const SpawnOptions& Opts);
+  static Process spawn(const SpawnOptions& Opts);
 };
 
 } // namespace monomux

@@ -343,8 +343,9 @@ void Server::spawnProcess(Socket& Client, std::string RawMessage)
 
   Process::SpawnOptions SOpts;
   SOpts.Program = Msg->ProcessName;
+  SOpts.CreatePTY = true;
 
-  Process::spawn(SOpts);
+  Process P = Process::spawn(SOpts);
 }
 
 } // namespace monomux

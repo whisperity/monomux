@@ -17,21 +17,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "fd.hpp"
 
 #include <array>
 
-#include <fcntl.h>
 
 namespace monomux
 {
 
 class Pty
 {
+// private:
 public:
-  using fd = decltype(::open("", 0));
-
-private:
-  fd Master, Slave;
+  raw_fd Master, Slave;
   // std::array<fd, 2> Pipes;
 
 public:

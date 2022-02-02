@@ -136,9 +136,8 @@ int main(int ArgC, char* ArgV[])
   std::cout << "Connection established!" << std::endl;
 
   Process::SpawnOptions SO;
-  SO.Program = "/bin/bash";
+  SO.Program = ArgV[1];
   ToServer->requestSpawnProcess(SO);
-
 
   // Trash code:
   int temp;
