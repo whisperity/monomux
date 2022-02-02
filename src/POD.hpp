@@ -21,8 +21,8 @@
 
 /// This class wraps a C-style struct, a "Plain Old Data" (POD) into a C++
 /// structure which ensures that the data is created zero-filled.
-template <typename T>
-struct POD {
+template <typename T> struct POD
+{
   static_assert(std::is_pod_v<T>, "Only supporting PODs!");
   static_assert(std::is_standard_layout_v<T> && std::is_trivial_v<T>,
                 "Only supporting PODs!");
@@ -34,9 +34,11 @@ struct POD {
   T* operator->() { return &Data; }
   const T* operator->() const { return &Data; }
 
-  POD() {
-    std::memset(&Data, 0, sizeof(T));
-  }
+  /// Creates an empty space where \p T fits.
+  POD() { reset(); }
+
+  /// Clears the data area of \p T.
+  void reset() { std::memset(&Data, 0, sizeof(T)); }
 
 private:
   T Data;

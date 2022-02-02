@@ -21,7 +21,8 @@
 
 #include <cstring>
 
-namespace monomux {
+namespace monomux
+{
 
 static void allocCopyString(const std::string& Source,
                             char* DestinationStringArray[],
@@ -62,6 +63,21 @@ static void allocCopyString(const std::string& Source,
     "Executing process failed",
     -1);
   ::_Exit(EXIT_FAILURE); // [[noreturn]]
+}
+
+Process::handle Process::spawn(const SpawnOptions& Opts)
+{
+  handle ForkResult =
+    CheckedPOSIXThrow([] { return ::fork(); }, "fork() failed in spawn()", -1);
+  if (ForkResult != 0)
+    // We are in the parent.
+    return ForkResult;
+
+  // We are in the child.
+  CheckedPOSIXThrow([] { return ::setsid(); }, "setsid()", -1);
+  Process::exec(Opts);
+  throw std::runtime_error{"Unreachable."};
+  // return static_cast<Process::handle>(0);
 }
 
 } // namespace monomux

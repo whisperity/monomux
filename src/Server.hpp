@@ -19,9 +19,23 @@
 #pragma once
 
 #include "Socket.hpp"
+#include "fd.hpp"
+
+#include <atomic>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <memory>
 
 namespace monomux
 {
+
+namespace detail
+{
+
+class EPoll;
+
+} // namespace detail
 
 /// The monomux server is responsible for creating child processes of sessions.
 /// Clients communicate with a \p Server instance to obtain information about
@@ -29,14 +43,37 @@ namespace monomux
 class Server
 {
 public:
-  static bool currentProcessMarkedAsServer();
+  static bool currentProcessMarkedAsServer() noexcept;
   static std::string getServerSocketPath();
 
   /// Create a new server that will listen on the associated socket.
   Server(Socket&& Sock);
 
+  ~Server();
+
+  /// Start actively listening and handling connections.
+  ///
+  /// \note This is a blocking call.
+  int listen();
+
 private:
   Socket Sock;
+  std::map<std::uint16_t, std::function<void(Socket&, std::string)>> Dispatch;
+  std::map<raw_fd, std::unique_ptr<Socket>> ClientSockets;
+
+  std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
+  detail::EPoll* Poll = nullptr;
+
+  void acceptCallback(Socket& Client);
+  void readCallback(Socket& Client);
+  void exitCallback(Socket& Client);
+
+private:
+  void setUpDispatch();
+
+#define DISPATCH(KIND, FUNCTION_NAME)                                          \
+  void FUNCTION_NAME(Socket& Client, std::string RawMessage);
+#include "Server.Dispatch.ipp"
 };
 
 } // namespace monomux

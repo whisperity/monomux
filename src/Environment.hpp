@@ -25,7 +25,7 @@ namespace monomux
 {
 
 /// Returns the value of the environment variable \p Key.
-inline std::string getEnv(std::string Key)
+inline std::string getEnv(std::string Key) noexcept
 {
   const char* const Value = ::getenv(Key.c_str());
   if (!Value)

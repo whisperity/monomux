@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include "Process.hpp"
 #include "Socket.hpp"
 
 #include <optional>
@@ -39,6 +40,8 @@ public:
   static std::optional<ServerConnection> create(std::string SocketPath);
 
   ServerConnection(Socket&& ConnSock);
+  void requestSpawnProcess(const Process::SpawnOptions& Opts);
+
 private:
   Socket Connection;
 };

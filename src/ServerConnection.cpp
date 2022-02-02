@@ -17,20 +17,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "ServerConnection.hpp"
+#include "Message.hpp"
 
 #include <iostream>
 #include <utility>
 
-namespace monomux {
-
-  std::optional<ServerConnection> ServerConnection::create(std::string SocketPath)
+namespace monomux
 {
-  try {
-  ServerConnection Conn{Socket::open(SocketPath)};
-  return Conn;
-  } catch (const std::system_error& Err) {
-    std::cerr << "Failed to connect to '" << SocketPath << "' " << Err.what()
-              << std::endl;
+
+std::optional<ServerConnection> ServerConnection::create(std::string SocketPath)
+{
+  try
+  {
+    ServerConnection Conn{Socket::open(SocketPath)};
+    return Conn;
+  }
+  catch (const std::system_error& Err)
+  {
+    std::cerr << "When creating ServerConnection with '" << SocketPath
+              << "': " << Err.what() << std::endl;
   }
   return std::nullopt;
 }
@@ -38,5 +43,15 @@ namespace monomux {
 ServerConnection::ServerConnection(Socket&& ConnSock)
   : Connection(std::move(ConnSock))
 {}
+
+void ServerConnection::requestSpawnProcess(const Process::SpawnOptions& Opts)
+{
+  request::SpawnProcess Msg;
+  Msg.ProcessName = Opts.Program;
+
+  std::string Data = request::SpawnProcess::encode(Msg);
+  Connection.write(kindToStr(MessageKind::REQ_SpawnProcess));
+  Connection.write(std::move(Data));
+}
 
 } // namespace monomux

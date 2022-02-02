@@ -47,6 +47,16 @@ public:
   ///
   /// \note WARNING: This command does *NOT* \p fork()!
   [[noreturn]] static void exec(const SpawnOptions& Opts);
+
+  /// Spawns a new process based on the specified \p Opts. This process calls
+  /// \p fork() internally, and then does an \p exec().
+  ///
+  /// The spawned process will be the child of the current process. The call
+  /// returns the PID of the child, and execution resumes normally in the
+  /// parent.
+  ///
+  /// This call does NOT return in the child.
+  static handle spawn(const SpawnOptions& Opts);
 };
 
 } // namespace monomux

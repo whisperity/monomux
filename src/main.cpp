@@ -24,19 +24,26 @@
 #include "ServerConnection.hpp"
 
 #include <chrono>
-#include <thread>
-
 #include <iostream>
 #include <system_error>
+#include <thread>
 
 #include <unistd.h>
 
 using namespace monomux;
 
-namespace monomux {
+namespace monomux
+{
 
-enum class ForkResult { Error, Parent, Child };
+enum class ForkResult
+{
+  Error,
+  Parent,
+  Child
+};
 
+/// Performs \p fork() on the current process and executes the given two actions
+/// in the remaining parent and child process.
 template <typename ParentFn, typename ChildFn>
 static ForkResult fork(ParentFn&& Parent, ChildFn&& Child)
 {
@@ -47,8 +54,7 @@ static ForkResult fork(ParentFn&& Parent, ChildFn&& Child)
     case -1:
       // Fork failed.
       // TODO: Something like llvm_unreachable() which hard-destroys us at hit.
-      throw std::system_error{std::make_error_code(std::errc::invalid_argument),
-                              "Unreachable."};
+      throw std::runtime_error{"Unreachable."};
     case 0:
       // Running in the child.
       Child();
@@ -59,11 +65,13 @@ static ForkResult fork(ParentFn&& Parent, ChildFn&& Child)
   }
 }
 
+/// Shorthand for \p fork() where the child continues execution normally.
 template <typename Fn> static void forkAndSpecialInParent(Fn&& F)
 {
   fork(F, [] { return; });
 }
 
+/// Shorthand for \p fork() where the parent continues execution normally.
 template <typename Fn> static void forkAndSpecialInChild(Fn&& F)
 {
   fork([] { return; }, F);
@@ -71,28 +79,44 @@ template <typename Fn> static void forkAndSpecialInChild(Fn&& F)
 
 } // namespace monomux
 
-#include <sys/wait.h>
+int serve()
+{
+  // CheckedPOSIXThrow([] { return ::daemon(0, 0); }, "Backgrounding ourselves
+  // failed", -1);
+  Socket ServerSock = Socket::create(Server::getServerSocketPath());
+  Server S = Server(std::move(ServerSock));
+  // TODO: Signal handler! If interrupted, the cleanup does not happen here.
+
+  std::cout << "Server socket created, ready!" << std::endl;
+
+  int R = S.listen();
+  std::cout << "Server listen exited with " << R << std::endl;
+
+  std::this_thread::sleep_for(std::chrono::seconds(30));
+
+  std::cout << "Server shut down..." << std::endl;
+  return R;
+}
 
 int main(int ArgC, char* ArgV[])
 {
   // Check if we are a server. If we are a server, we need to do different
   // things.
   if (Server::currentProcessMarkedAsServer())
-  {
-    std::cout << "MONOMUX SERVER READY AND WAITING." << std::endl;
-    CheckedPOSIXThrow([] { return ::daemon(0, 0); }, "Backgrounding ourselves failed", -1);
-    std::this_thread::sleep_for(std::chrono::seconds(180));
-    std::cout << "Server quit." << std::endl;
-    return 0;
-  }
+    return serve();
 
   // If we aren't obviously a server, first, always try to establish connection
   // to a server, or if no server is present, assume that the user is trying to
   // start us for the first time, and initialise a server.
   std::optional<ServerConnection> ToServer =
     ServerConnection::create(Server::getServerSocketPath());
-  if (!ToServer) {
+  if (!ToServer)
+  {
+    // Perform the server restart in the child, so it gets disowned when we
+    // eventually exit, and we can remain the client.
     forkAndSpecialInChild([&ArgV] {
+      std::cerr << "No running server found, creating one..." << std::endl;
+
       Process::SpawnOptions SO;
       SO.Program = ArgV[0];
       SO.Arguments.emplace_back("--server");
@@ -102,15 +126,21 @@ int main(int ArgC, char* ArgV[])
     });
   }
 
+  while (!ToServer)
+  {
+    std::clog << "Trying to connect to server..." << std::endl;
+    ToServer = ServerConnection::create(Server::getServerSocketPath());
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+
+  std::cout << "Connection established!" << std::endl;
+
+  Process::SpawnOptions SO;
+  SO.Program = "/bin/bash";
+  ToServer->requestSpawnProcess(SO);
+
 
   // Trash code:
-  Pty P;
-  {
-    Socket S = Socket::create("foo.sock");
-    std::cout << "Socket alive\n";
-  }
-  std::cout << "Socket dead\n";
-
   int temp;
   std::cout << "Waiting..." << std::endl;
   std::cin >> temp;

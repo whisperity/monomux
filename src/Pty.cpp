@@ -23,18 +23,22 @@
 
 #include <pty.h>
 
-namespace monomux {
+namespace monomux
+{
 
-Pty::Pty() {
+Pty::Pty()
+{
   char DEVICE_NAME[1024];
 
-  CheckedPOSIXThrow([this, &DEVICE_NAME]() {
-    return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
-  }, "Failed to openpty()", -1);
+  CheckedPOSIXThrow(
+    [this, &DEVICE_NAME]() {
+      return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
+    },
+    "Failed to openpty()",
+    -1);
 
   std::clog << Master << ' ' << Slave << std::endl;
   std::clog << DEVICE_NAME << std::endl;
-
 }
 
 
