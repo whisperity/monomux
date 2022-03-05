@@ -19,38 +19,17 @@
 #pragma once
 
 #include "MessageBase.hpp"
-
-#include <cstdint>
-#include <string>
+#include "Socket.hpp"
 
 namespace monomux
 {
 
-namespace request
+/// Auto-encodes the given \p Msg and writes it to the \p S socket.
+template <typename T> void writeMessage(Socket& S, T&& Msg)
 {
-
-struct ClientID
-{
-  MONOMUX_MESSAGE(REQ_ClientID, ClientID)
-};
-
-struct SpawnProcess
-{
-  MONOMUX_MESSAGE(REQ_SpawnProcess, SpawnProcess)
-  std::string ProcessName;
-};
-
-} // namespace request
-
-namespace response
-{
-
-struct ClientID
-{
-  MONOMUX_MESSAGE(RSP_ClientID, ClientID)
-  std::size_t ID;
-};
-
-} // namespace response
+  std::string Data = Msg.encode(Msg);
+  S.write(kindToStr(Msg.Kind));
+  S.write(std::move(Data));
+}
 
 } // namespace monomux

@@ -21,6 +21,7 @@
 #include "Process.hpp"
 #include "Socket.hpp"
 
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -39,11 +40,18 @@ class ServerConnection
 public:
   static std::optional<ServerConnection> create(std::string SocketPath);
 
-  ServerConnection(Socket&& ConnSock);
+  ServerConnection(Socket&& ControlSocket);
   void requestSpawnProcess(const Process::SpawnOptions& Opts);
 
 private:
-  Socket Connection;
+  /// The control socket is used to communicate control commands with the
+  /// server.
+  Socket ControlSocket;
+
+  std::size_t ClientID;
+
+  /// The data connection is used to transmit the process data to the client.
+  std::unique_ptr<Socket> DataSocket;
 };
 
 } // namespace monomux

@@ -169,11 +169,15 @@ std::string Socket::read(std::size_t Bytes)
   Return.reserve(Bytes);
   static constexpr std::size_t BUFFER_SIZE = 1024;
   POD<char[BUFFER_SIZE]> Buffer;
+  bool FirstRead = true;
 
   while (Return.size() < Bytes)
   {
     auto ReadBytes = CheckedPOSIX(
-      [this, &Buffer] { return ::recv(Handle.get(), &Buffer, BUFFER_SIZE, 0); },
+      [this, FirstRead, &Buffer] {
+        return ::recv(
+          Handle.get(), &Buffer, BUFFER_SIZE, FirstRead ? 0 : MSG_DONTWAIT);
+      },
       -1);
     if (!ReadBytes)
     {
@@ -195,6 +199,7 @@ std::string Socket::read(std::size_t Bytes)
       throw std::system_error{std::make_error_code(EC)};
     }
 
+    FirstRead = false;
     std::cout << "Received chunk " << ReadBytes.get() << " bytes from "
               << Handle.get() << std::endl;
     if (ReadBytes.get() == 0)

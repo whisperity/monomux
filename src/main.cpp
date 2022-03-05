@@ -81,8 +81,10 @@ template <typename Fn> static void forkAndSpecialInChild(Fn&& F)
 
 int serve()
 {
+  Server::consumeProcessMarkedAsServer();
   // CheckedPOSIXThrow([] { return ::daemon(0, 0); }, "Backgrounding ourselves
   // failed", -1);
+
   Socket ServerSock = Socket::create(Server::getServerSocketPath());
   Server S = Server(std::move(ServerSock));
   // TODO: Signal handler! If interrupted, the cleanup does not happen here.
@@ -112,6 +114,7 @@ int main(int ArgC, char* ArgV[])
     ServerConnection::create(Server::getServerSocketPath());
   if (!ToServer)
   {
+    return -2;
     // Perform the server restart in the child, so it gets disowned when we
     // eventually exit, and we can remain the client.
     forkAndSpecialInChild([&ArgV] {
@@ -135,9 +138,12 @@ int main(int ArgC, char* ArgV[])
 
   std::cout << "Connection established!" << std::endl;
 
-  Process::SpawnOptions SO;
-  SO.Program = ArgV[1];
-  ToServer->requestSpawnProcess(SO);
+  if (ArgC >= 2)
+  {
+    Process::SpawnOptions SO;
+    SO.Program = ArgV[1];
+    ToServer->requestSpawnProcess(SO);
+  }
 
   // Trash code:
   int temp;

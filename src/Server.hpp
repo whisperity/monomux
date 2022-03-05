@@ -44,6 +44,9 @@ class Server
 {
 public:
   static bool currentProcessMarkedAsServer() noexcept;
+  /// Remove the markings from the current process that indicated that it is a
+  /// server.
+  static void consumeProcessMarkedAsServer() noexcept;
   static std::string getServerSocketPath();
 
   /// Create a new server that will listen on the associated socket.

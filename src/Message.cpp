@@ -25,8 +25,22 @@
 
 namespace monomux
 {
+
 namespace request
 {
+
+ENCODE(ClientID)
+{
+  (void)Object;
+  return "<CLIENT-ID></CLIENT-ID>";
+}
+DECODE(ClientID) {
+  ClientID Ret;
+  auto P = Buffer.find("<CLIENT-ID></CLIENT-ID>");
+  if (P == std::string::npos)
+    return std::nullopt;
+  return Ret;
+}
 
 ENCODE(SpawnProcess)
 {
@@ -36,7 +50,6 @@ ENCODE(SpawnProcess)
   Ret.append("</SPAWN>");
   return Ret;
 }
-
 DECODE(SpawnProcess)
 {
   SpawnProcess Ret;
@@ -58,6 +71,40 @@ DECODE(SpawnProcess)
 }
 
 } // namespace request
+
+namespace response
+{
+
+ENCODE(ClientID)
+{
+  std::string Ret = "<CLIENT-ID>";
+  Ret.append(std::to_string(Object.ID));
+  Ret.push_back('\0');
+  Ret.append("</CLIENT-ID>");
+  return Ret;
+}
+DECODE(ClientID)
+{
+  ClientID Ret;
+
+  auto P = Buffer.find("<CLIENT-ID>");
+  if (P == std::string::npos)
+    return std::nullopt;
+  P += std::strlen("<CLIENT-ID>");
+
+  auto SV = std::string_view{Buffer.data() + P, Buffer.size() - P};
+  P = SV.find('\0');
+  Ret.ID = std::stoull(std::string{SV.substr(0, P)});
+  SV.remove_prefix(P + 1);
+
+  if (SV != "</CLIENT-ID>")
+    return std::nullopt;
+
+  return Ret;
+}
+
+} // namespace response
+
 } // namespace monomux
 
 #undef ENCODE

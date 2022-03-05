@@ -21,6 +21,7 @@
 #include "Message.hpp"
 #include "POD.hpp"
 #include "Process.hpp"
+#include "SocketMessaging.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -160,6 +161,11 @@ bool Server::currentProcessMarkedAsServer() noexcept
   return getEnv("MONOMUX_SERVER") == "YES";
 }
 
+void Server::consumeProcessMarkedAsServer() noexcept
+{
+  ::unsetenv("MONOMUX_SERVER");
+}
+
 std::string Server::getServerSocketPath()
 {
   // TODO: Handle XDG_RUNTIME_DIR, etc.
@@ -294,6 +300,8 @@ void Server::readCallback(Socket& Client)
     return;
   }
 
+  std::cout << Data << std::endl;
+
   std::cout << "Check for message kind... ";
 
   MessageKind MK = kindFromStr(Data);
@@ -331,7 +339,25 @@ void Server::setUpDispatch()
 #undef KIND
 }
 
-void Server::spawnProcess(Socket& Client, std::string RawMessage)
+#define HANDLER(NAME) void Server::NAME(Socket& Client, std::string RawMessage)
+
+HANDLER(clientID)
+{
+  std::clog << __PRETTY_FUNCTION__ << std::endl;
+
+  auto Msg = request::ClientID::decode(RawMessage);
+  if (!Msg)
+    return;
+
+  std::cout << "Client #" << Client.raw() << ": Request Client ID" << std::endl;
+
+  response::ClientID Resp;
+  Resp.ID = Client.raw();
+
+  writeMessage(Client, std::move(Resp));
+}
+
+HANDLER(spawnProcess)
 {
   std::clog << __PRETTY_FUNCTION__ << std::endl;
 
@@ -347,5 +373,7 @@ void Server::spawnProcess(Socket& Client, std::string RawMessage)
 
   Process P = Process::spawn(SOpts);
 }
+
+#undef HANDLER
 
 } // namespace monomux

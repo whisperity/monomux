@@ -16,8 +16,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <cstring>
+#include <cstdlib>
 #include <type_traits>
+
+namespace detail
+{
+
+/// Prevents optimisation of \p memset calls by too clever compilers.
+inline void memset_manual(void* B, std::size_t Size, int Ch)
+{
+  volatile auto* P = reinterpret_cast<unsigned char*>(B);
+  while (Size--)
+  {
+    *P++ = Ch;
+  }
+}
+
+} // namespace detail
 
 /// This class wraps a C-style struct, a "Plain Old Data" (POD) into a C++
 /// structure which ensures that the data is created zero-filled.
@@ -35,10 +50,14 @@ template <typename T> struct POD
   const T* operator->() const { return &Data; }
 
   /// Creates an empty space where \p T fits.
-  POD() { reset(); }
+  POD()
+  {
+    static_assert(sizeof(*this) == sizeof(T), "Extra padding is forbidden!");
+    reset();
+  }
 
   /// Clears the data area of \p T.
-  void reset() { std::memset(&Data, 0, sizeof(T)); }
+  void reset() { detail::memset_manual(&Data, 0, sizeof(T)); }
 
 private:
   T Data;

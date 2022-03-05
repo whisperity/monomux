@@ -18,6 +18,7 @@
  */
 #include "ServerConnection.hpp"
 #include "Message.hpp"
+#include "SocketMessaging.hpp"
 
 #include <iostream>
 #include <utility>
@@ -40,18 +41,23 @@ std::optional<ServerConnection> ServerConnection::create(std::string SocketPath)
   return std::nullopt;
 }
 
-ServerConnection::ServerConnection(Socket&& ConnSock)
-  : Connection(std::move(ConnSock))
-{}
+ServerConnection::ServerConnection(Socket&& ControlSock)
+  : ControlSocket(std::move(ControlSock))
+{
+  writeMessage(ControlSocket, request::ClientID{});
+  std::string Data = ControlSocket.read(128);
+  std::cout << "Received data: " << Data << "\n";
+
+  // If the control socket is established, establish another connection for the
+  // data socket.
+}
 
 void ServerConnection::requestSpawnProcess(const Process::SpawnOptions& Opts)
 {
   request::SpawnProcess Msg;
   Msg.ProcessName = Opts.Program;
 
-  std::string Data = request::SpawnProcess::encode(Msg);
-  Connection.write(kindToStr(MessageKind::REQ_SpawnProcess));
-  Connection.write(std::move(Data));
+  writeMessage(ControlSocket, std::move(Msg));
 }
 
 } // namespace monomux
