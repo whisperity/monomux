@@ -1,0 +1,73 @@
+name: "Build and continuous Package"
+
+on:
+  push:
+
+jobs:
+  lts-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        distribution: [
+          "ubuntu-18.04",
+          "ubuntu-20.04"
+        ]
+        compiler: [
+          "gcc",
+          "clang"
+        ]
+    name: "${{ matrix.distribution }} LTS, ${{ matrix.compiler }}"
+    runs-on: ${{ matrix.distribution }}
+    steps:
+      - name: "Install dependencies"
+        id: dependencies
+        run: |
+          sudo apt-get -y update
+
+          # Get the latest version of the compiler available for the
+          # distribution.
+          CC=$(apt-cache search $(echo "${{ matrix.compiler }}") | grep "^${{ matrix.compiler }}-" | cut -d "-" -f 1-2 | grep "\-[0-9]" | sort -rV | head -n 1)
+          if [[ "${{ matrix.compiler }}" == "gcc" ]];
+          then
+            CXX=$(echo ${CC} | sed 's/gcc/g++/')
+            # With GCC, you need to install G++-X to get C++ compilation.
+            sudo apt-get -y install ${CXX}
+          elif [[ "${{ matrix.compiler }}" == "clang" ]];
+          then
+            CXX=$(echo ${CC} | sed 's/clang/clang++/')
+            # Clang works both ways.
+            sudo apt-get -y install ${CC}
+          fi
+          echo "Using compiler ${CC} (${CXX})..."
+          echo "::set-output name=CC::${CC}"
+          echo "::set-output name=CXX::${CXX}"
+
+          sudo apt-get -y install \
+            cmake
+      - uses: actions/checkout@v2
+      - name: "Prepare build with CMake"
+        env:
+          CC: ${{ steps.dependencies.outputs.CC }}
+          CXX: ${{ steps.dependencies.outputs.CXX }}
+        run: |
+          cmake --version
+
+          # Ubuntu 18.04 ships with CMake 3.10 which does not recognise '-S' and
+          # '-B' properly.
+          mkdir Build
+          cd Build
+          cmake ../src \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: "Build"
+        run: |
+          cmake --build ./Build -- -j
+      # - name: "Clang-Tidy"
+      #   if: ${{ matrix.compiler == "clang" }}
+      #   env:
+      #     CC: ${{ steps.dependencies.outputs.CC }}
+      #   run: |
+      #     CLANG_TIDY=$(echo ${CC} | sed 's/clang/clang-tidy/')
+      #     sudo apt-get -y install ${CLANG_TIDY}
+      #     # Figure out how to automate this nicely.
+      #     # ${CLANG_TIDY} -p ./Build/compile_commands.json
