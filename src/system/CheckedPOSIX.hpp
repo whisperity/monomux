@@ -124,7 +124,9 @@ CheckedPOSIXThrow(Fn&& F, std::string ErrMsg, ErrTys&&... ErrorValues)
   if (!Result)
     throw std::system_error{Result.getError(), ErrMsg};
 
-  return Result.get();
+  // Make sure to not return an `int &` or something similar dangling!
+  std::remove_reference_t<decltype(Result.get())> Copy = Result.get();
+  return Copy;
 }
 
 /// Allows executing a system call with automatically handled \p errno checking.
