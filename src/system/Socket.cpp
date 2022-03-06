@@ -34,7 +34,7 @@ Socket Socket::create(std::string Path, bool InheritInChild)
   flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
     [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
-    "Error creating socket '" + Path + "'",
+    "socket()",
     -1);
 
   // TODO: Mask?
@@ -50,7 +50,7 @@ Socket Socket::create(std::string Path, bool InheritInChild)
                     reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
                     sizeof(SocketAddr));
     },
-    "Failed to bind '" + Path + "'",
+    "Failed to bind socket to path '" + Path + "'",
     -1);
 
   Socket S;
@@ -66,7 +66,7 @@ Socket Socket::open(std::string Path, bool InheritInChild)
   flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
     [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
-    "Error creating temporary client socket",
+    "socket()",
     -1);
 
   POD<struct ::sockaddr_un> SocketAddr;
@@ -80,7 +80,7 @@ Socket Socket::open(std::string Path, bool InheritInChild)
                        reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
                        sizeof(SocketAddr));
     },
-    "Failed to connect to '" + Path + "'",
+    "Failed to connect to path '" + Path + "'",
     -1);
 
   Socket S;
@@ -103,13 +103,13 @@ Socket Socket::wrap(fd&& FD)
   return S;
 }
 
-Socket::Socket(Socket&& RHS)
+Socket::Socket(Socket&& RHS) noexcept
   : Handle(std::move(RHS.Handle)), Path(std::move(RHS.Path)),
     Owning(RHS.Owning), CleanupPossible(RHS.CleanupPossible), Open(RHS.Open),
     Listening(RHS.Listening)
 {}
 
-Socket& Socket::operator=(Socket&& RHS)
+Socket& Socket::operator=(Socket&& RHS) noexcept
 {
   if (this == &RHS)
     return *this;
@@ -123,7 +123,7 @@ Socket& Socket::operator=(Socket&& RHS)
   return *this;
 }
 
-Socket::~Socket()
+Socket::~Socket() noexcept
 {
   if (!Handle.has())
     return;
@@ -134,7 +134,7 @@ Socket::~Socket()
       CheckedPOSIX([this] { return ::unlink(Path.c_str()); }, -1);
     if (!RemoveResult)
     {
-      std::cerr << "Failed to remove '" << Path
+      std::cerr << "Failed to remove file '" << Path
                 << "' when closing the socket.\n";
       std::cerr << std::strerror(RemoveResult.getError().value()) << std::endl;
     }
@@ -272,7 +272,7 @@ void Socket::write(std::string Data)
       break;
     }
 
-    if (SentBytes.get() <= SV.size())
+    if (static_cast<std::size_t>(SentBytes.get()) <= SV.size())
       SV.remove_prefix(SentBytes.get());
     else
       SV.remove_prefix(SV.size());

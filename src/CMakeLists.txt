@@ -40,6 +40,9 @@ add_executable(monomux
   server/Server.Main.cpp
   server/Server.cpp
 
+  system/epoll.cpp
+  system/Environment.cpp
+  system/fd.cpp
   system/Process.cpp
   system/Pty.cpp
   system/Socket.cpp

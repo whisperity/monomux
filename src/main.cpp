@@ -79,55 +79,6 @@ Options:
   cout << endl;
 }
 
-namespace monomux
-{
-
-enum class ForkResult
-{
-  Error,
-  Parent,
-  Child
-};
-
-/// Performs \p fork() on the current process and executes the given two actions
-/// in the remaining parent and the created child process.
-template <typename ParentFn, typename ChildFn>
-static ForkResult fork(ParentFn&& Parent, ChildFn&& Child)
-{
-  auto ForkResult =
-    CheckedPOSIXThrow([] { return ::fork(); }, "fork() failed", -1);
-  switch (ForkResult)
-  {
-    case -1:
-      // Fork failed.
-      // TODO: Something like llvm_unreachable() which hard-destroys us at hit.
-      unreachable("fork failed.");
-    case 0:
-      // Running in the child.
-      Child();
-      return ForkResult::Child;
-    default:
-      Parent();
-      return ForkResult::Parent;
-  }
-}
-
-/// Shorthand for \p fork() where the child continues execution normally.
-template <typename Fn> static void forkAndSpecialInParent(Fn&& F)
-{
-  fork(F, [] { return; });
-}
-
-/// Shorthand for \p fork() where the parent continues execution normally.
-template <typename Fn> static void forkAndSpecialInChild(Fn&& F)
-{
-  fork([] { return; }, F);
-}
-
-} // namespace monomux
-
-int serve() { return 0; }
-
 int main(int ArgC, char* ArgV[])
 {
   server::Options ServerOpts;
@@ -189,18 +140,24 @@ int main(int ArgC, char* ArgV[])
                 << std::endl;
 
       ServerOpts.ServerMode = true;
-      forkAndSpecialInChild([&ServerOpts, &ArgV] {
-        // Perform the server restart in the child, so it gets disowned when we
-        // eventually exit, and we can remain the client.
-        server::exec(ServerOpts, ArgV[0]);
-      });
+      Process::fork(
+        [] { /* In the parent, continue. */
+             return;
+        },
+        [&ServerOpts, &ArgV] {
+          // Perform the server restart in the child, so it gets
+          // disowned when we eventually exit, and we can remain the
+          // client.
+          server::exec(ServerOpts, ArgV[0]);
+        });
+
+      ToServer = client::connect(ClientOpts, true);
     }
 
-    ToServer = client::connect(ClientOpts, true);
     ClientOpts.Connection = std::move(ToServer);
   }
 
-  return client::main(ClientOpts);
+  // return client::main(ClientOpts);
 
 
   if (ArgC >= 2)

@@ -50,7 +50,7 @@ enum class MessageKind : std::uint16_t
   REQ_SpawnProcess = 4000,
 };
 
-inline MessageKind kindFromStr(const std::string& Str)
+inline MessageKind kindFromStr(const std::string& Str) noexcept
 {
   MessageKind MK;
   {
@@ -62,7 +62,7 @@ inline MessageKind kindFromStr(const std::string& Str)
   return MK;
 }
 
-inline std::string kindToStr(MessageKind MK)
+inline std::string kindToStr(MessageKind MK) noexcept
 {
   std::string Str;
   Str.resize(sizeof(MessageKind));

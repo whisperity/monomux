@@ -18,6 +18,8 @@
  */
 #pragma once
 
+#include "CheckedPOSIX.hpp"
+
 #include <map>
 #include <optional>
 #include <string>
@@ -33,6 +35,7 @@ namespace monomux
 class Process
 {
 public:
+  /// Type alias for the raw process handle type on the platform.
   using handle = ::pid_t;
 
   struct SpawnOptions
@@ -46,6 +49,7 @@ public:
 
   handle Handle;
 
+public:
   /// Replaces the current process (as if by calling the \p exec() family) in
   /// the system with the started one.
   ///
@@ -61,6 +65,22 @@ public:
   ///
   /// \note This call does NOT return in the child!
   static Process spawn(const SpawnOptions& Opts);
+
+  /// \p fork(): Ask the kernel to create an exact duplicate of the current
+  /// process. The specified callbacks \p ParentAction and \p ChildAction will
+  /// be run in the parent and the child process, respectively.
+  ///
+  /// \note Execution continues normally after the callbacks retur returnn!
+  template <typename ParentFn, typename ChildFn>
+  static void fork(ParentFn ParentAction, ChildFn ChildAction)
+  {
+    auto ForkResult = CheckedPOSIXThrow([] { return ::fork(); }, "fork()", -1);
+
+    if (ForkResult == 0)
+      ChildAction();
+    else
+      ParentAction();
+  }
 };
 
 } // namespace monomux

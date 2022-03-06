@@ -43,10 +43,10 @@ public:
     : Value(std::move(Value)), Errored(Errored), ErrorCode(Error)
   {}
 
-  operator bool() const { return !Errored; }
-  std::error_code getError() const { return ErrorCode; }
-  R& get() { return Value; }
-  const R& get() const { return Value; }
+  operator bool() const noexcept { return !Errored; }
+  std::error_code getError() const noexcept { return ErrorCode; }
+  R& get() noexcept { return Value; }
+  const R& get() const noexcept { return Value; }
 };
 
 template <> struct Result<void>
@@ -60,12 +60,11 @@ public:
     : Errored(Errored), ErrorCode(Error)
   {}
 
-  operator bool() const { return !Errored; }
-  std::error_code getError() const { return ErrorCode; }
+  operator bool() const noexcept { return !Errored; }
+  std::error_code getError() const noexcept { return ErrorCode; }
 };
 
 } // namespace detail
-} // namespace monomux
 
 /// Allows executing a system call with automatically handled \p errno checking.
 ///
@@ -86,7 +85,7 @@ public:
 ///     }
 ///     Open.get(); // Obtain the return value from the lambda.
 template <typename Fn, typename... ErrTys>
-decltype(auto) CheckedPOSIX(Fn&& F, ErrTys&&... ErrorValues)
+decltype(auto) CheckedPOSIX(Fn&& F, ErrTys&&... ErrorValues) noexcept
 {
   using namespace monomux::detail;
   static_assert(!std::is_same_v<decltype(F()), void>,
@@ -151,7 +150,7 @@ CheckedPOSIXThrow(Fn&& F, std::string ErrMsg, ErrTys&&... ErrorValues)
 ///       // Do something as the call failed.
 ///     }
 ///     Open.get(); // Obtain the return value from the lambda.
-template <typename Fn> decltype(auto) CheckedPOSIX(Fn&& F)
+template <typename Fn> decltype(auto) CheckedPOSIX(Fn&& F) noexcept
 {
   using namespace monomux::detail;
   bool Errored = false;
@@ -172,3 +171,5 @@ template <typename Fn> decltype(auto) CheckedPOSIX(Fn&& F)
       std::make_error_code(static_cast<std::errc>(errno))};
   }
 }
+
+} // namespace monomux

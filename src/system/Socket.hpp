@@ -53,16 +53,16 @@ public:
 
   /// Closes the connection, and if the socket was created by this instance,
   /// clears it up.
-  ~Socket();
+  ~Socket() noexcept;
 
-  Socket(Socket&&);
-  Socket& operator=(Socket&&);
+  Socket(Socket&&) noexcept;
+  Socket& operator=(Socket&&) noexcept;
 
   /// Returns the raw file descriptor for the underlying resource.
-  raw_fd raw() const { return Handle.get(); }
+  raw_fd raw() const noexcept { return Handle.get(); }
 
   /// Returns the associated path with the socket.
-  const std::string& getPath() const { return Path; }
+  const std::string& getPath() const noexcept { return Path; }
 
   /// Marks the socket as a listen socket via the \p listen() syscall.
   ///
@@ -75,7 +75,7 @@ public:
   /// Returns whether the instance believes that the underlying resource is
   /// still open. This is an "a posteriori" method. Certain accesses WILL set
   /// the flag to be not open anymore.
-  bool believeConnectionOpen() const { return Open; }
+  bool believeConnectionOpen() const noexcept { return Open; }
 
   /// Write \p Data to the socket.
   void write(std::string Data);

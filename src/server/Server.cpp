@@ -19,9 +19,11 @@
 #include "Server.hpp"
 #include "control/Message.hpp"
 #include "control/SocketMessaging.hpp"
+#include "system/CheckedPOSIX.hpp"
 #include "system/Environment.hpp"
 #include "system/POD.hpp"
 #include "system/Process.hpp"
+#include "system/epoll.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -35,136 +37,6 @@
 
 namespace monomux
 {
-
-namespace detail
-{
-
-/// Wrapper over an epoll(7) structure.
-class EPoll
-{
-private:
-  raw_fd ListenSocket; // Non-owning.
-  fd EPollMasterFD;
-  POD<struct ::epoll_event> MainEvent;      // Used to register events.
-  std::vector<struct ::epoll_event> Events; // Contains events that fired.
-
-  friend class EPollListener;
-
-  /// RAII object that manages assigning a socket into the epoll(7) structure.
-  class EPollListener
-  {
-  private:
-    EPoll& Master;
-    raw_fd SocketToListen;
-
-  public:
-    EPollListener(EPoll& Master, raw_fd Socket)
-      : Master(Master), SocketToListen(Socket)
-    {
-      Master.MainEvent->data.fd = Socket;
-      Master.MainEvent->events = EPOLLIN | EPOLLET;
-      CheckedPOSIXThrow(
-        [&Master, Socket] {
-          return ::epoll_ctl(
-            Master.EPollMasterFD, EPOLL_CTL_ADD, Socket, &Master.MainEvent);
-        },
-        "epoll_ctl registering client socket",
-        -1);
-      std::clog << "Start listening for " << SocketToListen << std::endl;
-    }
-
-    ~EPollListener()
-    {
-      if (SocketToListen == InvalidFD)
-        return;
-
-      std::clog << "No longer listening on " << SocketToListen << std::endl;
-      CheckedPOSIX(
-        [this] {
-          return ::epoll_ctl(Master.EPollMasterFD,
-                             EPOLL_CTL_DEL,
-                             SocketToListen,
-                             &Master.MainEvent);
-        },
-        -1);
-    }
-
-    EPollListener(EPollListener&& RHS)
-      : Master(RHS.Master), SocketToListen(RHS.SocketToListen)
-    {
-      RHS.SocketToListen = InvalidFD;
-    }
-  };
-
-  std::map<raw_fd, EPollListener> Listeners;
-
-public:
-  std::size_t maxEventCount() const { return Events.size(); }
-
-  EPoll(raw_fd ListenSocket, std::size_t EventCount)
-  {
-    // Create a file descriptor to be monitored by EPoll.
-    EPollMasterFD =
-      CheckedPOSIXThrow([EventCount] { return ::epoll_create(EventCount); },
-                        "epoll_create()",
-                        -1);
-    setNonBlockingCloseOnExec(EPollMasterFD.get());
-    Events.resize(EventCount);
-
-    // Register the main socket into the event poller.
-    MainEvent->data.fd = ListenSocket;
-    MainEvent->events = EPOLLIN | EPOLLET;
-    CheckedPOSIXThrow(
-      [this, ListenSocket] {
-        return ::epoll_ctl(
-          EPollMasterFD, EPOLL_CTL_ADD, ListenSocket, &MainEvent);
-      },
-      "epoll_ctl registering main",
-      -1);
-  }
-
-  /// Waits for events to occur. Returns the number of file descriptors
-  /// affected.
-  std::size_t wait()
-  {
-    return CheckedPOSIXThrow(
-      [this] {
-        return ::epoll_wait(EPollMasterFD, Events.data(), Events.size(), -1);
-      },
-      "epoll_wait",
-      -1);
-  }
-
-  struct ::epoll_event& operator[](std::size_t Index)
-  {
-    return Events.at(Index);
-  }
-
-  void registerListenOn(raw_fd SocketFD)
-  {
-    Listeners.try_emplace(SocketFD, EPollListener{*this, SocketFD});
-  }
-
-  void stopListenOn(raw_fd SocketFD)
-  {
-    auto It = Listeners.find(SocketFD);
-    if (It == Listeners.end())
-      return;
-    Listeners.erase(It);
-  }
-};
-
-} // namespace detail
-
-bool Server::currentProcessMarkedAsServer() noexcept
-{
-  return getEnv("MONOMUX_SERVER") == "YES";
-}
-
-void Server::consumeProcessMarkedAsServer() noexcept
-{
-  ::unsetenv("MONOMUX_SERVER");
-}
 
 std::string Server::getServerSocketPath()
 {
@@ -189,16 +61,18 @@ int Server::listen()
   POD<struct ::sockaddr_storage> SocketAddr;
   POD<::socklen_t> SocketLen;
 
-  addStatusFlag(Sock.raw(), O_NONBLOCK);
-  Poll = new detail::EPoll{Sock.raw(), 16};
+  fd::addStatusFlag(Sock.raw(), O_NONBLOCK);
+  Poll = new EPoll{16};
+  Poll->listen(Sock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
 
   while (TerminateListenLoop.load() == false)
   {
     const std::size_t NumTriggeredFDs = Poll->wait();
-    std::clog << NumTriggeredFDs << " events received!" << std::endl;
+    std::clog << "DEBUG: Server - " << NumTriggeredFDs << " events received!"
+              << std::endl;
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
-      if ((*Poll)[I].data.fd == Sock.raw())
+      if (Poll->fdAt(I) == Sock.raw())
       {
         // Event occured on the main socket.
         auto Established = CheckedPOSIX(
@@ -239,15 +113,15 @@ int Server::listen()
           {
             // The client with the same socket FD is already known.
             // TODO: What is the good way of handling this?
-            std::clog << "Stale socket " << Client << " left behind!"
-                      << std::endl;
+            std::clog << "DEBUG: Server - Stale socket " << Client
+                      << " left behind!" << std::endl;
             exitCallback(*ExistingIt->second);
-            Poll->stopListenOn(Client);
+            Poll->stop(Client);
             ClientSockets.erase(ExistingIt);
           }
 
-          setNonBlockingCloseOnExec(Client);
-          Poll->registerListenOn(Client);
+          fd::setNonBlockingCloseOnExec(Client);
+          Poll->listen(Client, /* Incoming =*/true, /* Outgoing =*/false);
           ClientSockets[Client] =
             std::make_unique<Socket>(Socket::wrap(fd(Client)));
           acceptCallback(*ClientSockets[Client]);
@@ -256,8 +130,8 @@ int Server::listen()
       else
       {
         // Event occured on another (connected client) socket.
-        raw_fd Client = (*Poll)[I].data.fd;
-        std::cout << "Data on client " << Client << std::endl;
+        raw_fd Client = Poll->fdAt(I);
+        std::clog << "DEBUG: Server - Data on client " << Client << std::endl;
 
         auto It = ClientSockets.find(Client);
         if (It != ClientSockets.end())
@@ -294,8 +168,7 @@ void Server::readCallback(Socket& Client)
   {
     // We realise the client disconnected during an attempt to read.
     exitCallback(Client);
-    if (Poll)
-      Poll->stopListenOn(Client.raw());
+    Poll->stop(Client.raw());
     ClientSockets.erase(Client.raw());
     return;
   }

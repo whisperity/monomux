@@ -30,12 +30,7 @@
 namespace monomux
 {
 
-namespace detail
-{
-
 class EPoll;
-
-} // namespace detail
 
 /// The monomux server is responsible for creating child processes of sessions.
 /// Clients communicate with a \p Server instance to obtain information about
@@ -43,10 +38,6 @@ class EPoll;
 class Server
 {
 public:
-  static bool currentProcessMarkedAsServer() noexcept;
-  /// Remove the markings from the current process that indicated that it is a
-  /// server.
-  static void consumeProcessMarkedAsServer() noexcept;
   static std::string getServerSocketPath();
 
   /// Create a new server that will listen on the associated socket.
@@ -56,7 +47,7 @@ public:
 
   /// Start actively listening and handling connections.
   ///
-  /// \note This is a blocking call.
+  /// \note This is a blocking call!
   int listen();
 
 private:
@@ -65,7 +56,7 @@ private:
   std::map<raw_fd, std::unique_ptr<Socket>> ClientSockets;
 
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
-  detail::EPoll* Poll = nullptr;
+  EPoll* Poll = nullptr;
 
   void acceptCallback(Socket& Client);
   void readCallback(Socket& Client);

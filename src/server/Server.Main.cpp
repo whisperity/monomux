@@ -62,14 +62,13 @@ int main(Options& Opts)
   Server S = Server(std::move(ServerSock));
   // TODO: Signal handler! If interrupted, the cleanup does not happen here.
 
-  std::cout << "Server socket created, ready!" << std::endl;
-
+  std::cout << "INFO: Monomux Server starting to listen..." << std::endl;
   int R = S.listen();
-  std::cout << "Server listen exited with " << R << std::endl;
+  std::cout << "INFO: Server listen exited with " << R << std::endl;
 
   std::this_thread::sleep_for(std::chrono::seconds(30));
 
-  std::cout << "Server shut down..." << std::endl;
+  std::cout << "INFO: Server shut down..." << std::endl;
   return R;
 }
 

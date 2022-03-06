@@ -18,48 +18,43 @@
  */
 #pragma once
 
-#include "CheckedPOSIX.hpp"
-
 #include <iostream>
 
 #include <fcntl.h>
-#include <unistd.h>
 
 namespace monomux
 {
 
+/// The type used by system calls dealing with flags.
 using flag_t = decltype(O_RDONLY);
+/// The file descriptor type on the system.
 using raw_fd = decltype(::open("", 0));
+
 inline constexpr raw_fd InvalidFD = -1;
 
 /// This is a smart file descriptor wrapper which will call \p close() on the
 /// underyling resource at the end of its life.
 class fd
 {
+  raw_fd Handle;
+
 public:
   /// Creates an empty file descriptor that does not wrap anything.
   fd() noexcept : Handle(InvalidFD) {}
 
-  /// Wrap the resource handle into the RAII object.
+  /// Wrap the raw platform resource handle into the RAII object.
   fd(raw_fd Handle) noexcept : Handle(Handle)
   {
-    std::cerr << "FD " << Handle << " opened." << std::endl;
+    std::clog << "DEBUG: FD #" << Handle << " opened." << std::endl;
   }
 
-  fd(fd&& RHS) : Handle(RHS.release()) {}
-  fd& operator=(fd&& RHS)
+  fd(fd&& RHS) noexcept : Handle(RHS.release()) {}
+  fd& operator=(fd&& RHS) noexcept
   {
     if (this == &RHS)
       return *this;
     Handle = RHS.release();
     return *this;
-  }
-
-  /// Closes a **raw** file descriptor.
-  static void close(raw_fd FD) noexcept
-  {
-    std::cerr << "Closing FD " << FD << "..." << std::endl;
-    CheckedPOSIX([FD] { return ::close(FD); }, -1);
   }
 
   /// When the wrapper dies, if the object owned a file descriptor, close it.
@@ -70,100 +65,45 @@ public:
     close(release());
   }
 
-  bool has() const { return Handle != InvalidFD; }
+  bool has() const noexcept { return Handle != InvalidFD; }
 
   /// Convert to the system primitive type.
-  operator raw_fd() const { return Handle; }
+  operator raw_fd() const noexcept { return Handle; }
 
   /// Convert to the system primitive type.
-  raw_fd get() const { return Handle; }
+  raw_fd get() const noexcept { return Handle; }
 
   /// Takes the file descriptor from the current object and changes it to not
   /// manage anything.
-  [[nodiscard]] raw_fd release()
+  [[nodiscard]] raw_fd release() noexcept
   {
     raw_fd R = Handle;
     Handle = InvalidFD;
     return R;
   }
 
-private:
-  raw_fd Handle;
+public:
+  /// Closes a **raw** file descriptor.
+  static void close(raw_fd FD) noexcept;
+
+  /// Adds the given \p Flag, from \p fcntl() flags, to the flags of the given
+  /// file descriptor \p FD.
+  static void addStatusFlag(raw_fd FD, flag_t Flag) noexcept;
+  /// Removes the given \p Flag, from \p fcntl() flags, from the flags of the
+  /// given file descriptor \p FD.
+  static void removeStatusFlag(raw_fd FD, flag_t Flag) noexcept;
+
+  /// Adds the given \p Flag, from \p fcntl() flags, to the flags of the given
+  /// file descriptor \p FD.
+  static void addDescriptorFlag(raw_fd FD, flag_t Flag) noexcept;
+  /// Removes the given \p Flag, from \p fcntl() flags, from the flags of the
+  /// given file descriptor \p FD.
+  static void removeDescriptorFlag(raw_fd FD, flag_t Flag) noexcept;
+
+  /// Shortcut function that sets \p O_NONBLOCK and \p FD_CLOEXEC on a file.
+  /// This results in the file set to not block when reading from, and to not
+  /// be inherited by child processes in a \p fork() - \p exec() situation.
+  static void setNonBlockingCloseOnExec(raw_fd FD) noexcept;
 };
-
-/// Adds the given \p Flag, from \p fcntl() flags, to the flags of the given
-/// file descriptor \p FD.
-inline void addStatusFlag(raw_fd FD, flag_t Flag)
-{
-  flag_t FlagsNow;
-  CheckedPOSIX(
-    [FD, &FlagsNow] {
-      FlagsNow = ::fcntl(FD, F_GETFL);
-      return FlagsNow;
-    },
-    -1);
-
-  FlagsNow |= Flag;
-
-  CheckedPOSIX([FD, &FlagsNow] { return ::fcntl(FD, F_SETFL, FlagsNow); }, -1);
-}
-
-/// Removes the given \p Flag, from \p fcntl() flags, from the flags of the
-/// given file descriptor \p FD.
-inline void removeStatusFlag(raw_fd FD, flag_t Flag)
-{
-  flag_t FlagsNow;
-  CheckedPOSIX(
-    [FD, &FlagsNow] {
-      FlagsNow = ::fcntl(FD, F_GETFL);
-      return FlagsNow;
-    },
-    -1);
-
-  FlagsNow &= (~Flag);
-
-  CheckedPOSIX([FD, &FlagsNow] { return ::fcntl(FD, F_SETFL, FlagsNow); }, -1);
-}
-
-/// Adds the given \p Flag, from \p fcntl() flags, to the flags of the given
-/// file descriptor \p FD.
-inline void addDescriptorFlag(raw_fd FD, flag_t Flag)
-{
-  flag_t FlagsNow;
-  CheckedPOSIX(
-    [FD, &FlagsNow] {
-      FlagsNow = ::fcntl(FD, F_GETFD);
-      return FlagsNow;
-    },
-    -1);
-
-  FlagsNow |= Flag;
-
-  CheckedPOSIX([FD, &FlagsNow] { return ::fcntl(FD, F_SETFD, FlagsNow); }, -1);
-}
-
-/// Removes the given \p Flag, from \p fcntl() flags, from the flags of the
-/// given file descriptor \p FD.
-inline void removeDescriptorFlag(raw_fd FD, flag_t Flag)
-{
-  flag_t FlagsNow;
-  CheckedPOSIX(
-    [FD, &FlagsNow] {
-      FlagsNow = ::fcntl(FD, F_GETFD);
-      return FlagsNow;
-    },
-    -1);
-
-  FlagsNow &= (~Flag);
-
-  CheckedPOSIX([FD, &FlagsNow] { return ::fcntl(FD, F_SETFD, FlagsNow); }, -1);
-}
-
-/// Shortcut function that sets O_NONBLOCK and FD_CLOEXEC on a file.
-inline void setNonBlockingCloseOnExec(raw_fd FD)
-{
-  addStatusFlag(FD, O_NONBLOCK);
-  addDescriptorFlag(FD, FD_CLOEXEC);
-}
 
 } // namespace monomux

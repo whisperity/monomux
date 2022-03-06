@@ -16,14 +16,20 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
+
 #include <cstdlib>
+#include <cstring>
 #include <type_traits>
+
+namespace monomux
+{
 
 namespace detail
 {
 
 /// Prevents optimisation of \p memset calls by too clever compilers.
-inline void memset_manual(void* B, std::size_t Size, int Ch)
+inline void memset_manual(void* B, std::size_t Size, int Ch) noexcept
 {
   volatile auto* P = reinterpret_cast<unsigned char*>(B);
   while (Size--)
@@ -48,17 +54,49 @@ template <typename T> struct POD
   const T* operator&() const { return &Data; }
   T* operator->() { return &Data; }
   const T* operator->() const { return &Data; }
+  operator T&() { return Data; }
+  operator const T&() const { return Data; }
 
   /// Creates an empty space where \p T fits.
-  POD()
+  POD() noexcept
   {
     static_assert(sizeof(*this) == sizeof(T), "Extra padding is forbidden!");
     reset();
   }
+  ~POD() noexcept { reset(); }
 
-  /// Clears the data area of \p T.
-  void reset() { detail::memset_manual(&Data, 0, sizeof(T)); }
+  POD(const POD& RHS) noexcept { std::memcpy(&Data, &RHS.Data, sizeof(T)); }
+
+  POD(POD&& RHS) noexcept
+  {
+    std::memcpy(&Data, &RHS.Data, sizeof(T));
+    RHS.reset();
+  }
+
+  POD& operator=(const POD& RHS) noexcept
+  {
+    if (this == &RHS)
+      return *this;
+
+    std::memcpy(&Data, &RHS.Data, sizeof(T));
+    return *this;
+  }
+
+  POD& operator=(POD&& RHS) noexcept
+  {
+    if (this == &RHS)
+      return *this;
+
+    std::memcpy(&Data, &RHS.Data, sizeof(T));
+    RHS.reset();
+    return *this;
+  }
 
 private:
   T Data;
+
+  /// Clears the data area of \p T.
+  void reset() { detail::memset_manual(&Data, 0, sizeof(T)); }
 };
+
+} // namespace monomux

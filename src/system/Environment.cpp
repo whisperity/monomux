@@ -16,17 +16,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
+#include "Environment.hpp"
 
-#include <string>
+#include <cstdlib>
 
 namespace monomux
 {
 
-/// Returns the value of the environment variable \p Key.
-///
-/// This function is a safe alternative to \p getenv() as it immediately
-/// allocates a *new* string with the result.
-std::string getEnv(const std::string& Key);
+std::string getEnv(const std::string& Key)
+{
+  const char* const Value = std::getenv(Key.c_str());
+  if (!Value)
+    return {};
+  return {Value};
+}
 
 } // namespace monomux
