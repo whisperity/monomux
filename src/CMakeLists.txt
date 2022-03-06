@@ -39,6 +39,7 @@ add_executable(monomux
 
   server/Server.Main.cpp
   server/Server.cpp
+  server/Server.Dispatch.cpp
 
   system/epoll.cpp
   system/Environment.cpp

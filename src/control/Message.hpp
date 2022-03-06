@@ -31,6 +31,9 @@ namespace request
 
 /// A request from the client to the server to deliver the identity information
 /// to the client.
+///
+/// This message is sent as the initial handshake after a connection is
+/// established.
 struct ClientID
 {
   MONOMUX_MESSAGE(REQ_ClientID, ClientID)
@@ -47,11 +50,15 @@ struct SpawnProcess
 namespace response
 {
 
-/// The response to the \p request::ClientID.
+/// The response to the \p request::ClientID, sent by the server.
 struct ClientID
 {
   MONOMUX_MESSAGE(RSP_ClientID, ClientID)
+  /// The identity number of the client on the server it has connected to.
   std::size_t ID;
+  /// A single-use number the client can use in other unassociated requests
+  /// to prove its identity.
+  std::size_t Nonce;
 };
 
 } // namespace response

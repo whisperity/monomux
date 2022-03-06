@@ -44,9 +44,19 @@ std::optional<ServerConnection> ServerConnection::create(std::string SocketPath)
 ServerConnection::ServerConnection(Socket&& ControlSock)
   : ControlSocket(std::move(ControlSock))
 {
+  // Perform a handshake with the server.
   writeMessage(ControlSocket, request::ClientID{});
   std::string Data = ControlSocket.read(128);
   std::cout << "Received data: " << Data << "\n";
+
+  // TODO: Decode the *Kind* from the message first!
+  auto R = response::ClientID::decode(Data);
+  if (!R.has_value())
+    std::cerr << "ERROR: Invalid response from server to handshake!"
+              << std::endl;
+  else
+    std::clog << "DEBUG: Client is " << R->ID << " (with nonce " << R->Nonce
+              << ')' << std::endl;
 
   // If the control socket is established, establish another connection for the
   // data socket.

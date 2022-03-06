@@ -25,7 +25,7 @@
 #ifndef MONOMUX_MESSAGE
 #define MONOMUX_MESSAGE(KIND, NAME)                                            \
   static constexpr MessageKind Kind = MessageKind::KIND;                       \
-  static std::optional<NAME> decode(const std::string& Buffer);                \
+  static std::optional<NAME> decode(std::string_view Buffer);                  \
   static std::string encode(const NAME& Object);
 #endif
 

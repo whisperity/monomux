@@ -20,11 +20,35 @@
 
 #include <cstring>
 
-#define DECODE(NAME) std::optional<NAME> NAME::decode(const std::string& Buffer)
+#define DECODE(NAME) std::optional<NAME> NAME::decode(std::string_view Buffer)
 #define ENCODE(NAME) std::string NAME::encode(const NAME& Object)
 
 namespace monomux
 {
+
+/// Reads \p Literal from the \p Data and returns a new \p string_view that
+/// points after the consumed \p Literal, or the empty \p string_view if it was
+/// not found.
+static std::string_view consume(std::string_view Data,
+                                const std::string_view Literal)
+{
+  auto Pos = Data.find(Literal);
+  if (Pos != 0)
+    return {};
+  Data.remove_prefix(Literal.size());
+  return Data;
+}
+
+/// Returns the \p string_view into \p Data until the first occurrence of
+/// \p Literal.
+static std::string_view takeUntil(std::string_view Data,
+                                  const std::string_view Literal)
+{
+  auto Pos = Data.find(Literal);
+  if (Pos == std::string_view::npos)
+    return {};
+  return Data.substr(0, Pos);
+}
 
 namespace request
 {
@@ -32,15 +56,13 @@ namespace request
 ENCODE(ClientID)
 {
   (void)Object;
-  return "<CLIENT-ID></CLIENT-ID>";
+  return "<CLIENT-ID />";
 }
 DECODE(ClientID)
 {
-  ClientID Ret;
-  auto P = Buffer.find("<CLIENT-ID></CLIENT-ID>");
-  if (P == std::string::npos)
-    return std::nullopt;
-  return Ret;
+  if (Buffer == "<CLIENT-ID />")
+    return ClientID{};
+  return std::nullopt;
 }
 
 ENCODE(SpawnProcess)
@@ -80,7 +102,9 @@ ENCODE(ClientID)
 {
   std::string Ret = "<CLIENT-ID>";
   Ret.append(std::to_string(Object.ID));
-  Ret.push_back('\0');
+  Ret.append("<NONCE>");
+  Ret.append(std::to_string(Object.Nonce));
+  Ret.append("</NONCE>");
   Ret.append("</CLIENT-ID>");
   return Ret;
 }
@@ -88,17 +112,27 @@ DECODE(ClientID)
 {
   ClientID Ret;
 
-  auto P = Buffer.find("<CLIENT-ID>");
-  if (P == std::string::npos)
+  auto View = consume(Buffer, "<CLIENT-ID>");
+  if (View.empty())
     return std::nullopt;
-  P += std::strlen("<CLIENT-ID>");
 
-  auto SV = std::string_view{Buffer.data() + P, Buffer.size() - P};
-  P = SV.find('\0');
-  Ret.ID = std::stoull(std::string{SV.substr(0, P)});
-  SV.remove_prefix(P + 1);
+  auto ID = takeUntil(View, "<NONCE>");
+  if (ID.empty())
+    return std::nullopt;
+  Ret.ID = std::stoull(std::string{ID});
+  View.remove_prefix(ID.size());
 
-  if (SV != "</CLIENT-ID>")
+  View = consume(Buffer, "<NONCE>");
+  if (View.empty())
+    return std::nullopt;
+
+  auto Nonce = takeUntil(View, "</NONCE>");
+  if (Nonce.empty())
+    return std::nullopt;
+  Ret.Nonce = std::stoull(std::string{Nonce});
+  View.remove_prefix(Nonce.size());
+
+  if (View != "</CLIENT-ID>")
     return std::nullopt;
 
   return Ret;

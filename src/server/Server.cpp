@@ -18,21 +18,13 @@
  */
 #include "Server.hpp"
 #include "control/Message.hpp"
-#include "control/SocketMessaging.hpp"
 #include "system/CheckedPOSIX.hpp"
-#include "system/Environment.hpp"
 #include "system/POD.hpp"
-#include "system/Process.hpp"
-#include "system/epoll.hpp"
 
 #include <chrono>
 #include <iostream>
-#include <map>
 #include <thread>
-#include <utility>
-#include <vector>
 
-#include <sys/epoll.h>
 #include <sys/socket.h>
 
 namespace monomux
@@ -50,8 +42,6 @@ Server::~Server()
 {
   TerminateListenLoop.store(true);
   // TODO: Wake the poller so the loop can gracefully exit.
-  if (Poll)
-    delete Poll;
 }
 
 int Server::listen()
@@ -62,7 +52,7 @@ int Server::listen()
   POD<::socklen_t> SocketLen;
 
   fd::addStatusFlag(Sock.raw(), O_NONBLOCK);
-  Poll = new EPoll{16};
+  Poll = std::make_unique<EPoll>(8);
   Poll->listen(Sock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
 
   while (TerminateListenLoop.load() == false)
@@ -106,36 +96,36 @@ int Server::listen()
         else
         {
           // Start monitoring the accepted connection/socket.
-          raw_fd Client = Established.get();
+          raw_fd ClientFD = Established.get();
 
-          auto ExistingIt = ClientSockets.find(Client);
-          if (ExistingIt != ClientSockets.end())
+          auto ExistingIt = Clients.find(ClientFD);
+          if (ExistingIt != Clients.end())
           {
             // The client with the same socket FD is already known.
             // TODO: What is the good way of handling this?
-            std::clog << "DEBUG: Server - Stale socket " << Client
+            std::clog << "DEBUG: Server - Stale socket " << ClientFD
                       << " left behind!" << std::endl;
-            exitCallback(*ExistingIt->second);
-            Poll->stop(Client);
-            ClientSockets.erase(ExistingIt);
+            exitCallback(ExistingIt->second);
+            Poll->stop(ClientFD);
+            Clients.erase(ExistingIt);
           }
 
-          fd::setNonBlockingCloseOnExec(Client);
-          Poll->listen(Client, /* Incoming =*/true, /* Outgoing =*/false);
-          ClientSockets[Client] =
-            std::make_unique<Socket>(Socket::wrap(fd(Client)));
-          acceptCallback(*ClientSockets[Client]);
+          fd::setNonBlockingCloseOnExec(ClientFD);
+          Poll->listen(ClientFD, /* Incoming =*/true, /* Outgoing =*/false);
+          Clients.emplace(ClientFD,
+                          std::make_unique<Socket>(Socket::wrap(fd(ClientFD))));
+          acceptCallback(Clients.at(ClientFD));
         }
       }
       else
       {
         // Event occured on another (connected client) socket.
-        raw_fd Client = Poll->fdAt(I);
-        std::clog << "DEBUG: Server - Data on client " << Client << std::endl;
+        raw_fd ClientFD = Poll->fdAt(I);
+        std::clog << "DEBUG: Server - Data on client " << ClientFD << std::endl;
 
-        auto It = ClientSockets.find(Client);
-        if (It != ClientSockets.end())
-          readCallback(*It->second);
+        auto It = Clients.find(ClientFD);
+        if (It != Clients.end())
+          readCallback(It->second);
       }
     }
   }
@@ -143,33 +133,35 @@ int Server::listen()
   return 0;
 }
 
-void Server::acceptCallback(Socket& Client)
+void Server::acceptCallback(ClientData& Client)
 {
-  std::cout << "Client connected " << Client.raw() << std::endl;
+  std::cout << "Client connected " << Client.getControlSocket().raw()
+            << std::endl;
 }
 
-void Server::readCallback(Socket& Client)
+void Server::readCallback(ClientData& Client)
 {
-  std::cout << "Client " << Client.raw() << " has data!" << std::endl;
+  Socket& ClientSock = Client.getControlSocket();
+  std::cout << "Client " << ClientSock.raw() << " has data!" << std::endl;
 
   std::string Data;
   try
   {
-    Data = Client.read(1024);
+    Data = ClientSock.read(1024);
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when reading data from " << Client.raw() << ": "
+    std::cerr << "Error when reading data from " << ClientSock.raw() << ": "
               << Err.what() << std::endl;
     return;
   }
 
-  if (!Client.believeConnectionOpen())
+  if (!ClientSock.believeConnectionOpen())
   {
     // We realise the client disconnected during an attempt to read.
     exitCallback(Client);
-    Poll->stop(Client.raw());
-    ClientSockets.erase(Client.raw());
+    Poll->stop(ClientSock.raw());
+    Clients.erase(ClientSock.raw());
     return;
   }
 
@@ -189,64 +181,30 @@ void Server::readCallback(Socket& Client)
 
   std::cout << "Read data " << std::string_view{Data.data(), Data.size()}
             << std::endl;
-  Action->second(Client, std::move(Data));
+  Action->second(
+    Client,
+    std::string_view{Data.data() + sizeof(MK), Data.size() - sizeof(MK)});
 }
 
-void Server::exitCallback(Socket& Client)
+void Server::exitCallback(ClientData& Client)
 {
-  std::cout << "Client " << Client.raw() << " is leaving..." << std::endl;
+  std::cout << "Client " << Client.getControlSocket().raw() << " is leaving..."
+            << std::endl;
 }
 
-void Server::setUpDispatch()
+Server::ClientData::ClientData(std::unique_ptr<Socket> Connection)
+  : ID(Connection->raw()), ControlConnection(std::move(Connection))
+{}
+
+Server::ClientData::~ClientData() = default;
+
+static std::size_t NonceCounter = 0; // FIXME: Remove this.
+
+std::size_t Server::ClientData::makeNewNonce() noexcept
 {
-#define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
-#define MEMBER(NAME)                                                           \
-  std::bind(std::mem_fn(&Server::NAME),                                        \
-            this,                                                              \
-            std::placeholders::_1,                                             \
-            std::placeholders::_2)
-#define DISPATCH(K, FUNCTION) Dispatch.try_emplace(KIND(K), MEMBER(FUNCTION));
-#include "Server.Dispatch.ipp"
-#undef DISPATCH
-#undef MEMBER
-#undef KIND
+  // FIXME: Better random number generation.
+  Nonce = ++NonceCounter;
+  return Nonce;
 }
-
-#define HANDLER(NAME) void Server::NAME(Socket& Client, std::string RawMessage)
-
-HANDLER(clientID)
-{
-  std::clog << __PRETTY_FUNCTION__ << std::endl;
-
-  auto Msg = request::ClientID::decode(RawMessage);
-  if (!Msg)
-    return;
-
-  std::cout << "Client #" << Client.raw() << ": Request Client ID" << std::endl;
-
-  response::ClientID Resp;
-  Resp.ID = Client.raw();
-
-  writeMessage(Client, std::move(Resp));
-}
-
-HANDLER(spawnProcess)
-{
-  std::clog << __PRETTY_FUNCTION__ << std::endl;
-
-  auto Msg = request::SpawnProcess::decode(RawMessage);
-  if (!Msg)
-    return;
-
-  std::cout << "Spawn: " << Msg->ProcessName << std::endl;
-
-  Process::SpawnOptions SOpts;
-  SOpts.Program = Msg->ProcessName;
-  SOpts.CreatePTY = true;
-
-  Process P = Process::spawn(SOpts);
-}
-
-#undef HANDLER
 
 } // namespace monomux

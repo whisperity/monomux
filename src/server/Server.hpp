@@ -19,6 +19,7 @@
 #pragma once
 
 #include "system/Socket.hpp"
+#include "system/epoll.hpp"
 #include "system/fd.hpp"
 
 #include <atomic>
@@ -30,14 +31,39 @@
 namespace monomux
 {
 
-class EPoll;
-
 /// The monomux server is responsible for creating child processes of sessions.
 /// Clients communicate with a \p Server instance to obtain information about
 /// a session and to initiate attachment procedures.
 class Server
 {
 public:
+  /// Stores information about and associated resources to a connected client.
+  class ClientData
+  {
+  public:
+    ClientData(std::unique_ptr<Socket> Connection);
+    ~ClientData();
+
+    std::size_t id() const noexcept { return ID; }
+    /// Returns the most recent random-generated nonce for this client.
+    std::size_t nonce() const noexcept { return Nonce; }
+    /// Creates a new random number for the client, and returns it.
+    std::size_t makeNewNonce() noexcept;
+
+    Socket& getControlSocket() noexcept { return *ControlConnection; }
+    Socket* getDataSocket() noexcept { return DataConnection.get(); }
+
+  private:
+    std::size_t ID;
+    std::size_t Nonce = 0;
+
+    /// The control connection transcieves control information and commands.
+    std::unique_ptr<Socket> ControlConnection;
+
+    /// TODO: ?
+    std::unique_ptr<Socket> DataConnection;
+  };
+
   static std::string getServerSocketPath();
 
   /// Create a new server that will listen on the associated socket.
@@ -52,21 +78,24 @@ public:
 
 private:
   Socket Sock;
-  std::map<std::uint16_t, std::function<void(Socket&, std::string)>> Dispatch;
-  std::map<raw_fd, std::unique_ptr<Socket>> ClientSockets;
+  std::map<raw_fd, ClientData> Clients;
+
+  /// Maps \p MessageKind to handler functions.
+  std::map<std::uint16_t, std::function<void(ClientData&, std::string_view)>>
+    Dispatch;
 
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
-  EPoll* Poll = nullptr;
+  std::unique_ptr<EPoll> Poll;
 
-  void acceptCallback(Socket& Client);
-  void readCallback(Socket& Client);
-  void exitCallback(Socket& Client);
+  void acceptCallback(ClientData& Client);
+  void readCallback(ClientData& Client);
+  void exitCallback(ClientData& Client);
 
 private:
   void setUpDispatch();
 
 #define DISPATCH(KIND, FUNCTION_NAME)                                          \
-  void FUNCTION_NAME(Socket& Client, std::string RawMessage);
+  void FUNCTION_NAME(ClientData& Client, std::string_view Message);
 #include "Server.Dispatch.ipp"
 };
 
