@@ -32,15 +32,18 @@ endif()
 add_executable(monomux
   main.cpp
 
+  client/Client.Main.cpp
   client/ServerConnection.cpp
 
   control/Message.cpp
 
+  server/Server.Main.cpp
   server/Server.cpp
 
   system/Process.cpp
   system/Pty.cpp
   system/Socket.cpp
+  system/unreachable.cpp
   )
 target_include_directories(monomux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(monomux PUBLIC

@@ -59,7 +59,7 @@ public:
   /// returns the PID of the child, and execution resumes normally in the
   /// parent.
   ///
-  /// This call does NOT return in the child.
+  /// \note This call does NOT return in the child!
   static Process spawn(const SpawnOptions& Opts);
 };
 
