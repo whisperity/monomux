@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "ServerConnection.hpp"
-#include "Message.hpp"
-#include "SocketMessaging.hpp"
+#include "control/Message.hpp"
+#include "control/SocketMessaging.hpp"
 
 #include <iostream>
 #include <utility>

@@ -17,19 +17,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "fd.hpp"
 
-#include "MessageBase.hpp"
-#include "Socket.hpp"
+#include <array>
+
 
 namespace monomux
 {
 
-/// Auto-encodes the given \p Msg and writes it to the \p S socket.
-template <typename T> void writeMessage(Socket& S, T&& Msg)
+class Pty
 {
-  std::string Data = Msg.encode(Msg);
-  S.write(kindToStr(Msg.Kind));
-  S.write(std::move(Data));
-}
+  // private:
+public:
+  raw_fd Master, Slave;
+  // std::array<fd, 2> Pipes;
+
+public:
+  Pty();
+};
 
 } // namespace monomux

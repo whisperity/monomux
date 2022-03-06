@@ -1,1 +1,1 @@
-Checks: '-*,clang-diagnostic-*,llvm-namespace-comment,misc-*,-misc-non-private-member-variables-in-classes'
+Checks: '-*,clang-diagnostic-*,llvm-include-order,llvm-namespace-comment,misc-*,-misc-non-private-member-variables-in-classes'

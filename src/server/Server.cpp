@@ -17,11 +17,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Server.hpp"
-#include "Environment.hpp"
-#include "Message.hpp"
-#include "POD.hpp"
-#include "Process.hpp"
-#include "SocketMessaging.hpp"
+#include "control/Message.hpp"
+#include "control/SocketMessaging.hpp"
+#include "system/Environment.hpp"
+#include "system/POD.hpp"
+#include "system/Process.hpp"
 
 #include <chrono>
 #include <iostream>

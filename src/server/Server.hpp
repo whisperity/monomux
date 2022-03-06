@@ -18,8 +18,8 @@
  */
 #pragma once
 
-#include "Socket.hpp"
-#include "fd.hpp"
+#include "system/Socket.hpp"
+#include "system/fd.hpp"
 
 #include <atomic>
 #include <cstdint>

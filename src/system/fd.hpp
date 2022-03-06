@@ -29,7 +29,7 @@ namespace monomux
 {
 
 using flag_t = decltype(O_RDONLY);
-using raw_fd = decltype(::open(nullptr, 0));
+using raw_fd = decltype(::open("", 0));
 inline constexpr raw_fd InvalidFD = -1;
 
 /// This is a smart file descriptor wrapper which will call \p close() on the

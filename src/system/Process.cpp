@@ -62,10 +62,9 @@ static void allocCopyString(const std::string& Source,
     }
   }
 
-  CheckedPOSIXThrow(
-    [&Opts, NewArgv] { return ::execvp(Opts.Program.c_str(), NewArgv); },
-    "Executing process failed",
-    -1);
+  CheckedPOSIXThrow([&Opts, NewArgv] { return ::execvp(NewArgv[0], NewArgv); },
+                    "Executing process failed",
+                    -1);
   ::_Exit(EXIT_FAILURE); // [[noreturn]]
 }
 
@@ -77,7 +76,8 @@ Process Process::spawn(const SpawnOptions& Opts)
 
   handle ForkResult =
     CheckedPOSIXThrow([] { return ::fork(); }, "fork() failed in spawn()", -1);
-  if (ForkResult != 0) {
+  if (ForkResult != 0)
+  {
     // We are in the parent.
     if (PTY)
       CheckedPOSIXThrow(
@@ -90,7 +90,8 @@ Process Process::spawn(const SpawnOptions& Opts)
 
   // We are in the child.
   CheckedPOSIXThrow([] { return ::setsid(); }, "setsid()", -1);
-  if (PTY) {
+  if (PTY)
+  {
     CheckedPOSIXThrow(
       [&PTY] { return ::close(PTY->Master); }, "close pty in child", -1);
     CheckedPOSIXThrow(

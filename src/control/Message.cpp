@@ -34,7 +34,8 @@ ENCODE(ClientID)
   (void)Object;
   return "<CLIENT-ID></CLIENT-ID>";
 }
-DECODE(ClientID) {
+DECODE(ClientID)
+{
   ClientID Ret;
   auto P = Buffer.find("<CLIENT-ID></CLIENT-ID>");
   if (P == std::string::npos)

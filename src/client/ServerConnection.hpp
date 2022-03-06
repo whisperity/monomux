@@ -18,8 +18,8 @@
  */
 #pragma once
 
-#include "Process.hpp"
-#include "Socket.hpp"
+#include "system/Process.hpp"
+#include "system/Socket.hpp"
 
 #include <memory>
 #include <optional>

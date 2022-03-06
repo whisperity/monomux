@@ -17,23 +17,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "fd.hpp"
 
-#include <array>
+#include "MessageBase.hpp"
 
+#include <cstdint>
+#include <string>
 
 namespace monomux
 {
 
-class Pty
+namespace request
 {
-// private:
-public:
-  raw_fd Master, Slave;
-  // std::array<fd, 2> Pipes;
 
-public:
-  Pty();
+/// A request from the client to the server to deliver the identity information
+/// to the client.
+struct ClientID
+{
+  MONOMUX_MESSAGE(REQ_ClientID, ClientID)
 };
+
+struct SpawnProcess
+{
+  MONOMUX_MESSAGE(REQ_SpawnProcess, SpawnProcess)
+  std::string ProcessName;
+};
+
+} // namespace request
+
+namespace response
+{
+
+/// The response to the \p request::ClientID.
+struct ClientID
+{
+  MONOMUX_MESSAGE(RSP_ClientID, ClientID)
+  std::size_t ID;
+};
+
+} // namespace response
 
 } // namespace monomux

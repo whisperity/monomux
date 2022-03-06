@@ -16,12 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "CheckedPOSIX.hpp"
-#include "Environment.hpp"
-#include "Process.hpp"
-#include "Pty.hpp"
-#include "Server.hpp"
-#include "ServerConnection.hpp"
+#include "client/ServerConnection.hpp"
+#include "server/Server.hpp"
+#include "system/CheckedPOSIX.hpp"
+#include "system/Environment.hpp"
+#include "system/Process.hpp"
+#include "system/Pty.hpp"
 
 #include <chrono>
 #include <iostream>

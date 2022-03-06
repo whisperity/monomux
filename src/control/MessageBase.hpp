@@ -35,6 +35,8 @@ namespace monomux
 class Socket;
 
 /// A global enumeration table of messages that are supported by the protocol.
+/// For each entry, an appropriate struct in namespace \p monomux::request or
+/// \p monomux::response defines the data members of the message.
 enum class MessageKind : std::uint16_t
 {
   /// A request to the server to reply the client's ID to the client.
