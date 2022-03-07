@@ -35,8 +35,7 @@ void Client::setUpDispatch()
 #undef KIND
 }
 
-#define HANDLER(NAME)                                                          \
-  void Client::NAME(std::string_view Message)
+#define HANDLER(NAME) void Client::NAME(std::string_view Message)
 
 HANDLER(responseClientID)
 {
@@ -50,7 +49,7 @@ HANDLER(responseClientID)
   Nonce.emplace(R->Client.Nonce);
 
   std::clog << "DEBUG: Client is " << ClientID << " (with nonce " << *Nonce
-              << ')' << std::endl;
+            << ')' << std::endl;
 }
 
 HANDLER(responseDataSocket)

@@ -59,6 +59,12 @@ jobs:
           cmake ../src \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: "Code style (clang-format)"
+        id: clang-format
+        continue-on-error: true
+        uses: jidicula/clang-format-action@v4.6.2
+        with:
+          check-path: src
       - name: "Build"
         run: |
           cmake --build ./Build -- -j
@@ -71,3 +77,37 @@ jobs:
       #     sudo apt-get -y install ${CLANG_TIDY}
       #     # Figure out how to automate this nicely.
       #     # ${CLANG_TIDY} -p ./Build/compile_commands.json
+      - name: "Package"
+        id: binary-package
+        continue-on-error: true
+        run: |
+          cd Build
+          cpack -G DEB
+          cpack -G TGZ
+          cd ..
+
+          # TODO: Do something with version numbers and such!
+
+          mv -v Build/MonoMux-*-Linux.deb "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+          mv -v Build/MonoMux-*-Linux.tar.gz "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
+      - name: "Upload binary package artefacts: Tarball"
+        if: steps.binary-package.outcome == 'success'
+        uses: actions/upload-artifact@v2
+        with:
+          path: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
+          name: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
+          if-no-files-found: warn
+          retention-days: 7
+      - name: "Upload binary package artefacts: Debian package"
+        if: steps.binary-package.outcome == 'success'
+        uses: actions/upload-artifact@v2
+        with:
+          path: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+          name: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+          if-no-files-found: warn
+          retention-days: 7
+      - name: "Post Code style (clang-format)"
+        if: steps.clang-format.outcome == 'failure'
+        run: |
+          echo "The code contains formatting errors..." >&2
+          exit 1
