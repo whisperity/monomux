@@ -26,6 +26,16 @@
 namespace monomux
 {
 
+/// Contains the data members required to identify a connected Client.
+struct ClientIDBase
+{
+  /// The identity number of the client on the server it has connected to.
+  std::size_t ID;
+  /// A single-use number the client can use in other unassociated requests
+  /// to prove its identity.
+  std::size_t Nonce;
+};
+
 namespace request
 {
 
@@ -36,7 +46,19 @@ namespace request
 /// established.
 struct ClientID
 {
-  MONOMUX_MESSAGE(REQ_ClientID, ClientID)
+  MONOMUX_MESSAGE(REQ_ClientID, ClientID);
+};
+
+/// A request from the client to the server sent over the data connection to
+/// tell the server to register the connection this request is receieved on
+/// to be the data connection of a connected \p Client.
+///
+/// This message is sent as the initial handshake after a connection is
+/// established.
+struct DataSocket
+{
+  MONOMUX_MESSAGE(REQ_DataSocket, DataSocket);
+  ClientIDBase Client;
 };
 
 struct SpawnProcess
@@ -53,12 +75,15 @@ namespace response
 /// The response to the \p request::ClientID, sent by the server.
 struct ClientID
 {
-  MONOMUX_MESSAGE(RSP_ClientID, ClientID)
-  /// The identity number of the client on the server it has connected to.
-  std::size_t ID;
-  /// A single-use number the client can use in other unassociated requests
-  /// to prove its identity.
-  std::size_t Nonce;
+  MONOMUX_MESSAGE(RSP_ClientID, ClientID);
+  ClientIDBase Client;
+};
+
+/// The response to the \p request::DataSocket, sent by the server.
+struct DataSocket
+{
+  MONOMUX_MESSAGE(RSP_DataSocket, DataSocket);
+  bool Success;
 };
 
 } // namespace response

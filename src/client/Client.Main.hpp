@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "ServerConnection.hpp"
+#include "Client.hpp"
 
 #include <optional>
 #include <string>
@@ -39,14 +39,14 @@ struct Options
   bool ClientMode : 1;
 
   /// Contains the master connection to the server, if such was established.
-  std::optional<ServerConnection> Connection;
+  std::optional<Client> Connection;
 };
 
 /// Attempt to establish connection to a Monomux Server specified in \p Opts.
 ///
 /// \param Block Whether to continue retrying the connection and block until
 /// success.
-std::optional<ServerConnection> connect(const Options& Opts, bool Block);
+std::optional<Client> connect(const Options& Opts, bool Block);
 
 /// Executes the Monomux Client logic.
 int main(Options& Opts);

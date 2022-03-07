@@ -16,65 +16,52 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Server.hpp"
+#include "Client.hpp"
 
 #include "control/Message.hpp"
-#include "control/SocketMessaging.hpp"
-#include "system/Process.hpp"
+#include "system/unreachable.hpp"
 
 namespace monomux
 {
 
-void Server::setUpDispatch()
+void Client::setUpDispatch()
 {
 #define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
 #define MEMBER(NAME)                                                           \
-  std::bind(std::mem_fn(&Server::NAME),                                        \
-            this,                                                              \
-            std::placeholders::_1,                                             \
-            std::placeholders::_2)
+  std::bind(std::mem_fn(&Client::NAME), this, std::placeholders::_1)
 #define DISPATCH(K, FUNCTION) Dispatch.try_emplace(KIND(K), MEMBER(FUNCTION));
-#include "Server.Dispatch.ipp"
+#include "Client.Dispatch.ipp"
 #undef MEMBER
 #undef KIND
 }
 
 #define HANDLER(NAME)                                                          \
-  void Server::NAME(ClientData& Client, std::string_view Message)
+  void Client::NAME(std::string_view Message)
 
-HANDLER(requestClientID)
-{
-  auto Msg = request::ClientID::decode(Message);
-  if (!Msg)
-    return;
-
-  std::cout << "SERVER: Client #" << Client.id() << ": Request Client ID"
-            << std::endl;
-
-  response::ClientID Resp;
-  Resp.Client.ID = Client.id();
-  Resp.Client.Nonce = Client.makeNewNonce();
-
-  writeMessage(Client.getControlSocket(), std::move(Resp));
-}
-
-HANDLER(requestDataSocket) {}
-
-HANDLER(requestSpawnProcess)
+HANDLER(responseClientID)
 {
   std::clog << __PRETTY_FUNCTION__ << std::endl;
 
-  auto Msg = request::SpawnProcess::decode(Message);
-  if (!Msg)
+  auto R = response::ClientID::decode(Message);
+  if (!R.has_value())
     return;
 
-  std::cout << "Spawn: " << Msg->ProcessName << std::endl;
+  ClientID = R->Client.ID;
+  Nonce.emplace(R->Client.Nonce);
 
-  Process::SpawnOptions SOpts;
-  SOpts.Program = Msg->ProcessName;
-  SOpts.CreatePTY = true;
+  std::clog << "DEBUG: Client is " << ClientID << " (with nonce " << *Nonce
+              << ')' << std::endl;
+}
 
-  Process P = Process::spawn(SOpts);
+HANDLER(responseDataSocket)
+{
+  (void)Message;
+
+  // This handler is a DNI placeholder. The handler for this message is
+  // hard-coded into the handshake process. The listener that handles messages
+  // should never listen on the data socket, and should not receive a message
+  // like this again, after a successful handshake!
+  unreachable("RSP_DataSocket handler should not fire automatically!");
 }
 
 #undef HANDLER

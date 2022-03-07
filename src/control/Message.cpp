@@ -26,6 +26,32 @@
 namespace monomux
 {
 
+MessageBase kindFromStr(std::string_view Str) noexcept
+{
+  MessageBase MB;
+  {
+    char MKCh[sizeof(MessageKind)] = {0};
+    for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
+      MKCh[I] = Str[I];
+    MB.Kind = *reinterpret_cast<MessageKind*>(MKCh);
+  }
+  Str.remove_prefix(sizeof(MessageKind));
+  MB.RawData = Str;
+  return MB;
+}
+
+std::string kindToStr(MessageKind MK) noexcept
+{
+  std::string Str;
+  Str.resize(sizeof(MessageKind));
+
+  char* Data = reinterpret_cast<char*>(&MK);
+  for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
+    Str[I] = Data[I];
+
+  return Str;
+}
+
 /// Reads \p Literal from the \p Data and returns a new \p string_view that
 /// points after the consumed \p Literal, or the empty \p string_view if it was
 /// not found.
@@ -65,6 +91,50 @@ DECODE(ClientID)
   return std::nullopt;
 }
 
+ENCODE(DataSocket)
+{
+  std::string Ret = "<DATASOCKET><CLIENT-ID>";
+  Ret.append(std::to_string(Object.Client.ID));
+  Ret.append("<NONCE>");
+  Ret.append(std::to_string(Object.Client.Nonce));
+  Ret.append("</NONCE>");
+  Ret.append("</CLIENT-ID></DATASOCKET>");
+  return Ret;
+}
+DECODE(DataSocket)
+{
+  DataSocket Ret;
+
+  auto View = consume(Buffer, "<DATASOCKET><CLIENT-ID>");
+  if (View.empty())
+    return std::nullopt;
+
+  auto ID = takeUntil(View, "<NONCE>");
+  if (ID.empty())
+    return std::nullopt;
+  Ret.Client.ID = std::stoull(std::string{ID});
+  View.remove_prefix(ID.size());
+
+  View = consume(View, "<NONCE>");
+  if (View.empty())
+    return std::nullopt;
+
+  auto Nonce = takeUntil(View, "</NONCE>");
+  if (Nonce.empty())
+    return std::nullopt;
+  Ret.Client.Nonce = std::stoull(std::string{Nonce});
+  View.remove_prefix(Nonce.size());
+
+  View = consume(View, "</NONCE>");
+  if (View.empty())
+    return std::nullopt;
+
+  if (View != "</CLIENT-ID></DATASOCKET>")
+    return std::nullopt;
+
+  return Ret;
+}
+
 ENCODE(SpawnProcess)
 {
   std::string Ret = "<SPAWN>";
@@ -101,9 +171,9 @@ namespace response
 ENCODE(ClientID)
 {
   std::string Ret = "<CLIENT-ID>";
-  Ret.append(std::to_string(Object.ID));
+  Ret.append(std::to_string(Object.Client.ID));
   Ret.append("<NONCE>");
-  Ret.append(std::to_string(Object.Nonce));
+  Ret.append(std::to_string(Object.Client.Nonce));
   Ret.append("</NONCE>");
   Ret.append("</CLIENT-ID>");
   return Ret;
@@ -119,21 +189,61 @@ DECODE(ClientID)
   auto ID = takeUntil(View, "<NONCE>");
   if (ID.empty())
     return std::nullopt;
-  Ret.ID = std::stoull(std::string{ID});
+  Ret.Client.ID = std::stoull(std::string{ID});
   View.remove_prefix(ID.size());
 
-  View = consume(Buffer, "<NONCE>");
+  View = consume(View, "<NONCE>");
   if (View.empty())
     return std::nullopt;
 
   auto Nonce = takeUntil(View, "</NONCE>");
   if (Nonce.empty())
     return std::nullopt;
-  Ret.Nonce = std::stoull(std::string{Nonce});
+  Ret.Client.Nonce = std::stoull(std::string{Nonce});
   View.remove_prefix(Nonce.size());
+
+  View = consume(View, "</NONCE>");
+  if (View.empty())
+    return std::nullopt;
 
   if (View != "</CLIENT-ID>")
     return std::nullopt;
+
+  return Ret;
+}
+
+ENCODE(DataSocket)
+{
+  std::string Ret = "<DATASOCKET>";
+  Ret.append(Object.Success ? "Accept" : "Deny");
+  Ret.append("</DATASOCKET>");
+  Ret.append("!MAINTAIN-RADIO-SILENCE!\0\0\0");
+  return Ret;
+}
+DECODE(DataSocket)
+{
+  DataSocket Ret;
+
+  auto View = consume(Buffer, "<DATASOCKET>");
+  if (View.empty())
+    return std::nullopt;
+
+  auto Value = takeUntil(View, "</DATASOCKET>");
+  if (Value.empty())
+    return std::nullopt;
+  if (Value == "Accept")
+    Ret.Success = true;
+  else if (Value == "Deny")
+    Ret.Success = false;
+  else
+    return std::nullopt;
+  View.remove_prefix(Value.size());
+
+  View = consume(View, "</DATASOCKET>");
+  if (View.empty())
+    return std::nullopt;
+
+  // Ignore the "radio silence" message. :)
 
   return Ret;
 }

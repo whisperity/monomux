@@ -33,7 +33,8 @@ add_executable(monomux
   main.cpp
 
   client/Client.Main.cpp
-  client/ServerConnection.cpp
+  client/Client.cpp
+  client/Client.Dispatch.cpp
 
   control/Message.cpp
 

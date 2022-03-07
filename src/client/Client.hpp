@@ -21,6 +21,9 @@
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
 
+#include <cassert>
+#include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,12 +38,21 @@ namespace monomux
 /// In networking terminology, this is effectively a client, but we reserve
 /// that word for the "Monomux Client" which deals with attaching to a
 /// process.
-class ServerConnection
+class Client
 {
 public:
-  static std::optional<ServerConnection> create(std::string SocketPath);
+  /// Creates a new connection client to the server at the specified socket.
+  static std::optional<Client> create(std::string SocketPath);
 
-  ServerConnection(Socket&& ControlSocket);
+  /// Initialise a \p Client over the already established \p ControlSocket.
+  Client(Socket&& ControlSocket);
+
+  /// Perform a handshake mechanism over the control socket.
+  ///
+  /// \return Whether the handshake process succeeded.
+  bool handshake();
+
+  // TODO: Document this.
   void requestSpawnProcess(const Process::SpawnOptions& Opts);
 
 private:
@@ -48,10 +60,35 @@ private:
   /// server.
   Socket ControlSocket;
 
-  std::size_t ClientID;
-
   /// The data connection is used to transmit the process data to the client.
+  /// (This is initialised in a lazy fashion during operation.)
   std::unique_ptr<Socket> DataSocket;
+
+  /// A unique identifier of the current \p Client, as returned by the server.
+  std::size_t ClientID = -1;
+
+  /// A unique, random generated single-use number, which the \p Client can
+  /// use to establish its identity towards the server in another request.
+  std::optional<std::size_t> Nonce;
+
+  /// Return the stored \p Nonce of the current instance, resetting it.
+  std::size_t consumeNonce() noexcept
+  {
+    assert(Nonce.has_value());
+    auto R = Nonce.value();
+    Nonce.reset();
+    return R;
+  }
+
+private:
+  /// Maps \p MessageKind to handler functions.
+  std::map<std::uint16_t, std::function<void(std::string_view)>> Dispatch;
+
+  void setUpDispatch();
+
+#define DISPATCH(KIND, FUNCTION_NAME)                                          \
+  void FUNCTION_NAME(std::string_view Message);
+#include "Client.Dispatch.ipp"
 };
 
 } // namespace monomux

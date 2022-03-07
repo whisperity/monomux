@@ -17,7 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "client/Client.Main.hpp"
-#include "client/ServerConnection.hpp"
 #include "server/Server.Main.hpp"
 #include "server/Server.hpp"
 #include "system/CheckedPOSIX.hpp"
@@ -132,8 +131,7 @@ int main(int ArgC, char* ArgV[])
   // there will be no server running. For convenience, we can initialise a
   // server right here.
   {
-    std::optional<ServerConnection> ToServer =
-      client::connect(ClientOpts, false);
+    std::optional<Client> ToServer = client::connect(ClientOpts, false);
     if (!ToServer)
     {
       std::clog << "DEBUG: No running server found, creating one..."
@@ -157,8 +155,7 @@ int main(int ArgC, char* ArgV[])
     ClientOpts.Connection = std::move(ToServer);
   }
 
-  // return client::main(ClientOpts);
-
+  client::main(ClientOpts);
 
   if (ArgC >= 2)
   {

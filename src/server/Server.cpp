@@ -95,7 +95,7 @@ int Server::listen()
         }
         else
         {
-          // Start monitoring the accepted connection/socket.
+          // A new client was accepted.
           raw_fd ClientFD = Established.get();
 
           auto ExistingIt = Clients.find(ClientFD);
@@ -106,15 +106,11 @@ int Server::listen()
             std::clog << "DEBUG: Server - Stale socket " << ClientFD
                       << " left behind!" << std::endl;
             exitCallback(ExistingIt->second);
-            Poll->stop(ClientFD);
-            Clients.erase(ExistingIt);
           }
 
-          fd::setNonBlockingCloseOnExec(ClientFD);
-          Poll->listen(ClientFD, /* Incoming =*/true, /* Outgoing =*/false);
-          Clients.emplace(ClientFD,
-                          std::make_unique<Socket>(Socket::wrap(fd(ClientFD))));
-          acceptCallback(Clients.at(ClientFD));
+          auto InsertResult = Clients.emplace(
+            ClientFD, std::make_unique<Socket>(Socket::wrap(fd(ClientFD))));
+          acceptCallback(InsertResult.first->second);
         }
       }
       else
@@ -137,6 +133,11 @@ void Server::acceptCallback(ClientData& Client)
 {
   std::cout << "Client connected " << Client.getControlSocket().raw()
             << std::endl;
+
+  raw_fd FD = Client.getControlSocket().raw();
+
+  fd::setNonBlockingCloseOnExec(FD);
+  Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
 }
 
 void Server::readCallback(ClientData& Client)
@@ -160,8 +161,6 @@ void Server::readCallback(ClientData& Client)
   {
     // We realise the client disconnected during an attempt to read.
     exitCallback(Client);
-    Poll->stop(ClientSock.raw());
-    Clients.erase(ClientSock.raw());
     return;
   }
 
@@ -169,27 +168,32 @@ void Server::readCallback(ClientData& Client)
 
   std::cout << "Check for message kind... ";
 
-  MessageKind MK = kindFromStr(Data);
-  auto Action = Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MK));
+  MessageBase MB = kindFromStr(Data);
+  auto Action =
+    Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
   if (Action == Dispatch.end())
   {
-    std::cerr << "Error: Unknown message type " << static_cast<int>(MK)
+    std::cerr << "Error: Unknown message type " << static_cast<int>(MB.Kind)
               << " received." << std::endl;
     return;
   }
-  std::cout << static_cast<int>(MK) << std::endl;
+  std::cout << static_cast<int>(MB.Kind) << std::endl;
 
   std::cout << "Read data " << std::string_view{Data.data(), Data.size()}
             << std::endl;
-  Action->second(
-    Client,
-    std::string_view{Data.data() + sizeof(MK), Data.size() - sizeof(MK)});
+  Action->second(Client, MB.RawData);
 }
 
 void Server::exitCallback(ClientData& Client)
 {
   std::cout << "Client " << Client.getControlSocket().raw() << " is leaving..."
             << std::endl;
+
+  raw_fd ClientFD = Client.getControlSocket().raw();
+  Poll->stop(Client.getControlSocket().raw());
+  auto It = Clients.find(ClientFD);
+  if (It != Clients.end())
+    Clients.erase(It);
 }
 
 Server::ClientData::ClientData(std::unique_ptr<Socket> Connection)
@@ -203,8 +207,8 @@ static std::size_t NonceCounter = 0; // FIXME: Remove this.
 std::size_t Server::ClientData::makeNewNonce() noexcept
 {
   // FIXME: Better random number generation.
-  Nonce = ++NonceCounter;
-  return Nonce;
+  Nonce.emplace(++NonceCounter);
+  return *Nonce;
 }
 
 } // namespace monomux

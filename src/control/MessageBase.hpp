@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #ifndef MONOMUX_MESSAGE
 #define MONOMUX_MESSAGE(KIND, NAME)                                            \
@@ -41,37 +42,30 @@ enum class MessageKind : std::uint16_t
 {
   /// A request to the server to reply the client's ID to the client.
   REQ_ClientID = 1,
-  /// A response containing the client's ID.
+  /// A response for the \p REQ_ClientID request, containing the client's ID.
   RSP_ClientID = 2,
-  /// ?
+  /// A request to the server to associate the connection with another client,
+  /// marking it as the data connection/socket.
   REQ_DataSocket = 3,
+  /// A response for the \p REQ_DataSocket request, indicating whether the
+  /// request was accepted.
+  RSP_DataSocket = 4,
 
   /// ?
   REQ_SpawnProcess = 4000,
 };
 
-inline MessageKind kindFromStr(const std::string& Str) noexcept
+/// Helper class that contains the parsed \p MessageKind of a \p Message, and
+/// the remaining, not yet parsed \p Buffer.
+struct MessageBase
 {
-  MessageKind MK;
-  {
-    char MKCh[sizeof(MessageKind)] = {0};
-    for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
-      MKCh[I] = Str[I];
-    MK = *reinterpret_cast<MessageKind*>(MKCh);
-  }
-  return MK;
-}
+  MessageKind Kind;
+  std::string_view RawData;
+};
 
-inline std::string kindToStr(MessageKind MK) noexcept
-{
-  std::string Str;
-  Str.resize(sizeof(MessageKind));
-
-  char* Data = reinterpret_cast<char*>(&MK);
-  for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
-    Str[I] = Data[I];
-
-  return Str;
-}
+/// Unpack the \p MessageKind from the prefix of the \p Str.
+MessageBase kindFromStr(std::string_view Str) noexcept;
+/// Format the given \p MessageKind into a binary string.
+std::string kindToStr(MessageKind MK) noexcept;
 
 } // namespace monomux

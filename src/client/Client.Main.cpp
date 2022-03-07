@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Client.Main.hpp"
+#include "Client.hpp"
 #include "server/Server.hpp"
 
 #include <chrono>
@@ -29,24 +30,38 @@ namespace monomux
 namespace client
 {
 
-std::optional<ServerConnection> connect(const Options& Opts, bool Block)
+std::optional<Client> connect(const Options& Opts, bool Block)
 {
-  auto SC = ServerConnection::create(Server::getServerSocketPath());
+  auto C = Client::create(Server::getServerSocketPath());
   if (!Block)
-    return SC;
+    return C;
 
-  while (!SC)
+  while (!C)
   {
     std::clog << "DEBUG: Trying to connect to server again..." << std::endl;
-    SC = ServerConnection::create(Server::getServerSocketPath());
+    C = Client::create(Server::getServerSocketPath());
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
   std::clog << "DEBUG: Connection established!" << std::endl;
-  return SC;
+  return C;
 }
 
-int main(Options& Opts) {}
+int main(Options& Opts)
+{
+  // For the convenience of auto-starting a server if none exists, the creation
+  // of the Client itself is placed into the global entry point.
+  assert(Opts.Connection.has_value() && "main() should have created a client.");
+
+  while (!Opts.Connection->handshake())
+  {
+    std::clog << "DEBUG: Trying to authenticate with server again..."
+              << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+
+  return EXIT_SUCCESS;
+}
 
 } // namespace client
 

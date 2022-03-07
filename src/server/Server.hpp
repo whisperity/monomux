@@ -27,6 +27,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 
 namespace monomux
 {
@@ -46,7 +47,7 @@ public:
 
     std::size_t id() const noexcept { return ID; }
     /// Returns the most recent random-generated nonce for this client.
-    std::size_t nonce() const noexcept { return Nonce; }
+    std::size_t nonce() const noexcept { return Nonce.value_or(0); }
     /// Creates a new random number for the client, and returns it.
     std::size_t makeNewNonce() noexcept;
 
@@ -55,7 +56,7 @@ public:
 
   private:
     std::size_t ID;
-    std::size_t Nonce = 0;
+    std::optional<std::size_t> Nonce = 0;
 
     /// The control connection transcieves control information and commands.
     std::unique_ptr<Socket> ControlConnection;
@@ -80,10 +81,6 @@ private:
   Socket Sock;
   std::map<raw_fd, ClientData> Clients;
 
-  /// Maps \p MessageKind to handler functions.
-  std::map<std::uint16_t, std::function<void(ClientData&, std::string_view)>>
-    Dispatch;
-
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
 
@@ -92,6 +89,10 @@ private:
   void exitCallback(ClientData& Client);
 
 private:
+  /// Maps \p MessageKind to handler functions.
+  std::map<std::uint16_t, std::function<void(ClientData&, std::string_view)>>
+    Dispatch;
+
   void setUpDispatch();
 
 #define DISPATCH(KIND, FUNCTION_NAME)                                          \
