@@ -46,22 +46,28 @@ public:
     ~ClientData();
 
     std::size_t id() const noexcept { return ID; }
-    /// Returns the most recent random-generated nonce for this client.
-    std::size_t nonce() const noexcept { return Nonce.value_or(0); }
-    /// Creates a new random number for the client, and returns it.
+    /// Returns the most recent random-generated nonce for this client, and
+    /// clear it from memory, rendering it useless in later authentications.
+    std::size_t consumeNonce() noexcept;
+    /// Creates a new random number for the client's authentication, and returns
+    /// it. The value is stored for until used.
     std::size_t makeNewNonce() noexcept;
 
     Socket& getControlSocket() noexcept { return *ControlConnection; }
     Socket* getDataSocket() noexcept { return DataConnection.get(); }
 
+    /// Releases the control socket of the other client and associates it as the
+    /// data connection of the current client.
+    void subjugateIntoDataSocket(ClientData& Other) noexcept;
+
   private:
     std::size_t ID;
-    std::optional<std::size_t> Nonce = 0;
+    std::optional<std::size_t> Nonce;
 
     /// The control connection transcieves control information and commands.
     std::unique_ptr<Socket> ControlConnection;
 
-    /// TODO: ?
+    /// The data connection transcieves the actual program data.
     std::unique_ptr<Socket> DataConnection;
   };
 
@@ -79,7 +85,7 @@ public:
 
 private:
   Socket Sock;
-  std::map<raw_fd, ClientData> Clients;
+  std::map<std::size_t, ClientData> Clients;
 
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
@@ -87,6 +93,14 @@ private:
   void acceptCallback(ClientData& Client);
   void readCallback(ClientData& Client);
   void exitCallback(ClientData& Client);
+
+  /// A special step during the handshake maneuvre is when a user client
+  /// connects to the server again, and establishes itself as the data
+  /// connection of its own already existing control client.
+  ///
+  /// This method takes care of associating that in the \p Clients map.
+  void turnClientIntoDataOfOtherClient(ClientData& MainClient,
+                                       ClientData& DataClient);
 
 private:
   /// Maps \p MessageKind to handler functions.

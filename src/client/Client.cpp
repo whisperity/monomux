@@ -118,6 +118,14 @@ bool Client::handshake()
   return true;
 }
 
+std::size_t Client::consumeNonce() noexcept
+{
+  assert(Nonce.has_value());
+  auto R = Nonce.value();
+  Nonce.reset();
+  return R;
+}
+
 void Client::requestSpawnProcess(const Process::SpawnOptions& Opts)
 {
   request::SpawnProcess Msg;

@@ -41,12 +41,14 @@ void Server::setUpDispatch()
 #define HANDLER(NAME)                                                          \
   void Server::NAME(ClientData& Client, std::string_view Message)
 
-HANDLER(requestClientID)
-{
-  auto Msg = request::ClientID::decode(Message);
-  if (!Msg)
+#define MSG(TYPE)                                                              \
+  std::optional<TYPE> Msg = TYPE::decode(Message);                             \
+  if (!Msg)                                                                    \
     return;
 
+HANDLER(requestClientID)
+{
+  MSG(request::ClientID);
   std::cout << "SERVER: Client #" << Client.id() << ": Request Client ID"
             << std::endl;
 
@@ -57,16 +59,32 @@ HANDLER(requestClientID)
   Client.getControlSocket().write(encode(Resp));
 }
 
-HANDLER(requestDataSocket) {}
+HANDLER(requestDataSocket)
+{
+  MSG(request::DataSocket);
+  // In this function, Client is the message sender, so the connection that
+  // wants to become the data socket.
+
+  std::cout << "Server: Client #" << Client.id()
+            << ": Associate as Data Socket for " << Msg->Client.ID << std::endl;
+
+  auto MainIt = Clients.find(Msg->Client.ID);
+  if (MainIt == Clients.end())
+    Client.getControlSocket().write(encode(response::DataSocket{false}));
+
+  ClientData& MainClient = MainIt->second;
+  if (MainClient.consumeNonce() != Msg->Client.Nonce)
+    Client.getControlSocket().write(encode(response::DataSocket{false}));
+
+  turnClientIntoDataOfOtherClient(MainClient, Client);
+  MainClient.getControlSocket().write(encode(response::DataSocket{true}));
+}
 
 HANDLER(requestSpawnProcess)
 {
   std::clog << __PRETTY_FUNCTION__ << std::endl;
 
-  auto Msg = request::SpawnProcess::decode(Message);
-  if (!Msg)
-    return;
-
+  MSG(request::SpawnProcess)
   std::cout << "Spawn: " << Msg->ProcessName << std::endl;
 
   Process::SpawnOptions SOpts;

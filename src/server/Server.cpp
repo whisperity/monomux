@@ -131,11 +131,9 @@ int Server::listen()
 
 void Server::acceptCallback(ClientData& Client)
 {
-  std::cout << "Client connected " << Client.getControlSocket().raw()
-            << std::endl;
+  std::cout << "Client connected as " << Client.id() << std::endl;
 
   raw_fd FD = Client.getControlSocket().raw();
-
   fd::setNonBlockingCloseOnExec(FD);
   Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
 }
@@ -143,7 +141,7 @@ void Server::acceptCallback(ClientData& Client)
 void Server::readCallback(ClientData& Client)
 {
   Socket& ClientSock = Client.getControlSocket();
-  std::cout << "Client " << ClientSock.raw() << " has data!" << std::endl;
+  std::cout << "Client " << Client.id() << " has data!" << std::endl;
 
   std::string Data;
   try
@@ -154,7 +152,6 @@ void Server::readCallback(ClientData& Client)
   {
     std::cerr << "Error when reading data from " << ClientSock.raw() << ": "
               << Err.what() << std::endl;
-    return;
   }
 
   if (!ClientSock.believeConnectionOpen())
@@ -163,6 +160,9 @@ void Server::readCallback(ClientData& Client)
     exitCallback(Client);
     return;
   }
+
+  if (Data.empty())
+    return;
 
   std::cout << Data << std::endl;
 
@@ -186,14 +186,25 @@ void Server::readCallback(ClientData& Client)
 
 void Server::exitCallback(ClientData& Client)
 {
-  std::cout << "Client " << Client.getControlSocket().raw() << " is leaving..."
-            << std::endl;
+  std::cout << "Client " << Client.id() << " is leaving..." << std::endl;
 
-  raw_fd ClientFD = Client.getControlSocket().raw();
   Poll->stop(Client.getControlSocket().raw());
-  auto It = Clients.find(ClientFD);
+  if (const auto* DS = Client.getDataSocket())
+    Poll->stop(DS->raw());
+
+  auto It = Clients.find(Client.id());
   if (It != Clients.end())
     Clients.erase(It);
+}
+
+void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
+                                             ClientData& DataClient)
+{
+  std::clog << "DEBUG: Client " << DataClient.id()
+            << " becoming data connection for " << MainClient.id() << std::endl;
+  MainClient.subjugateIntoDataSocket(DataClient);
+  // Remove the object from the data structure but do not fire any exit handler!
+  Clients.erase(DataClient.id());
 }
 
 Server::ClientData::ClientData(std::unique_ptr<Socket> Connection)
@@ -204,11 +215,27 @@ Server::ClientData::~ClientData() = default;
 
 static std::size_t NonceCounter = 0; // FIXME: Remove this.
 
+std::size_t Server::ClientData::consumeNonce() noexcept
+{
+  std::size_t N = Nonce.value_or(0);
+  Nonce.reset();
+  return N;
+}
+
 std::size_t Server::ClientData::makeNewNonce() noexcept
 {
   // FIXME: Better random number generation.
   Nonce.emplace(++NonceCounter);
   return *Nonce;
+}
+
+void Server::ClientData::subjugateIntoDataSocket(ClientData& Other) noexcept
+{
+  assert(!DataConnection && "Current client already has a data connection!");
+  assert(!Other.DataConnection &&
+         "Other client already has a data connection!");
+  DataConnection.swap(Other.ControlConnection);
+  assert(!Other.ControlConnection && "Other client stayed alive");
 }
 
 } // namespace monomux

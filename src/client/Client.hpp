@@ -72,13 +72,7 @@ private:
   std::optional<std::size_t> Nonce;
 
   /// Return the stored \p Nonce of the current instance, resetting it.
-  std::size_t consumeNonce() noexcept
-  {
-    assert(Nonce.has_value());
-    auto R = Nonce.value();
-    Nonce.reset();
-    return R;
-  }
+  std::size_t consumeNonce() noexcept;
 
 private:
   /// Maps \p MessageKind to handler functions.
