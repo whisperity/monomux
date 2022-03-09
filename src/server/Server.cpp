@@ -168,7 +168,7 @@ void Server::readCallback(ClientData& Client)
 
   std::cout << "Check for message kind... ";
 
-  MessageBase MB = kindFromStr(Data);
+  MessageBase MB = MessageBase::unpack(Data);
   auto Action =
     Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
   if (Action == Dispatch.end())

@@ -19,7 +19,6 @@
 #include "Server.hpp"
 
 #include "control/Message.hpp"
-#include "control/SocketMessaging.hpp"
 #include "system/Process.hpp"
 
 namespace monomux
@@ -55,7 +54,7 @@ HANDLER(requestClientID)
   Resp.Client.ID = Client.id();
   Resp.Client.Nonce = Client.makeNewNonce();
 
-  writeMessage(Client.getControlSocket(), std::move(Resp));
+  Client.getControlSocket().write(encode(Resp));
 }
 
 HANDLER(requestDataSocket) {}

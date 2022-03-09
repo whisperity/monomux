@@ -16,20 +16,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
+#include <gtest/gtest.h>
 
-#include "MessageBase.hpp"
-#include "system/Socket.hpp"
-
-namespace monomux
+int main(int argc, char *argv[])
 {
-
-/// Auto-encodes the given \p Msg and writes it to the \p S socket.
-template <typename T> void writeMessage(Socket& S, T&& Msg)
-{
-  std::string Data = Msg.encode(Msg);
-  S.write(kindToStr(Msg.Kind));
-  S.write(std::move(Data));
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
-
-} // namespace monomux

@@ -1,0 +1,31 @@
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL http://github.com/google/googletest/archive/refs/tags/release-1.11.0.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+include(CTest)
+
+add_executable(monomux_tests
+  main.cpp
+
+  control/MessageSerialisationTest.cpp
+  )
+add_test(NAME tests
+  COMMAND monomux_tests
+  )
+target_include_directories(monomux_tests PUBLIC
+  ${CMAKE_SOURCE_DIR}/src
+  )
+target_link_libraries(monomux_tests PUBLIC
+  monomuxControl
+
+  gtest_main
+  )
+
+add_custom_target(check
+  COMMAND env CTEST_OUTPUT_ON_FAILURE=1 GTEST_COLOR=1 ${CMAKE_CTEST_COMMAND}
+  DEPENDS monomux_tests)

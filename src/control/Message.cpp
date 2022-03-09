@@ -26,30 +26,55 @@
 namespace monomux
 {
 
-MessageBase kindFromStr(std::string_view Str) noexcept
-{
-  MessageBase MB;
-  {
-    char MKCh[sizeof(MessageKind)] = {0};
-    for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
-      MKCh[I] = Str[I];
-    MB.Kind = *reinterpret_cast<MessageKind*>(MKCh);
-  }
-  Str.remove_prefix(sizeof(MessageKind));
-  MB.RawData = Str;
-  return MB;
-}
-
-std::string kindToStr(MessageKind MK) noexcept
+std::string MessageBase::encodeKind() const
 {
   std::string Str;
   Str.resize(sizeof(MessageKind));
 
-  char* Data = reinterpret_cast<char*>(&MK);
+  auto* Data = reinterpret_cast<const char*>(&Kind);
   for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
     Str[I] = Data[I];
 
   return Str;
+}
+
+MessageKind MessageBase::decodeKind(std::string_view Str) noexcept
+{
+  if (Str.size() < sizeof(MessageKind))
+    return MessageKind::Invalid;
+
+  char MKCh[sizeof(MessageKind)] = {0};
+  for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
+    MKCh[I] = Str[I];
+  return *reinterpret_cast<MessageKind*>(MKCh);
+}
+
+std::string MessageBase::pack() const
+{
+  std::string Str;
+  Str.reserve(sizeof(MessageKind) + RawData.size() + sizeof('\0'));
+
+  Str.append(encodeKind());
+  Str.append(RawData);
+  Str.push_back('\0');
+
+  return Str;
+}
+
+MessageBase MessageBase::unpack(std::string_view Str) noexcept
+{
+  MessageBase MB;
+  MB.Kind = decodeKind(Str);
+  if (MB.Kind == MessageKind::Invalid)
+    return MB;
+
+  Str.remove_prefix(sizeof(MessageKind));
+  if (Str.back() != '\0')
+    return MB;
+  Str.remove_suffix(sizeof('\0'));
+
+  MB.RawData = Str;
+  return MB;
 }
 
 /// Reads \p Literal from the \p Data and returns a new \p string_view that

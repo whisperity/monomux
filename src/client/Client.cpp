@@ -18,7 +18,6 @@
  */
 #include "Client.hpp"
 #include "control/Message.hpp"
-#include "control/SocketMessaging.hpp"
 
 #include <iostream>
 #include <utility>
@@ -50,10 +49,10 @@ bool Client::handshake()
 {
   // Authenticate the client on the server.
   {
-    writeMessage(ControlSocket, request::ClientID{});
+    ControlSocket.write(encode(request::ClientID{}));
     std::string Data = ControlSocket.read(128);
 
-    MessageBase MB = kindFromStr(Data);
+    MessageBase MB = MessageBase::unpack(Data);
     if (MB.Kind != MessageKind::RSP_ClientID)
     {
       std::cerr
@@ -85,10 +84,10 @@ bool Client::handshake()
     Req.Client.ID = ClientID;
     Req.Client.Nonce = consumeNonce();
 
-    writeMessage(*DS, std::move(Req));
+    DS->write(encode(Req));
     std::string Data = DS->read(128);
 
-    MessageBase MB = kindFromStr(Data);
+    MessageBase MB = MessageBase::unpack(Data);
     std::cout << "DS result:" << MB.RawData << std::endl;
     if (MB.Kind != MessageKind::RSP_DataSocket)
     {
@@ -123,8 +122,7 @@ void Client::requestSpawnProcess(const Process::SpawnOptions& Opts)
 {
   request::SpawnProcess Msg;
   Msg.ProcessName = Opts.Program;
-
-  writeMessage(ControlSocket, std::move(Msg));
+  ControlSocket.write(encode(Msg));
 }
 
 } // namespace monomux
