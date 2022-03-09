@@ -17,23 +17,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "fd.hpp"
+#include "Socket.hpp"
 
-#include <array>
-
+#include <optional>
 
 namespace monomux
 {
 
+/// Responsible for wrapping a low-level psuedo terminal teletypewriter (PTTY)
+/// interface. A pseudoterminal is an emulation of the ancient technology where
+/// physical typewriter and printer machines were connected to computers.
 class Pty
 {
   // private:
 public:
-  raw_fd Master, Slave;
+  std::optional<Socket> Master, Slave;
   // std::array<fd, 2> Pipes;
 
 public:
   Pty();
+
+  /// Executes actions that configure the current PTY from the owning parent's
+  /// point of view.
+  void setupParentSide();
+
+  /// Executes actions that configure the current PTY from a running child
+  /// process's standpoint, turning it into the controlling terminal of a
+  /// process.
+  void setupChildrenSide();
 };
 
 } // namespace monomux

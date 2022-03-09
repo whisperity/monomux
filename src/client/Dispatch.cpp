@@ -30,7 +30,7 @@ void Client::setUpDispatch()
 #define MEMBER(NAME)                                                           \
   std::bind(std::mem_fn(&Client::NAME), this, std::placeholders::_1)
 #define DISPATCH(K, FUNCTION) Dispatch.try_emplace(KIND(K), MEMBER(FUNCTION));
-#include "Client.Dispatch.ipp"
+#include "Dispatch.ipp"
 #undef MEMBER
 #undef KIND
 }

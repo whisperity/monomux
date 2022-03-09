@@ -111,7 +111,7 @@ private:
 
 #define DISPATCH(KIND, FUNCTION_NAME)                                          \
   void FUNCTION_NAME(ClientData& Client, std::string_view Message);
-#include "Server.Dispatch.ipp"
+#include "Dispatch.ipp"
 };
 
 } // namespace monomux

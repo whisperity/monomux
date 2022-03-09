@@ -19,6 +19,7 @@
 #pragma once
 
 #include "CheckedPOSIX.hpp"
+#include "Pty.hpp"
 
 #include <map>
 #include <optional>
@@ -48,6 +49,9 @@ public:
   };
 
   handle Handle;
+  /// The \p Pty assocaited with the process, if \p SpawnOptions::CreatePTY was
+  /// true.
+  std::optional<Pty> PTY;
 
 public:
   /// Replaces the current process (as if by calling the \p exec() family) in

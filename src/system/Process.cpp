@@ -22,9 +22,6 @@
 
 #include <cstring>
 
-#include <pty.h>
-#include <utmp.h>
-
 namespace monomux
 {
 
@@ -62,7 +59,7 @@ static void allocCopyString(const std::string& Source,
     }
   }
 
-  CheckedPOSIXThrow([&Opts, NewArgv] { return ::execvp(NewArgv[0], NewArgv); },
+  CheckedPOSIXThrow([NewArgv] { return ::execvp(NewArgv[0], NewArgv); },
                     "Executing process failed",
                     -1);
   ::_Exit(EXIT_FAILURE); // [[noreturn]]
@@ -79,27 +76,25 @@ Process Process::spawn(const SpawnOptions& Opts)
   if (ForkResult != 0)
   {
     // We are in the parent.
-    if (PTY)
-      CheckedPOSIXThrow(
-        [&PTY] { return ::close(PTY->Slave); }, "close pty in parent", -1);
-
     Process P;
     P.Handle = ForkResult;
+
+    if (PTY)
+    {
+      PTY->setupParentSide();
+      P.PTY = std::move(PTY);
+    }
+
     return P;
   }
 
   // We are in the child.
   CheckedPOSIXThrow([] { return ::setsid(); }, "setsid()", -1);
   if (PTY)
-  {
-    CheckedPOSIXThrow(
-      [&PTY] { return ::close(PTY->Master); }, "close pty in child", -1);
-    CheckedPOSIXThrow(
-      [&PTY] { return ::login_tty(PTY->Slave); }, "login_tty in child", -1);
-  }
+    PTY->setupChildrenSide();
+
   Process::exec(Opts);
   throw std::runtime_error{"Unreachable."};
-  // return static_cast<Process::handle>(0);
 }
 
 } // namespace monomux

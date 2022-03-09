@@ -242,6 +242,7 @@ void Socket::write(std::string Data)
                             "Closed."};
   static constexpr std::size_t BUFFER_SIZE = 1024;
 
+  std::clog << "DEBUG: Sending data on socket:\n\t" << Data << std::endl;
   std::string_view SV{Data.data(), Data.size()};
   while (!SV.empty())
   {

@@ -33,7 +33,7 @@ void Server::setUpDispatch()
             std::placeholders::_1,                                             \
             std::placeholders::_2)
 #define DISPATCH(K, FUNCTION) Dispatch.try_emplace(KIND(K), MEMBER(FUNCTION));
-#include "Server.Dispatch.ipp"
+#include "Dispatch.ipp"
 #undef MEMBER
 #undef KIND
 }
@@ -70,14 +70,27 @@ HANDLER(requestDataSocket)
 
   auto MainIt = Clients.find(Msg->Client.ID);
   if (MainIt == Clients.end())
+  {
     Client.getControlSocket().write(encode(response::DataSocket{false}));
+    return;
+  }
 
   ClientData& MainClient = MainIt->second;
-  if (MainClient.consumeNonce() != Msg->Client.Nonce)
+  if (MainClient.getDataSocket() != nullptr)
+  {
     Client.getControlSocket().write(encode(response::DataSocket{false}));
+    return;
+  }
+  if (MainClient.consumeNonce() != Msg->Client.Nonce)
+  {
+    Client.getControlSocket().write(encode(response::DataSocket{false}));
+    return;
+  }
 
   turnClientIntoDataOfOtherClient(MainClient, Client);
-  MainClient.getControlSocket().write(encode(response::DataSocket{true}));
+  assert(MainClient.getDataSocket() &&
+         "Turnover should have subjugated client!");
+  MainClient.getDataSocket()->write(encode(response::DataSocket{true}));
 }
 
 HANDLER(requestSpawnProcess)
@@ -91,6 +104,7 @@ HANDLER(requestSpawnProcess)
   SOpts.Program = Msg->ProcessName;
   SOpts.CreatePTY = true;
 
+  std::clog << "DEBUG: Spawning '" << SOpts.Program << "'..." << std::endl;
   Process P = Process::spawn(SOpts);
 }
 

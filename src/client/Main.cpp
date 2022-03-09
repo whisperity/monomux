@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Client.Main.hpp"
+#include "Main.hpp"
 #include "Client.hpp"
 #include "server/Server.hpp"
 
@@ -36,11 +36,20 @@ std::optional<Client> connect(const Options& Opts, bool Block)
   if (!Block)
     return C;
 
+  unsigned short HandshakeCounter = 1;
   while (!C)
   {
+    ++HandshakeCounter;
+
     std::clog << "DEBUG: Trying to connect to server again..." << std::endl;
     C = Client::create(Server::getServerSocketPath());
     std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    if (HandshakeCounter == 5)
+    {
+      std::cerr << "Connection failed after enough retries." << std::endl;
+      return std::nullopt;
+    }
   }
 
   std::clog << "DEBUG: Connection established!" << std::endl;
@@ -51,7 +60,12 @@ int main(Options& Opts)
 {
   // For the convenience of auto-starting a server if none exists, the creation
   // of the Client itself is placed into the global entry point.
-  assert(Opts.Connection.has_value() && "main() should have created a client.");
+  if (!Opts.Connection.has_value())
+  {
+    std::cerr << "ERROR: Attempted to start client without active connection."
+              << std::endl;
+    return EXIT_FAILURE;
+  }
 
   while (!Opts.Connection->handshake())
   {
@@ -59,6 +73,13 @@ int main(Options& Opts)
               << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
+
+  std::clog << "DEBUG: Spawning a shell..." << std::endl;
+  Process::SpawnOptions SO;
+  SO.Program = "/bin/bash";
+  Opts.Connection->requestSpawnProcess(SO);
+
+  std::this_thread::sleep_for(std::chrono::seconds(10));
 
   return EXIT_SUCCESS;
 }

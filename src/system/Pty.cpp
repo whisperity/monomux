@@ -22,23 +22,45 @@
 #include <iostream>
 
 #include <pty.h>
+#include <unistd.h>
+#include <utmp.h>
 
 namespace monomux
 {
 
 Pty::Pty()
 {
+  raw_fd MasterFD, SlaveFD;
   char DEVICE_NAME[1024];
 
   CheckedPOSIXThrow(
-    [this, &DEVICE_NAME]() {
-      return ::openpty(&Master, &Slave, DEVICE_NAME, nullptr, nullptr);
+    [&MasterFD, &SlaveFD, &DEVICE_NAME]() {
+      return ::openpty(&MasterFD, &SlaveFD, DEVICE_NAME, nullptr, nullptr);
     },
     "Failed to openpty()",
     -1);
 
-  std::clog << Master << ' ' << Slave << std::endl;
-  std::clog << DEVICE_NAME << std::endl;
+  std::clog << "FDs: " << MasterFD << ' ' << SlaveFD << std::endl;
+  std::clog << "Device: " << DEVICE_NAME << std::endl;
+
+  Master.emplace(Socket::wrap(MasterFD));
+  Slave.emplace(Socket::wrap(SlaveFD));
+}
+
+void Pty::setupParentSide()
+{
+  std::clog << "In parent: " << Master->raw() << ' ' << Slave->raw()
+            << std::endl;
+  Slave.reset(); // Close slave PTY.
+}
+
+void Pty::setupChildrenSide()
+{
+  std::clog << "In child: " << Master->raw() << ' ' << Slave->raw()
+            << std::endl;
+  Master.reset(); // Close master PTY.
+  CheckedPOSIXThrow(
+    [this] { return ::login_tty(Slave->raw()); }, "login_tty in child", -1);
 }
 
 

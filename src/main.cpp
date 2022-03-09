@@ -16,8 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "client/Client.Main.hpp"
-#include "server/Server.Main.hpp"
+#include "client/Main.hpp"
+#include "server/Main.hpp"
 #include "server/Server.hpp"
 #include "system/CheckedPOSIX.hpp"
 #include "system/Environment.hpp"
@@ -155,20 +155,5 @@ int main(int ArgC, char* ArgV[])
     ClientOpts.Connection = std::move(ToServer);
   }
 
-  client::main(ClientOpts);
-
-  if (ArgC >= 2)
-  {
-    Process::SpawnOptions SO;
-    SO.Program = ArgV[1];
-    ClientOpts.Connection->requestSpawnProcess(SO);
-  }
-
-  // Trash code:
-  int temp;
-  std::cout << "Waiting..." << std::endl;
-  std::cin >> temp;
-  std::cout << "Client exit." << std::endl;
-
-  return temp;
+  return client::main(ClientOpts);
 }
