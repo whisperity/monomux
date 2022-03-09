@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.11.4)
 project(monomux LANGUAGES CXX)
 
 if (NOT UNIX)
@@ -30,7 +30,6 @@ if ( (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "
 endif()
 
 add_subdirectory(src)
-add_subdirectory(test)
 
 set(CPACK_PACKAGE_NAME "MonoMux")
 set(CPACK_PACKAGE_VENDOR "http://github.com/whisperity/MonoMux")
@@ -50,11 +49,13 @@ if (UNIX)
   install(TARGETS monomux
     DESTINATION bin)
   install(FILES
-      "${CMAKE_SOURCE_DIR}/../README.md"
-      "${CMAKE_SOURCE_DIR}/../LICENSE"
+      "${CMAKE_SOURCE_DIR}/README.md"
+      "${CMAKE_SOURCE_DIR}/LICENSE"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/monomux"
     )
 endif()
 
 # This has to be included *after* setting the variables up for some reason...
 include(CPack)
+
+add_subdirectory(test)

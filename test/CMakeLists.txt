@@ -5,6 +5,9 @@ FetchContent_Declare(
 )
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+# Do not add GoogleTest stuff as our install() target...
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)  # option(INSTALL_GTEST) would override.
+set(INSTALL_GTEST OFF)
 FetchContent_MakeAvailable(googletest)
 
 include(CTest)
