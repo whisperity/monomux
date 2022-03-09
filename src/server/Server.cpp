@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Server.hpp"
+
 #include "control/Message.hpp"
 #include "system/CheckedPOSIX.hpp"
 #include "system/POD.hpp"
@@ -105,23 +106,35 @@ int Server::listen()
             // TODO: What is the good way of handling this?
             std::clog << "DEBUG: Server - Stale socket " << ClientFD
                       << " left behind!" << std::endl;
-            exitCallback(ExistingIt->second);
+            exitCallback(*ExistingIt->second);
           }
 
           auto InsertResult = Clients.emplace(
-            ClientFD, std::make_unique<Socket>(Socket::wrap(fd(ClientFD))));
-          acceptCallback(InsertResult.first->second);
+            ClientFD,
+            std::make_unique<ClientData>(
+              std::make_unique<Socket>(Socket::wrap(fd(ClientFD)))));
+          acceptCallback(*InsertResult.first->second);
         }
       }
       else
       {
         // Event occured on another (connected client) socket.
         raw_fd ClientFD = Poll->fdAt(I);
-        std::clog << "DEBUG: Server - Data on client " << ClientFD << std::endl;
+        std::clog << "DEBUG: Server - Data on file descriptor " << ClientFD
+                  << std::endl;
+
+        // Assume it's a data packet first, because generally we will always
+        // get MUCH more of those.
+        auto DataIt = DataConnections.find(ClientFD);
+        if (DataIt != DataConnections.end())
+        {
+          dataCallback(*DataIt->second);
+          continue;
+        }
 
         auto It = Clients.find(ClientFD);
         if (It != Clients.end())
-          readCallback(It->second);
+          controlCallback(*It->second);
       }
     }
   }
@@ -138,7 +151,7 @@ void Server::acceptCallback(ClientData& Client)
   Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
 }
 
-void Server::readCallback(ClientData& Client)
+void Server::controlCallback(ClientData& Client)
 {
   Socket& ClientSock = Client.getControlSocket();
   std::cout << "Client " << Client.id() << " has data!" << std::endl;
@@ -184,13 +197,27 @@ void Server::readCallback(ClientData& Client)
   Action->second(Client, MB.RawData);
 }
 
+void Server::dataCallback(ClientData& Client)
+{
+  std::cout << "Client " << Client.id()
+            << " sent some data on their data connection!" << std::endl;
+
+  std::string Data = Client.getDataSocket()->read(1024);
+  std::cout << "DEBUG: Client data received:\n\t" << Data << std::endl;
+}
+
 void Server::exitCallback(ClientData& Client)
 {
   std::cout << "Client " << Client.id() << " is leaving..." << std::endl;
 
   Poll->stop(Client.getControlSocket().raw());
   if (const auto* DS = Client.getDataSocket())
+  {
     Poll->stop(DS->raw());
+    auto DataIt = DataConnections.find(DS->raw());
+    if (DataIt != DataConnections.end())
+      DataConnections.erase(DataIt);
+  }
 
   auto It = Clients.find(Client.id());
   if (It != Clients.end())
@@ -203,6 +230,8 @@ void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
   std::clog << "DEBUG: Client " << DataClient.id()
             << " becoming data connection for " << MainClient.id() << std::endl;
   MainClient.subjugateIntoDataSocket(DataClient);
+  DataConnections.emplace(DataClient.id(), &MainClient);
+
   // Remove the object from the data structure but do not fire any exit handler!
   Clients.erase(DataClient.id());
 }

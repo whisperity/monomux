@@ -17,8 +17,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Process.hpp"
+
 #include "CheckedPOSIX.hpp"
 #include "Pty.hpp"
+#include "unreachable.hpp"
 
 #include <cstring>
 
@@ -37,20 +39,29 @@ static void allocCopyString(const std::string& Source,
 
 [[noreturn]] void Process::exec(const Process::SpawnOptions& Opts)
 {
+  std::clog << "----- Process::exec() was called -----\n\n";
+
   char** NewArgv = new char*[Opts.Arguments.size() + 2];
   allocCopyString(Opts.Program, NewArgv, 0);
+  std::clog << "        Program:    " << Opts.Program << '\n';
   NewArgv[Opts.Arguments.size() + 1] = nullptr;
   for (std::size_t I = 0; I < Opts.Arguments.size(); ++I)
+  {
     allocCopyString(Opts.Arguments[I], NewArgv, I + 1);
+    std::clog << "        Arg " << I << ":    " << Opts.Arguments[I] << '\n';
+  }
 
   for (const auto& E : Opts.Environment)
   {
     if (!E.second.has_value())
     {
+      std::clog << "        Env var:    " << E.first << " unset!" << '\n';
       CheckedPOSIX([&K = E.first] { return ::unsetenv(K.c_str()); }, -1);
     }
     else
     {
+      std::clog << "        Env var:    " << E.first << '=' << *E.second
+                << '\n';
       CheckedPOSIX(
         [&K = E.first, &V = E.second] {
           return ::setenv(K.c_str(), V->c_str(), 1);
@@ -59,10 +70,12 @@ static void allocCopyString(const std::string& Source,
     }
   }
 
+  std::clog << "----- Process::exec() firing -----" << std::endl;
+
   CheckedPOSIXThrow([NewArgv] { return ::execvp(NewArgv[0], NewArgv); },
                     "Executing process failed",
                     -1);
-  ::_Exit(EXIT_FAILURE); // [[noreturn]]
+  unreachable("::exec() should've started a new process");
 }
 
 Process Process::spawn(const SpawnOptions& Opts)
@@ -94,7 +107,7 @@ Process Process::spawn(const SpawnOptions& Opts)
     PTY->setupChildrenSide();
 
   Process::exec(Opts);
-  throw std::runtime_error{"Unreachable."};
+  unreachable("Process::exec() should've replaced the process.");
 }
 
 } // namespace monomux

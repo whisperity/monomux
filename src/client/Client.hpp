@@ -17,7 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
 
@@ -54,6 +53,8 @@ public:
 
   // TODO: Document this.
   void requestSpawnProcess(const Process::SpawnOptions& Opts);
+
+  void sendData(std::string_view Data);
 
 private:
   /// The control socket is used to communicate control commands with the

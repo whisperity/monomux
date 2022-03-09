@@ -17,30 +17,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "system/Process.hpp"
+
+#include <cassert>
+#include <optional>
 #include <string>
-#include <vector>
+#include <utility>
 
 namespace monomux
 {
 
-namespace server
+/// Encapsulates a running session under the server owning the instance.
+/// A \p Session is just a \p Process and some associated metadata.
+class Session
 {
+public:
+  Session(std::string Name) : Name(std::move(Name)) {}
 
-/// Options interested to invocation of a Monomux Server.
-struct Options
-{
-  /// Format the options back into the CLI invocation they were parsed from.
-  std::vector<std::string> toArgv() const;
+  const std::string& getName() const noexcept { return Name; }
 
-  /// Whether the server mode was enabled.
-  bool ServerMode : 1;
+  bool hasProcess() const noexcept { return MainProcess.has_value(); }
+  void setProcess(Process&& Process) noexcept;
+  Process& getProcess() noexcept
+  {
+    assert(hasProcess());
+    return *MainProcess;
+  }
+  const Process& getProcess() const noexcept
+  {
+    assert(hasProcess());
+    return *MainProcess;
+  }
+
+private:
+  std::string Name;
+  std::optional<Process> MainProcess;
 };
 
-/// \p exec() into a server process that is created with the \p Opts options.
-[[noreturn]] void exec(const Options& Opts, const char* ArgV0);
-
-/// Executes the Monomux Server logic.
-int main(Options& Opts);
-
-} // namespace server
 } // namespace monomux

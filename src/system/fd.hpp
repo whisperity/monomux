@@ -17,7 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
 #include <iostream>
 
 #include <fcntl.h>
@@ -45,7 +44,7 @@ public:
   /// Wrap the raw platform resource handle into the RAII object.
   fd(raw_fd Handle) noexcept : Handle(Handle)
   {
-    std::clog << "DEBUG: FD #" << Handle << " opened." << std::endl;
+    std::clog << "TRACE: FD #" << Handle << " opened." << std::endl;
   }
 
   fd(fd&& RHS) noexcept : Handle(RHS.release()) {}

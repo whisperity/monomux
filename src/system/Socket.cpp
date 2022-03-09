@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Socket.hpp"
+
 #include "CheckedPOSIX.hpp"
 #include "POD.hpp"
 
@@ -235,7 +236,7 @@ std::string Socket::read(std::size_t Bytes)
   return Return;
 }
 
-void Socket::write(std::string Data)
+void Socket::write(std::string_view Data)
 {
   if (!Open)
     throw std::system_error{std::make_error_code(std::errc::io_error),
@@ -243,13 +244,12 @@ void Socket::write(std::string Data)
   static constexpr std::size_t BUFFER_SIZE = 1024;
 
   std::clog << "DEBUG: Sending data on socket:\n\t" << Data << std::endl;
-  std::string_view SV{Data.data(), Data.size()};
-  while (!SV.empty())
+  while (!Data.empty())
   {
     auto SentBytes = CheckedPOSIX(
-      [this, &SV] {
+      [this, &Data] {
         return ::send(
-          Handle.get(), SV.data(), std::min(BUFFER_SIZE, SV.size()), 0);
+          Handle.get(), Data.data(), std::min(BUFFER_SIZE, Data.size()), 0);
       },
       -1);
     if (!SentBytes)
@@ -273,10 +273,10 @@ void Socket::write(std::string Data)
       break;
     }
 
-    if (static_cast<std::size_t>(SentBytes.get()) <= SV.size())
-      SV.remove_prefix(SentBytes.get());
+    if (static_cast<std::size_t>(SentBytes.get()) <= Data.size())
+      Data.remove_prefix(SentBytes.get());
     else
-      SV.remove_prefix(SV.size());
+      Data.remove_prefix(Data.size());
   }
 
   std::cout << "Finished sending " << Data.size() << " bytes." << std::endl;

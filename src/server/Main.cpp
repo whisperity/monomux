@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Main.hpp"
+
 #include "Server.hpp"
 #include "system/Process.hpp"
 #include "system/unreachable.hpp"

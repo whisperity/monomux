@@ -75,7 +75,7 @@ HANDLER(requestDataSocket)
     return;
   }
 
-  ClientData& MainClient = MainIt->second;
+  ClientData& MainClient = *MainIt->second;
   if (MainClient.getDataSocket() != nullptr)
   {
     Client.getControlSocket().write(encode(response::DataSocket{false}));
@@ -106,6 +106,20 @@ HANDLER(requestSpawnProcess)
 
   std::clog << "DEBUG: Spawning '" << SOpts.Program << "'..." << std::endl;
   Process P = Process::spawn(SOpts);
+
+  std::string SessionName = "client-";
+  SessionName.append(std::to_string(Client.id()));
+  SessionName.push_back(':');
+  SessionName.append(SOpts.Program);
+  std::string SessionName2 = SessionName;
+
+  Session S{std::move(SessionName)};
+  S.setProcess(std::move(P));
+
+  // S.getProcess().getPty()->Master->write("echo \"foo\" >
+  // monomux.test.txt\n\n");
+
+  Sessions.try_emplace(std::move(SessionName2), std::move(S));
 }
 
 #undef HANDLER

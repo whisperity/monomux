@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Pty.hpp"
+
 #include "CheckedPOSIX.hpp"
 
 #include <iostream>
@@ -43,24 +44,31 @@ Pty::Pty()
   std::clog << "FDs: " << MasterFD << ' ' << SlaveFD << std::endl;
   std::clog << "Device: " << DEVICE_NAME << std::endl;
 
-  Master.emplace(Socket::wrap(MasterFD));
-  Slave.emplace(Socket::wrap(SlaveFD));
+  Master = MasterFD;
+  Slave = SlaveFD;
 }
 
 void Pty::setupParentSide()
 {
-  std::clog << "In parent: " << Master->raw() << ' ' << Slave->raw()
-            << std::endl;
-  Slave.reset(); // Close slave PTY.
+  std::clog << "In parent: " << Master << ' ' << Slave << std::endl;
+
+  // Close PTS, the slave PTY.
+  raw_fd PTS = Slave.release();
+  fd::close(PTS);
+
+  IsMaster = true;
+  fd::setNonBlockingCloseOnExec(Master);
 }
 
 void Pty::setupChildrenSide()
 {
-  std::clog << "In child: " << Master->raw() << ' ' << Slave->raw()
-            << std::endl;
-  Master.reset(); // Close master PTY.
+  std::clog << "In child: " << Master << ' ' << Slave << std::endl;
+
+  raw_fd PTM = Master.release();
+  fd::close(PTM);
+
   CheckedPOSIXThrow(
-    [this] { return ::login_tty(Slave->raw()); }, "login_tty in child", -1);
+    [this] { return ::login_tty(Slave); }, "login_tty in child", -1);
 }
 
 

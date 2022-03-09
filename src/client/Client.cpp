@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Client.hpp"
+
 #include "control/Message.hpp"
 
 #include <iostream>
@@ -131,6 +132,18 @@ void Client::requestSpawnProcess(const Process::SpawnOptions& Opts)
   request::SpawnProcess Msg;
   Msg.ProcessName = Opts.Program;
   ControlSocket.write(encode(Msg));
+}
+
+void Client::sendData(std::string_view Data)
+{
+  if (!DataSocket)
+  {
+    std::cerr
+      << "ERROR: Trying to send data but data connection was not established."
+      << std::endl;
+    return;
+  }
+  DataSocket->write(Data);
 }
 
 } // namespace monomux

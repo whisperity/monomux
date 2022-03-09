@@ -17,12 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Main.hpp"
+
 #include "Client.hpp"
 #include "server/Server.hpp"
 
 #include <chrono>
 #include <iostream>
 #include <thread>
+
+#include <termios.h>
 
 namespace monomux
 {
@@ -66,8 +69,9 @@ int main(Options& Opts)
               << std::endl;
     return EXIT_FAILURE;
   }
+  Client& Client = *Opts.Connection;
 
-  while (!Opts.Connection->handshake())
+  while (!Client.handshake())
   {
     std::clog << "DEBUG: Trying to authenticate with server again..."
               << std::endl;
@@ -79,7 +83,40 @@ int main(Options& Opts)
   SO.Program = "/bin/bash";
   Opts.Connection->requestSpawnProcess(SO);
 
-  std::this_thread::sleep_for(std::chrono::seconds(10));
+  setvbuf(stdin, NULL, _IONBF, 0);
+  setvbuf(stdout, NULL, _IONBF, 0);
+
+  termios Mode;
+  raw_fd TTY = ::open("/dev/tty", O_RDWR);
+  if (tcgetattr(TTY, &Mode) < 0)
+    return EXIT_FAILURE;
+  termios NewMode = Mode;
+  NewMode.c_lflag &= ~(ICANON | ECHO);
+
+  // TODO: Do we need all these flags, really?
+  NewMode.c_iflag &= ~IXON;
+  NewMode.c_iflag &= ~IXOFF;
+  NewMode.c_iflag &= ~ICRNL;
+  NewMode.c_iflag &= ~INLCR;
+  NewMode.c_iflag &= ~IGNCR;
+  NewMode.c_iflag &= ~IMAXBEL;
+  NewMode.c_iflag &= ~ISTRIP;
+
+  NewMode.c_oflag &= ~OPOST;
+  NewMode.c_oflag &= ~ONLCR;
+  NewMode.c_oflag &= ~OCRNL;
+  NewMode.c_oflag &= ~ONLRET;
+
+  if (tcsetattr(TTY, TCSANOW, &NewMode) < 0)
+    return EXIT_FAILURE;
+
+  POD<char[1024]> Data;
+  while (true)
+  {
+    // FIXME: Refactor this into a "pipe" class, similar to the socket one.
+    unsigned long Size = ::read(0, &Data, sizeof(Data));
+    Client.sendData(std::string_view{&Data[0], Size});
+  }
 
   return EXIT_SUCCESS;
 }

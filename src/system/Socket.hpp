@@ -17,7 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
 #include "fd.hpp"
 
 #include <string>
@@ -78,7 +77,7 @@ public:
   bool believeConnectionOpen() const noexcept { return Open; }
 
   /// Write \p Data to the socket.
-  void write(std::string Data);
+  void write(std::string_view Data);
 
 private:
   Socket() = default;

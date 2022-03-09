@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "Session.hpp"
 
 #include "system/Socket.hpp"
 #include "system/epoll.hpp"
@@ -85,13 +86,21 @@ public:
 
 private:
   Socket Sock;
-  std::map<std::size_t, ClientData> Clients;
+  /// Map client IDs to the client information data structure. \p unique_ptr
+  /// is used so changing the map's balancing does not invalidate other
+  /// references to the data.
+  std::map<std::size_t, std::unique_ptr<ClientData>> Clients;
+  /// Map data connection file descriptors to the client that owns the data
+  /// connection.
+  std::map<raw_fd, ClientData*> DataConnections;
+  std::map<std::string, Session> Sessions;
 
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
 
   void acceptCallback(ClientData& Client);
-  void readCallback(ClientData& Client);
+  void controlCallback(ClientData& Client);
+  void dataCallback(ClientData& Client);
   void exitCallback(ClientData& Client);
 
   /// A special step during the handshake maneuvre is when a user client

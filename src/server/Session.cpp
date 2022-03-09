@@ -16,31 +16,18 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
-#include <string>
-#include <vector>
+#include "Session.hpp"
+
+#include <iostream>
 
 namespace monomux
 {
 
-namespace server
+void Session::setProcess(Process&& Process) noexcept
 {
+  std::clog << "DEBUG: Setting process for session " << Name << std::endl;
+  MainProcess.reset();
+  MainProcess.emplace(std::move(Process));
+}
 
-/// Options interested to invocation of a Monomux Server.
-struct Options
-{
-  /// Format the options back into the CLI invocation they were parsed from.
-  std::vector<std::string> toArgv() const;
-
-  /// Whether the server mode was enabled.
-  bool ServerMode : 1;
-};
-
-/// \p exec() into a server process that is created with the \p Opts options.
-[[noreturn]] void exec(const Options& Opts, const char* ArgV0);
-
-/// Executes the Monomux Server logic.
-int main(Options& Opts);
-
-} // namespace server
 } // namespace monomux

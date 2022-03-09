@@ -17,7 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
 #include "CheckedPOSIX.hpp"
 #include "Pty.hpp"
 
@@ -48,6 +47,12 @@ public:
     bool CreatePTY = false;
   };
 
+public:
+  handle raw() const noexcept { return Handle; }
+  bool hasPty() const noexcept { return PTY.has_value(); }
+  Pty* getPty() noexcept { return hasPty() ? &*PTY : nullptr; }
+
+private:
   handle Handle;
   /// The \p Pty assocaited with the process, if \p SpawnOptions::CreatePTY was
   /// true.
