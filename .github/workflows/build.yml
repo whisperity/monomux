@@ -119,6 +119,11 @@ jobs:
 
           mv -v Build/MonoMux-*-Linux.tar.gz "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
           mv -v Build/MonoMux-*-Linux.deb "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+      - name: "Check whether the Debian package is installable"
+        id: deb-install
+        if: steps.binary-package.outcome == 'success'
+        run: |
+          sudo apt-get -fy install "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
       - name: "Upload binary package artefacts: Tarball"
         if: steps.binary-package.outcome == 'success'
         uses: actions/upload-artifact@v2
@@ -128,7 +133,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: "Upload binary package artefacts: Debian package"
-        if: steps.binary-package.outcome == 'success'
+        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success'
         uses: actions/upload-artifact@v2
         with:
           path: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
