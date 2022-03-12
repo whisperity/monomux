@@ -1,4 +1,5 @@
 list(APPEND libmonomux_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/ClientData.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Dispatch.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Server.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Session.cpp

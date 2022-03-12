@@ -336,6 +336,37 @@ TEST(SmallIndexMap, ClassNoDefaultCtor)
   EXPECT_NE(SPtrAfterLarge, SPtrAfterSmall);
 }
 
+TEST(SmallIndexMap, IntrusiveDefaultSentinel)
+{
+  struct S
+  {
+    int I;
+    S() : I(0) {}
+    S(int I) : I(I) {}
+
+    // Sentinel check requires equality.
+    bool operator==(const S& RHS) const { return I == RHS.I; };
+    bool operator!=(const S& RHS) const { return !(*this == RHS); };
+  };
+
+  SmallIndexMap<S,
+                4,
+                /* StoreInPlace =*/true,
+                /* IntrusiveDefaultSentinel =*/true>
+    M;
+
+  M[0] = 1;
+  M[1] = 2;
+  M[2] = S{}; // Sentinel collision.
+  M[3];
+
+  EXPECT_EQ(M.size(), 4);
+  EXPECT_NE(M.tryGet(0), nullptr);
+  EXPECT_NE(M.tryGet(1), nullptr);
+  EXPECT_EQ(M.tryGet(2), nullptr); // Sentinel element considered as not mapped.
+  EXPECT_EQ(M.tryGet(3), nullptr); // Sentinel element considered as not mapped.
+}
+
 TEST(SmallIndexMap, LargeMap)
 {
   struct S

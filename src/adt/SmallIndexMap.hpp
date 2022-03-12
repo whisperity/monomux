@@ -42,10 +42,13 @@ namespace monomux
 /// but no operations (other than the delete of a value) of the \p SmallIndexMap
 /// invalidates the reference to the mapped object.
 ///
-/// \note If \p T is a raw pointer type, it is always stored in place.
+/// \tparam IntrusiveDefaultSentinel Whether to consider the default-constructed
+/// value to be the "unmapped" value. If \p true, \p T must be default
+/// constructible. Emplacing or setting the default value manually is undefined.
 template <typename T,
           std::size_t N,
           bool StoreInPlace = true,
+          bool IntrusiveDefaultSentinel = std::is_pointer_v<T>,
           typename KeyTy = std::size_t>
 class SmallIndexMap
 {
@@ -55,29 +58,36 @@ class SmallIndexMap
   static_assert(std::is_integral_v<KeyTy> && std::is_unsigned_v<KeyTy>,
                 "Keys must be index-like for small representation to work!");
 
-  std::size_t Size = 0;
+  /// Whether the user's value type \p T should be wrapped in a "nullable"
+  /// object, or can be stored verbatim.
+  static constexpr bool NeedsMaybe = !IntrusiveDefaultSentinel;
 
-  static constexpr bool Trivial = std::is_pointer_v<T>;
+  /// The actually stored element type inside the containers.
   using E = std::conditional_t<
-    Trivial,
+    !NeedsMaybe,
     T,
     std::conditional_t<StoreInPlace, std::optional<T>, std::unique_ptr<T>>>;
 
-  static_assert(!Trivial || StoreInPlace,
-                "If the stored value is trivial, it is automatically stored in "
-                "place, and specifying StoreInPlace = false is useless.");
+  static_assert(
+    !IntrusiveDefaultSentinel || std::is_default_constructible_v<T>,
+    "IntrusiveDefaultSentinel requires T to be default constructible!");
+
+  static_assert(!IntrusiveDefaultSentinel || StoreInPlace,
+                "If the stored value's default is the sentinel marking, it is "
+                "automatically stored in place, and specifying StoreInPlace = "
+                "false is useless.");
 
   static_assert(std::is_default_constructible_v<E> &&
                   std::is_move_assignable_v<E>,
                 "The detail storage element type must be default constructible "
                 "and moveable.");
 
-  static constexpr bool UserTypeDefaultConstructible =
-    Trivial || std::is_default_constructible_v<T>;
-
   using SmallRepresentation = std::array<E, N>;
   using LargeRepresentation = std::map<KeyTy, E>;
   std::variant<SmallRepresentation, LargeRepresentation> Storage;
+
+  /// The number of mapped elements.
+  std::size_t Size = 0;
 
 #define NON_CONST_0(RETURN_TYPE, FUNCTION_NAME)                                \
   RETURN_TYPE FUNCTION_NAME()                                                  \
@@ -136,6 +146,8 @@ public:
 
   /// Returns the size of the container, i.e. the number of elements added
   /// into it.
+  ///
+  /// This is a \e constant-time query.
   std::size_t size() const noexcept { return Size; }
 
   /// Returns whether the \p Key is mapped.
@@ -154,6 +166,11 @@ public:
   /// Sets the element to one constructed by forwarding \p Args, overwriting
   /// any potential already stored element.
   ///
+  /// If \p T is default constructible and \p IntrusiveDefaultSentinel is
+  /// \p true, care must be taken to emplace a \b non-default value into the
+  /// object constructed by this function. Otherwise, the \p size() of the
+  /// object will not be properly calculated.
+  ///
   /// \note This function potentially reallocates the storage buffer, and if
   /// \p StoreInPlace is \p true, invalidate \b EVERY reference and iterator
   /// to existing elements.
@@ -171,7 +188,7 @@ public:
       if (!isMapped(Elem))
         ++Size;
 
-      if constexpr (Trivial)
+      if constexpr (!NeedsMaybe)
         Elem = T{std::forward<Arg>(Args)...};
       else
       {
@@ -188,7 +205,7 @@ public:
     auto It = getLargeRepr()->find(Key);
     if (It == getLargeRepr()->end())
     {
-      if constexpr (Trivial)
+      if constexpr (!NeedsMaybe)
       {
         getLargeRepr()->emplace(Key, std::forward<Arg>(Args)...);
       }
@@ -207,7 +224,7 @@ public:
       return;
     }
 
-    if constexpr (Trivial)
+    if constexpr (IntrusiveDefaultSentinel)
       It->second = T{std::forward<Arg>(Args)...};
     else
     {
@@ -235,7 +252,7 @@ public:
       if (!isMapped(Elem))
         return;
 
-      if constexpr (Trivial)
+      if constexpr (IntrusiveDefaultSentinel)
         Elem = T{};
       else
         Elem.reset();
@@ -295,11 +312,16 @@ public:
   /// created and mapped for \p Key. The returned reference supports assigning
   /// value to it
   ///
+  /// If \p T is default constructible and \p IntrusiveDefaultSentinel is
+  /// \p true, care must be taken to assign a \b non-default value to the
+  /// object constructed by this operator. Otherwise, the \p size() of the
+  /// object will not be properly calculated.
+  ///
   /// \note This function potentially reallocates the storage buffer, and if
   /// \p StoreInPlace is \p true, invalidate \b EVERY reference and iterator
   /// to existing elements.
   template <typename R = T>
-  std::enable_if_t<UserTypeDefaultConstructible, R>& operator[](KeyTy Key)
+  std::enable_if_t<std::is_default_constructible_v<T>, R>& operator[](KeyTy Key)
   {
     if (isSmall())
     {
@@ -312,7 +334,7 @@ public:
       E& Elem = getSmallRepr()->at(Key);
       if (!isMapped(Elem))
       {
-        Elem = constructValue();
+        Elem = constructElement();
         ++Size;
       }
 
@@ -322,7 +344,7 @@ public:
     auto It = getLargeRepr()->find(Key);
     if (It == getLargeRepr()->end())
     {
-      It = getLargeRepr()->emplace(Key, constructValue()).first;
+      It = getLargeRepr()->emplace(Key, constructElement()).first;
       ++Size;
     }
     return unwrap(It->second);
@@ -339,21 +361,21 @@ private:
   /// \returns whether the stored element represents a mapped value.
   bool isMapped(const E& Elem) const noexcept
   {
-    if constexpr (Trivial)
+    if constexpr (IntrusiveDefaultSentinel)
       return Elem != E{};
     else
       return static_cast<bool>(Elem);
   }
 
   template <typename R = E>
-  std::enable_if_t<UserTypeDefaultConstructible, R> constructValue()
+  std::enable_if_t<std::is_default_constructible_v<T>, R> constructElement()
   {
-    if constexpr (Trivial)
+    if constexpr (!NeedsMaybe)
       return T{};
     else
     {
       if constexpr (StoreInPlace)
-        return std::optional<T>(T{});
+        return std::optional<T>(std::in_place_t{}, T{});
       else
         return std::make_unique<T>();
     }
@@ -361,7 +383,7 @@ private:
 
   const T& unwrap(const E& Elem) const
   {
-    if constexpr (Trivial)
+    if constexpr (!NeedsMaybe)
       return Elem;
     else
     {
@@ -387,7 +409,7 @@ private:
   /// values.
   void fillSmallRepresentation()
   {
-    if constexpr (Trivial || StoreInPlace)
+    if constexpr (!NeedsMaybe || StoreInPlace)
       getSmallRepr()->fill(E{});
     else if constexpr (!StoreInPlace)
     {

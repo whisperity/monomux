@@ -117,27 +117,42 @@ int Server::listen()
             std::make_unique<ClientData>(
               std::make_unique<Socket>(Socket::wrap(fd(ClientFD)))));
           acceptCallback(*InsertResult.first->second);
+          continue;
         }
       }
       else
       {
         // Event occured on another (connected client) socket.
-        raw_fd ClientFD = Poll->fdAt(I);
-        std::clog << "DEBUG: Server - Data on file descriptor " << ClientFD
+        raw_fd FD = Poll->fdAt(I);
+        std::clog << "DEBUG: Server - Data on file descriptor " << FD
                   << std::endl;
 
-        // Assume it's a data packet first, because generally we will always
-        // get MUCH more of those.
-        auto DataIt = DataConnections.find(ClientFD);
-        if (DataIt != DataConnections.end())
+        LookupVariant* Entity = FDLookup.tryGet(FD);
+        if (!Entity)
         {
-          dataCallback(*DataIt->second);
+          std::clog << "DEBUG: File descriptor " << FD
+                    << " not in the lookup table!" << std::endl;
           continue;
         }
 
-        auto It = Clients.find(ClientFD);
-        if (It != Clients.end())
-          controlCallback(*It->second);
+        if (auto* Socket = std::get_if<SessionConnection>(Entity)) {
+          // First check for data coming from a session. This is the most
+          // populous in terms of bandwidth.
+          std::clog << "DEBUG: Server - Data on a session, NOT YET IMPLEMENTED!"
+                    << std::endl;
+        }
+        if (auto* Data = std::get_if<ClientDataConnection>(Entity)) {
+          // Second, try to see if the data is coming from a client, like
+          // keypresses and such. We expect to see many of these, too.
+          dataCallback(**Data);
+          continue;
+        }
+        if (auto* Control = std::get_if<ClientControlConnection>(Entity)) {
+          // Lastly, check if the receive is happening on the control
+          // connection, where messages are small and far inbetween.
+          controlCallback(**Control);
+          continue;
+        }
       }
     }
   }
@@ -152,6 +167,8 @@ void Server::acceptCallback(ClientData& Client)
   raw_fd FD = Client.getControlSocket().raw();
   fd::setNonBlockingCloseOnExec(FD);
   Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
+
+  FDLookup[FD] = ClientControlConnection{&Client};
 }
 
 void Server::controlCallback(ClientData& Client)
@@ -213,14 +230,14 @@ void Server::exitCallback(ClientData& Client)
 {
   std::cout << "Client " << Client.id() << " is leaving..." << std::endl;
 
-  Poll->stop(Client.getControlSocket().raw());
   if (const auto* DS = Client.getDataSocket())
   {
     Poll->stop(DS->raw());
-    auto DataIt = DataConnections.find(DS->raw());
-    if (DataIt != DataConnections.end())
-      DataConnections.erase(DataIt);
+    FDLookup.erase(DS->raw());
   }
+
+  Poll->stop(Client.getControlSocket().raw());
+  FDLookup.erase(Client.getControlSocket().raw());
 
   auto It = Clients.find(Client.id());
   if (It != Clients.end())
@@ -233,41 +250,12 @@ void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
   std::clog << "DEBUG: Client " << DataClient.id()
             << " becoming data connection for " << MainClient.id() << std::endl;
   MainClient.subjugateIntoDataSocket(DataClient);
-  DataConnections.emplace(DataClient.id(), &MainClient);
+  FDLookup[MainClient.getDataSocket()->raw()] =
+    ClientDataConnection{&MainClient};
 
-  // Remove the object from the data structure but do not fire any exit handler!
+  // Remove the object from the owning data structure but do not fire the exit
+  // handler!
   Clients.erase(DataClient.id());
-}
-
-Server::ClientData::ClientData(std::unique_ptr<Socket> Connection)
-  : ID(Connection->raw()), ControlConnection(std::move(Connection))
-{}
-
-Server::ClientData::~ClientData() = default;
-
-static std::size_t NonceCounter = 0; // FIXME: Remove this.
-
-std::size_t Server::ClientData::consumeNonce() noexcept
-{
-  std::size_t N = Nonce.value_or(0);
-  Nonce.reset();
-  return N;
-}
-
-std::size_t Server::ClientData::makeNewNonce() noexcept
-{
-  // FIXME: Better random number generation.
-  Nonce.emplace(++NonceCounter);
-  return *Nonce;
-}
-
-void Server::ClientData::subjugateIntoDataSocket(ClientData& Other) noexcept
-{
-  assert(!DataConnection && "Current client already has a data connection!");
-  assert(!Other.DataConnection &&
-         "Other client already has a data connection!");
-  DataConnection.swap(Other.ControlConnection);
-  assert(!Other.ControlConnection && "Other client stayed alive");
 }
 
 } // namespace monomux

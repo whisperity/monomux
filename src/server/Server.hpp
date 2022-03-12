@@ -17,8 +17,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "ClientData.hpp"
 #include "Session.hpp"
 
+#include "adt/SmallIndexMap.hpp"
+#include "adt/TaggedPointer.hpp"
 #include "system/Socket.hpp"
 #include "system/epoll.hpp"
 #include "system/fd.hpp"
@@ -29,6 +32,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <variant>
 
 namespace monomux
 {
@@ -39,39 +43,6 @@ namespace monomux
 class Server
 {
 public:
-  /// Stores information about and associated resources to a connected client.
-  class ClientData
-  {
-  public:
-    ClientData(std::unique_ptr<Socket> Connection);
-    ~ClientData();
-
-    std::size_t id() const noexcept { return ID; }
-    /// Returns the most recent random-generated nonce for this client, and
-    /// clear it from memory, rendering it useless in later authentications.
-    std::size_t consumeNonce() noexcept;
-    /// Creates a new random number for the client's authentication, and returns
-    /// it. The value is stored for until used.
-    std::size_t makeNewNonce() noexcept;
-
-    Socket& getControlSocket() noexcept { return *ControlConnection; }
-    Socket* getDataSocket() noexcept { return DataConnection.get(); }
-
-    /// Releases the control socket of the other client and associates it as the
-    /// data connection of the current client.
-    void subjugateIntoDataSocket(ClientData& Other) noexcept;
-
-  private:
-    std::size_t ID;
-    std::optional<std::size_t> Nonce;
-
-    /// The control connection transcieves control information and commands.
-    std::unique_ptr<Socket> ControlConnection;
-
-    /// The data connection transcieves the actual program data.
-    std::unique_ptr<Socket> DataConnection;
-  };
-
   static std::string getServerSocketPath();
 
   /// Create a new server that will listen on the associated socket.
@@ -85,22 +56,58 @@ public:
   int listen();
 
 private:
-  Socket Sock;
-  /// Map client IDs to the client information data structure. \p unique_ptr
-  /// is used so changing the map's balancing does not invalidate other
-  /// references to the data.
-  std::map<std::size_t, std::unique_ptr<ClientData>> Clients;
-  /// Map data connection file descriptors to the client that owns the data
+  /// Create a data structure that allows us to (in the optimal case) quickly
+  /// resolve a file descriptor to its origin kind, e.g. whether the connection
+  /// is a client control connection, a client data connection, or a session
   /// connection.
-  std::map<raw_fd, ClientData*> DataConnections;
+  enum ConnectionTag
+  {
+    CT_None = 0,
+    CT_ClientControl = 1,
+    CT_ClientData = 2,
+    CT_Session = 4
+  };
+
+  using ClientControlConnection = TaggedPointer<CT_ClientControl, ClientData>;
+  using ClientDataConnection = TaggedPointer<CT_ClientData, ClientData>;
+  using SessionConnection = TaggedPointer<CT_Session, Session>;
+  using LookupVariant = std::variant<std::monostate,
+                                     ClientControlConnection,
+                                     ClientDataConnection,
+                                     SessionConnection>;
+
+private:
+  Socket Sock;
+
+  /// A quick lookup that associates a file descriptor to the data for the
+  /// entity behind the file descriptor.
+  SmallIndexMap<LookupVariant,
+                256,
+                /* StoreInPlace =*/true,
+                /* IntrusiveDefaultSentinel =*/true>
+    FDLookup;
+
+  /// Map client IDs to the client information data structure.
+  ///
+  /// \note \p unique_ptr is used so changing the map's balancing does not
+  /// invalidate other references to the data.
+  std::map<std::size_t, std::unique_ptr<ClientData>> Clients;
+
+  /// Map terminal \p Sessions running under the current shell to their names.
   std::map<std::string, Session> Sessions;
 
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
 
+  /// The callback function that is fired when a new \p Client connected.
   void acceptCallback(ClientData& Client);
+  /// The callback function that is fired for transmission on a \p Client's
+  /// control connection.
   void controlCallback(ClientData& Client);
+  /// The clalback function that is fired for transmission on a \p Client's
+  /// data connection.
   void dataCallback(ClientData& Client);
+  /// The callback function that is fired when a \p Client has disconnected.
   void exitCallback(ClientData& Client);
 
   /// A special step during the handshake maneuvre is when a user client
