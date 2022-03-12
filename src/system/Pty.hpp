@@ -30,10 +30,7 @@ namespace monomux
 class Pty
 {
   bool IsMaster = false;
-
-public:
   fd Master, Slave;
-  // std::array<fd, 2> Pipes;
 
 public:
   Pty();
@@ -48,7 +45,7 @@ public:
 
   /// \returns the raw file descriptor for the \p Pty side that is currently
   /// open.
-  raw_fd getFD() const noexcept { return isMaster() ? Master : Slave; }
+  fd& getFD() noexcept { return isMaster() ? Master : Slave; }
 
   /// Executes actions that configure the current PTY from the owning parent's
   /// point of view. This usually means that the PTS (pseudoterminal-slave)

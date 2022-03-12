@@ -18,7 +18,7 @@
  */
 #pragma once
 #include "ClientData.hpp"
-#include "Session.hpp"
+#include "SessionData.hpp"
 
 #include "adt/SmallIndexMap.hpp"
 #include "adt/TaggedPointer.hpp"
@@ -70,7 +70,7 @@ private:
 
   using ClientControlConnection = TaggedPointer<CT_ClientControl, ClientData>;
   using ClientDataConnection = TaggedPointer<CT_ClientData, ClientData>;
-  using SessionConnection = TaggedPointer<CT_Session, Session>;
+  using SessionConnection = TaggedPointer<CT_Session, SessionData>;
   using LookupVariant = std::variant<std::monostate,
                                      ClientControlConnection,
                                      ClientDataConnection,
@@ -94,7 +94,10 @@ private:
   std::map<std::size_t, std::unique_ptr<ClientData>> Clients;
 
   /// Map terminal \p Sessions running under the current shell to their names.
-  std::map<std::string, Session> Sessions;
+  ///
+  /// \note \p unique_ptr is used so changing the map's balancing does not
+  /// invalidate other references to the data.
+  std::map<std::string, std::unique_ptr<SessionData>> Sessions;
 
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
@@ -109,6 +112,20 @@ private:
   void dataCallback(ClientData& Client);
   /// The callback function that is fired when a \p Client has disconnected.
   void exitCallback(ClientData& Client);
+
+  /// The callback function that is fired when a new \p Session was created.
+  void createCallback(SessionData& Session);
+  /// The callback function that is fired when the server-side of a \p Session
+  /// receives data.
+  void dataCallback(SessionData& Session);
+  /// The callback function that is fired when a \p Client attaches to a
+  /// \p Session.
+  void clientAttachedCallback(ClientData& Client, SessionData& Session);
+  /// The callback function that is fired when a \p Client had detached from a
+  /// \p Session.
+  void clientDetachedCallback(ClientData& Client, SessionData& Session);
+  /// The callback function that is fired when a \p Session is destroyed.
+  void destroyCallback(SessionData& Session);
 
   /// A special step during the handshake maneuvre is when a user client
   /// connects to the server again, and establishes itself as the data

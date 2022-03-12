@@ -107,19 +107,21 @@ HANDLER(requestSpawnProcess)
   std::clog << "DEBUG: Spawning '" << SOpts.Program << "'..." << std::endl;
   Process P = Process::spawn(SOpts);
 
+  // FIXME: Make this with no collision! Currently the child throws if a client
+  // disconnects and connects again.
   std::string SessionName = "client-";
   SessionName.append(std::to_string(Client.id()));
   SessionName.push_back(':');
   SessionName.append(SOpts.Program);
   std::string SessionName2 = SessionName;
 
-  Session S{std::move(SessionName)};
-  S.setProcess(std::move(P));
+  auto S = std::make_unique<SessionData>(std::move(SessionName));
+  S->setProcess(std::move(P));
 
-  // S.getProcess().getPty()->Master->write("echo \"foo\" >
-  // monomux.test.txt\n\n");
+  auto InsertResult =
+    Sessions.try_emplace(std::move(SessionName2), std::move(S));
 
-  Sessions.try_emplace(std::move(SessionName2), std::move(S));
+  createCallback(*InsertResult.first->second);
 }
 
 #undef HANDLER

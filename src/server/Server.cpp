@@ -21,6 +21,7 @@
 #include "control/Message.hpp"
 #include "system/CheckedPOSIX.hpp"
 #include "system/POD.hpp"
+#include "system/Pipe.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -135,19 +136,22 @@ int Server::listen()
           continue;
         }
 
-        if (auto* Socket = std::get_if<SessionConnection>(Entity)) {
+        if (auto* Session = std::get_if<SessionConnection>(Entity))
+        {
           // First check for data coming from a session. This is the most
           // populous in terms of bandwidth.
-          std::clog << "DEBUG: Server - Data on a session, NOT YET IMPLEMENTED!"
-                    << std::endl;
+          dataCallback(**Session);
+          continue;
         }
-        if (auto* Data = std::get_if<ClientDataConnection>(Entity)) {
+        if (auto* Data = std::get_if<ClientDataConnection>(Entity))
+        {
           // Second, try to see if the data is coming from a client, like
           // keypresses and such. We expect to see many of these, too.
           dataCallback(**Data);
           continue;
         }
-        if (auto* Control = std::get_if<ClientControlConnection>(Entity)) {
+        if (auto* Control = std::get_if<ClientControlConnection>(Entity))
+        {
           // Lastly, check if the receive is happening on the control
           // connection, where messages are small and far inbetween.
           controlCallback(**Control);
@@ -224,6 +228,14 @@ void Server::dataCallback(ClientData& Client)
 
   std::string Data = Client.getDataSocket()->read(1024);
   std::cout << "DEBUG: Client data received:\n\t" << Data << std::endl;
+
+  // FIXME: Implement attachment logic.
+  for (auto& S : Sessions)
+  {
+    std::clog << "Send data to Session " << S.second->name() << std::endl;
+    if (S.second->hasProcess() && S.second->getProcess().hasPty())
+      Pipe::write(S.second->getProcess().getPty()->getFD(), Data);
+  }
 }
 
 void Server::exitCallback(ClientData& Client)
@@ -243,6 +255,43 @@ void Server::exitCallback(ClientData& Client)
   if (It != Clients.end())
     Clients.erase(It);
 }
+
+void Server::createCallback(SessionData& Session)
+{
+  std::cout << "Session " << Session.name() << " created." << std::endl;
+
+  if (Session.hasProcess() && Session.getProcess().hasPty())
+  {
+    raw_fd FD = Session.getProcess().getPty()->getFD();
+
+    Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
+    FDLookup[FD] = SessionConnection{&Session};
+  }
+}
+
+void Server::dataCallback(SessionData& Session)
+{
+  std::cout << "Session " << Session.name()
+            << " sent some data on their data connection!" << std::endl;
+
+  std::string Data = Pipe::read(Session.getProcess().getPty()->getFD(), 1024);
+  std::cout << "DEBUG: Session data received:\n\t" << Data << std::endl;
+
+  // FIXME: Implement attachment logic.
+  for (auto& C : Clients)
+  {
+    std::clog << "Send data to Client #" << C.second->id() << std::endl;
+    if (Socket* DS = C.second->getDataSocket())
+      DS->write(Data);
+  }
+}
+
+void Server::clientAttachedCallback(ClientData& Client, SessionData& Session) {}
+
+void Server::clientDetachedCallback(ClientData& Client, SessionData& Session) {}
+
+void Server::destroyCallback(SessionData& Session) {}
+
 
 void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
                                              ClientData& DataClient)

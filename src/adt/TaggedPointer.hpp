@@ -20,7 +20,8 @@
 
 #include <cstdint>
 
-namespace monomux {
+namespace monomux
+{
 
 /// Tags a pointer pointing to any type with an indicatory numeric value
 /// statically.

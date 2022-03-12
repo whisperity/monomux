@@ -16,115 +16,97 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Socket.hpp"
+#include "Pipe.hpp"
 
 #include "CheckedPOSIX.hpp"
 #include "POD.hpp"
 
 #include <iostream>
 
-#include <sys/socket.h>
-#include <sys/un.h>
+// #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace monomux
 {
 
-Socket Socket::create(std::string Path, bool InheritInChild)
+static constexpr auto UserACL = S_IRUSR | S_IWUSR;
+
+Pipe Pipe::create(std::string Path, bool InheritInChild)
 {
-  flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
-  fd Handle = CheckedPOSIXThrow(
-    [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
-    "socket()",
-    -1);
-
-  // TODO: Mask?
-
-  POD<struct ::sockaddr_un> SocketAddr;
-  SocketAddr->sun_family = AF_UNIX;
-  std::strncpy(
-    SocketAddr->sun_path, Path.c_str(), sizeof(SocketAddr->sun_path) - 1);
-
   CheckedPOSIXThrow(
-    [&Handle, &SocketAddr] {
-      return ::bind(Handle,
-                    reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
-                    sizeof(SocketAddr));
-    },
-    "Failed to bind socket to path '" + Path + "'",
-    -1);
+    [&Path] { return ::mkfifo(Path.c_str(), UserACL); }, "mkfifo()", -1);
 
-  Socket S;
-  S.Handle = std::move(Handle);
-  S.Path = std::move(Path);
-  S.Owning = true;
-  S.CleanupPossible = true;
-  return S;
-}
-
-Socket Socket::open(std::string Path, bool InheritInChild)
-{
-  flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
+  flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
-    [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
-    "socket()",
+    [&Path, ExtraFlags] { return ::open(Path.c_str(), O_WRONLY | ExtraFlags); },
+    "open('" + Path + "')",
     -1);
 
-  POD<struct ::sockaddr_un> SocketAddr;
-  SocketAddr->sun_family = AF_UNIX;
-  std::strncpy(
-    SocketAddr->sun_path, Path.c_str(), sizeof(SocketAddr->sun_path) - 1);
-
-  CheckedPOSIXThrow(
-    [&Handle, &SocketAddr] {
-      return ::connect(Handle,
-                       reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
-                       sizeof(SocketAddr));
-    },
-    "Failed to connect to path '" + Path + "'",
-    -1);
-
-  Socket S;
-  S.Handle = std::move(Handle);
-  S.Path = std::move(Path);
-  S.Owning = false;
-  S.CleanupPossible = false;
-  return S;
+  Pipe P;
+  P.Handle = std::move(Handle);
+  P.OpenedAs = Write;
+  P.Path = std::move(Path);
+  P.Owning = true;
+  P.CleanupPossible = true;
+  return P;
 }
 
-Socket Socket::wrap(fd&& FD)
+Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
 {
-  Socket S;
-  S.Path = "<fd:";
-  S.Path.append(std::to_string(FD.get()));
-  S.Path.push_back('>');
-  S.Handle = std::move(FD);
-  S.Owning = true;
-  S.CleanupPossible = false;
-  return S;
+  flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
+  fd Handle = CheckedPOSIXThrow(
+    [&Path, OpenMode, ExtraFlags] {
+      return ::open(Path.c_str(), OpenMode | ExtraFlags);
+    },
+    "open('" + Path + "')",
+    -1);
+
+  Pipe P;
+  P.Handle = std::move(Handle);
+  P.OpenedAs = OpenMode;
+  P.Path = std::move(Path);
+  P.Owning = false;
+  P.CleanupPossible = false;
+  return P;
 }
 
-Socket::Socket(Socket&& RHS) noexcept
-  : Handle(std::move(RHS.Handle)), Path(std::move(RHS.Path)),
-    Owning(RHS.Owning), CleanupPossible(RHS.CleanupPossible), Open(RHS.Open),
-    Listening(RHS.Listening)
+Pipe Pipe::wrap(fd&& FD, Mode OpenMode)
+{
+  Pipe P;
+  P.Path = "<fd:";
+  P.Path.append(std::to_string(FD.get()));
+  P.Path.push_back(':');
+  P.Path.append(OpenMode == Read ? "r" : "w");
+  P.Path.push_back('>');
+  P.Handle = std::move(FD);
+  P.OpenedAs = OpenMode;
+  P.Owning = true;
+  P.CleanupPossible = false;
+  return P;
+}
+
+Pipe::Pipe(Pipe&& RHS) noexcept
+  : Handle(std::move(RHS.Handle)), OpenedAs(RHS.OpenedAs),
+    Path(std::move(RHS.Path)), Owning(RHS.Owning),
+    CleanupPossible(RHS.CleanupPossible), Open(RHS.Open)
 {}
 
-Socket& Socket::operator=(Socket&& RHS) noexcept
+Pipe& Pipe::operator=(Pipe&& RHS) noexcept
 {
   if (this == &RHS)
     return *this;
 
   Handle = std::move(RHS.Handle);
+  OpenedAs = RHS.OpenedAs;
   Path = std::move(RHS.Path);
   Owning = RHS.Owning;
   CleanupPossible = RHS.CleanupPossible;
-  Listening = RHS.Listening;
 
   return *this;
 }
 
-Socket::~Socket() noexcept
+Pipe::~Pipe() noexcept
 {
   if (!Handle.has())
     return;
@@ -136,7 +118,7 @@ Socket::~Socket() noexcept
     if (!RemoveResult)
     {
       std::cerr << "Failed to remove file '" << Path
-                << "' when closing the socket.\n";
+                << "' when closing the pipe.\n";
       std::cerr << std::strerror(RemoveResult.getError().value()) << std::endl;
     }
   }
@@ -144,44 +126,37 @@ Socket::~Socket() noexcept
   CheckedPOSIX([this] { return ::close(Handle); }, -1);
 }
 
-void Socket::listen()
+void Pipe::setBlocking()
 {
-  if (!Owning)
-    throw std::system_error{
-      std::make_error_code(std::errc::operation_not_permitted),
-      "Can't start listening on an outbound socket!"};
-
-  if (Listening)
-    throw std::system_error{
-      std::make_error_code(std::errc::operation_in_progress),
-      "The socket is already listening!"};
-
-  CheckedPOSIXThrow([this] { return ::listen(Handle, 128); }, "listen()", -1);
-  Listening = true;
+  if (isBlocking())
+    return;
+  fd::removeStatusFlag(Handle.get(), O_NONBLOCK);
 }
 
-std::string Socket::read(std::size_t Bytes)
+void Pipe::setNonblocking()
 {
+  if (isNonblocking())
+    return;
+  fd::addStatusFlag(Handle.get(), O_NONBLOCK);
+}
+
+std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
+{
+
   // NOLINTNEXTLINE(readability-identifier-naming)
   static constexpr std::size_t BUFFER_SIZE = 1024;
-
-  if (!Open)
-    throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Closed."};
 
   std::string Return;
   Return.reserve(Bytes);
   POD<char[BUFFER_SIZE]> Buffer;
-  bool FirstRead = true;
 
   while (Return.size() < Bytes)
   {
     auto ReadBytes = CheckedPOSIX(
-      [this, FirstRead, &Buffer] {
+      [RawFD = FD.get(), &Buffer] {
         Buffer.reset();
 
-        return ::recv(
-          Handle.get(), &Buffer, BUFFER_SIZE, FirstRead ? 0 : MSG_DONTWAIT);
+        return ::read(RawFD, &Buffer, BUFFER_SIZE);
       },
       -1);
     if (!ReadBytes)
@@ -199,18 +174,19 @@ std::string Socket::read(std::size_t Bytes)
         break;
       }
 
-      std::cerr << "Socket " << Handle.get() << " - read error." << std::endl;
-      Open = false;
+      std::cerr << "Pipe " << FD.get() << " - read error." << std::endl;
+      if (Success)
+        *Success = false;
       throw std::system_error{std::make_error_code(EC)};
     }
 
-    FirstRead = false;
     std::cout << "Received chunk " << ReadBytes.get() << " bytes from "
-              << Handle.get() << std::endl;
+              << FD.get() << std::endl;
     if (ReadBytes.get() == 0)
     {
-      std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;
-      Open = false;
+      std::cout << "Pipe " << FD.get() << " disconnected." << std::endl;
+      if (Success)
+        *Success = false;
       break;
     }
 
@@ -235,26 +211,42 @@ std::string Socket::read(std::size_t Bytes)
 
   std::cout << "Finished reading " << Return.size() << " bytes." << std::endl;
 
+  if (Success)
+    *Success = true;
   return Return;
 }
 
-void Socket::write(std::string_view Data)
+std::string Pipe::read(std::size_t Bytes)
+{
+  if (!Open)
+    throw std::system_error{std::make_error_code(std::errc::io_error),
+                            "Closed."};
+  if (OpenedAs != Read)
+    throw std::system_error{
+      std::make_error_code(std::errc::operation_not_permitted),
+      "Not readable."};
+
+  bool Success;
+  std::string Data = read(Handle, Bytes, &Success);
+  if (!Success)
+    Open = false;
+
+  return Data;
+}
+
+void Pipe::write(fd& FD, std::string_view Data, bool* Success)
 {
   // NOLINTNEXTLINE(readability-identifier-naming)
   static constexpr std::size_t BUFFER_SIZE = 1024;
 
-  if (!Open)
-    throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Closed."};
   const std::size_t DataSize = Data.size();
 
-  std::clog << "DEBUG: Sending data on socket:\n\t" << Data << std::endl;
+  std::clog << "DEBUG: Writing data to pipe:\n\t" << Data << std::endl;
   while (!Data.empty())
   {
     auto SentBytes = CheckedPOSIX(
-      [this, &Data] {
-        return ::send(
-          Handle.get(), Data.data(), std::min(BUFFER_SIZE, Data.size()), 0);
+      [RawFD = FD.get(), &Data] {
+        return ::write(RawFD, Data.data(), std::min(BUFFER_SIZE, Data.size()));
       },
       -1);
     if (!SentBytes)
@@ -264,17 +256,19 @@ void Socket::write(std::string_view Data)
         // Not an error.
         continue;
 
-      std::cerr << "Socket " << Handle.get() << " - write error." << std::endl;
-      Open = false;
+      std::cerr << "Pipe " << FD.get() << " - write error." << std::endl;
+      if (Success)
+        *Success = false;
       throw std::system_error{std::make_error_code(EC)};
     }
 
-    std::cout << "Sent " << SentBytes.get() << " bytes to " << Handle.get()
+    std::cout << "Sent " << SentBytes.get() << " bytes to " << FD.get()
               << std::endl;
     if (SentBytes.get() == 0)
     {
-      std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;
-      Open = false;
+      std::cout << "Pipe " << FD.get() << " disconnected." << std::endl;
+      if (Success)
+        *Success = false;
       break;
     }
 
@@ -284,7 +278,25 @@ void Socket::write(std::string_view Data)
       Data.remove_prefix(Data.size());
   }
 
-  std::cout << "Finished sending " << DataSize << " bytes." << std::endl;
+  std::cout << "Finished writing " << DataSize << " bytes." << std::endl;
+  if (Success)
+    *Success = true;
+}
+
+void Pipe::write(std::string_view Data)
+{
+  if (!Open)
+    throw std::system_error{std::make_error_code(std::errc::io_error),
+                            "Closed."};
+  if (OpenedAs != Write)
+    throw std::system_error{
+      std::make_error_code(std::errc::operation_not_permitted),
+      "Not writable."};
+
+  bool Success;
+  write(Handle, Data, &Success);
+  if (!Success)
+    Open = false;
 }
 
 } // namespace monomux

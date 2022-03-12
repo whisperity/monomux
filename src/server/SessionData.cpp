@@ -16,14 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Session.hpp"
+#include "SessionData.hpp"
 
 #include <iostream>
 
 namespace monomux
 {
 
-void Session::setProcess(Process&& Process) noexcept
+void SessionData::setProcess(Process&& Process) noexcept
 {
   std::clog << "DEBUG: Setting process for session " << Name << std::endl;
   MainProcess.reset();

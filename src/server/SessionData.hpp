@@ -28,13 +28,12 @@ namespace monomux
 {
 
 /// Encapsulates a running session under the server owning the instance.
-/// A \p Session is just a \p Process and some associated metadata.
-class Session
+class SessionData
 {
 public:
-  Session(std::string Name) : Name(std::move(Name)) {}
+  SessionData(std::string Name) : Name(std::move(Name)) {}
 
-  const std::string& getName() const noexcept { return Name; }
+  const std::string& name() const noexcept { return Name; }
 
   bool hasProcess() const noexcept { return MainProcess.has_value(); }
   void setProcess(Process&& Process) noexcept;

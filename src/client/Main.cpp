@@ -113,7 +113,7 @@ int main(Options& Opts)
   POD<char[1024]> Data;
   while (true)
   {
-    // FIXME: Refactor this into a "pipe" class, similar to the socket one.
+    // FIXME: Use a listener on both stdin and the connection.
     unsigned long Size = ::read(0, &Data, sizeof(Data));
     Client.sendData(std::string_view{&Data[0], Size});
   }
