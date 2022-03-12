@@ -20,6 +20,7 @@ include(CTest)
 add_executable(monomux_tests
   main.cpp
 
+  adt/SmallIndexMapTest.cpp
   control/MessageSerialisationTest.cpp
   )
 target_include_directories(monomux_tests PUBLIC

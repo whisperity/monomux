@@ -25,7 +25,7 @@ namespace monomux
 /// Returns the value of the environment variable \p Key.
 ///
 /// This function is a safe alternative to \p getenv() as it immediately
-/// allocates a *new* string with the result.
+/// allocates a \e new string with the result.
 std::string getEnv(const std::string& Key);
 
 } // namespace monomux

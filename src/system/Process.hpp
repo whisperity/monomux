@@ -62,7 +62,7 @@ public:
   /// Replaces the current process (as if by calling the \p exec() family) in
   /// the system with the started one.
   ///
-  /// \note WARNING: This command does *NOT* \p fork()!
+  /// \note WARNING: This command does \b NOT \p fork()!
   [[noreturn]] static void exec(const SpawnOptions& Opts);
 
   /// Spawns a new process based on the specified \p Opts. This process calls
@@ -72,7 +72,7 @@ public:
   /// returns the PID of the child, and execution resumes normally in the
   /// parent.
   ///
-  /// \note This call does NOT return in the child!
+  /// \note This call does \b NOT return in the child!
   static Process spawn(const SpawnOptions& Opts);
 
   /// \p fork(): Ask the kernel to create an exact duplicate of the current

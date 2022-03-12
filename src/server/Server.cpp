@@ -68,6 +68,9 @@ int Server::listen()
         // Event occured on the main socket.
         auto Established = CheckedPOSIX(
           [this, &SocketAddr, &SocketLen] {
+            SocketAddr.reset();
+            SocketLen.reset();
+
             return ::accept(Sock.raw(),
                             reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
                             &SocketLen);
@@ -91,7 +94,7 @@ int Server::listen()
             std::this_thread::sleep_for(std::chrono::seconds(1));
           }
           else
-            std::cerr << "accept() failed: " << Established.getError()
+            std::cerr << "accept() failed: " << Established.getError().message()
                       << std::endl;
         }
         else

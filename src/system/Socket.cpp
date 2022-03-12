@@ -176,6 +176,8 @@ std::string Socket::read(std::size_t Bytes)
   {
     auto ReadBytes = CheckedPOSIX(
       [this, FirstRead, &Buffer] {
+        Buffer.reset();
+
         return ::recv(
           Handle.get(), &Buffer, BUFFER_SIZE, FirstRead ? 0 : MSG_DONTWAIT);
       },
@@ -242,6 +244,7 @@ void Socket::write(std::string_view Data)
     throw std::system_error{std::make_error_code(std::errc::io_error),
                             "Closed."};
   static constexpr std::size_t BUFFER_SIZE = 1024;
+  const std::size_t DataSize = Data.size();
 
   std::clog << "DEBUG: Sending data on socket:\n\t" << Data << std::endl;
   while (!Data.empty())
@@ -279,7 +282,7 @@ void Socket::write(std::string_view Data)
       Data.remove_prefix(Data.size());
   }
 
-  std::cout << "Finished sending " << Data.size() << " bytes." << std::endl;
+  std::cout << "Finished sending " << DataSize << " bytes." << std::endl;
 }
 
 } // namespace monomux

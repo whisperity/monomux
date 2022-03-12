@@ -82,7 +82,7 @@ public:
   }
 
 public:
-  /// Closes a **raw** file descriptor.
+  /// Closes a \b raw file descriptor.
   static void close(raw_fd FD) noexcept;
 
   /// Adds the given \p Flag, from \p fcntl() flags, to the flags of the given

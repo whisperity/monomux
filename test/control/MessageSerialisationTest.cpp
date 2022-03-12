@@ -43,7 +43,7 @@ template <typename Msg> static Msg codec(const Msg& M)
 
 TEST(ControlMessageSerialisation, REQ_ClientID)
 {
-  ASSERT_EQ(encode(monomux::request::ClientID{}), "<CLIENT-ID />");
+  EXPECT_EQ(encode(monomux::request::ClientID{}), "<CLIENT-ID />");
 }
 
 TEST(ControlMessageSerialisation, RSP_ClientID)
@@ -51,11 +51,11 @@ TEST(ControlMessageSerialisation, RSP_ClientID)
   monomux::response::ClientID Obj;
   Obj.Client.ID = 42;
   Obj.Client.Nonce = 16;
-  ASSERT_EQ(encode(Obj), "<CLIENT-ID>42<NONCE>16</NONCE></CLIENT-ID>");
+  EXPECT_EQ(encode(Obj), "<CLIENT-ID>42<NONCE>16</NONCE></CLIENT-ID>");
 
   auto Decode = codec(Obj);
-  ASSERT_EQ(Obj.Client.ID, Decode.Client.ID);
-  ASSERT_EQ(Obj.Client.Nonce, Decode.Client.Nonce);
+  EXPECT_EQ(Obj.Client.ID, Decode.Client.ID);
+  EXPECT_EQ(Obj.Client.Nonce, Decode.Client.Nonce);
 }
 
 TEST(ControlMessageSerialisation, REQ_DataSocket)
@@ -63,13 +63,13 @@ TEST(ControlMessageSerialisation, REQ_DataSocket)
   monomux::request::DataSocket Obj;
   Obj.Client.ID = 55;
   Obj.Client.Nonce = 177;
-  ASSERT_EQ(
+  EXPECT_EQ(
     encode(Obj),
     "<DATASOCKET><CLIENT-ID>55<NONCE>177</NONCE></CLIENT-ID></DATASOCKET>");
 
   auto Decode = codec(Obj);
-  ASSERT_EQ(Obj.Client.ID, Decode.Client.ID);
-  ASSERT_EQ(Obj.Client.Nonce, Decode.Client.Nonce);
+  EXPECT_EQ(Obj.Client.ID, Decode.Client.ID);
+  EXPECT_EQ(Obj.Client.Nonce, Decode.Client.Nonce);
 }
 
 TEST(ControlMessageSerialisation, RSP_DataSocket)
@@ -77,18 +77,18 @@ TEST(ControlMessageSerialisation, RSP_DataSocket)
   {
     monomux::response::DataSocket Obj;
     Obj.Success = true;
-    ASSERT_TRUE(encode(Obj).find("<DATASOCKET>Accept</DATASOCKET>") == 0);
+    EXPECT_TRUE(encode(Obj).find("<DATASOCKET>Accept</DATASOCKET>") == 0);
 
     auto Decode = codec(Obj);
-    ASSERT_EQ(Obj.Success, Decode.Success);
+    EXPECT_EQ(Obj.Success, Decode.Success);
   }
 
   {
     monomux::response::DataSocket Obj;
     Obj.Success = false;
-    ASSERT_TRUE(encode(Obj).find("<DATASOCKET>Deny</DATASOCKET>") == 0);
+    EXPECT_TRUE(encode(Obj).find("<DATASOCKET>Deny</DATASOCKET>") == 0);
 
     auto Decode2 = codec(Obj);
-    ASSERT_EQ(Obj.Success, Decode2.Success);
+    EXPECT_EQ(Obj.Success, Decode2.Success);
   }
 }

@@ -28,13 +28,14 @@ namespace detail
 {
 
 /// Prevents optimisation of \p memset calls by too clever compilers.
-inline void memset_manual(void* B, std::size_t Size, int Ch) noexcept
+inline void memset_manual(void* B, int Ch, std::size_t N) noexcept
 {
+  if (!B || !N)
+    return;
+
   volatile auto* P = reinterpret_cast<unsigned char*>(B);
-  while (Size--)
-  {
+  while (N--)
     *P++ = Ch;
-  }
 }
 
 } // namespace detail
@@ -91,11 +92,11 @@ template <typename T> struct POD
     return *this;
   }
 
+  /// Zerofill the memory area of the contained object.
+  void reset() { detail::memset_manual(&Data, 0, sizeof(T)); }
+
 private:
   T Data;
-
-  /// Clears the data area of \p T.
-  void reset() { detail::memset_manual(&Data, 0, sizeof(T)); }
 };
 
 } // namespace monomux
