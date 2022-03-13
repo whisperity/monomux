@@ -134,6 +134,13 @@ int main(int ArgC, char* ArgV[])
     std::optional<Client> ToServer = client::connect(ClientOpts, false);
     if (!ToServer)
     {
+      // TODO: Work out how this would work with signals and the TTY of the
+      // client.
+      std::cerr << "ERROR: No running Monomux server found. Please start one "
+                   "manually with `monomux --server` for now!"
+                << std::endl;
+      return EXIT_FAILURE;
+
       std::clog << "DEBUG: No running server found, creating one..."
                 << std::endl;
 

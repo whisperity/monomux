@@ -37,47 +37,49 @@ template <typename Msg> static Msg codec(const Msg& M)
 
   std::string Data = monomux::encode(M);
   std::optional<Msg> Decode = decode<Msg>(Data);
-  assert(Decode);
+  EXPECT_TRUE(Decode && "Decoding just encoded message should succeed!");
   return *Decode;
 }
 
-TEST(ControlMessageSerialisation, REQ_ClientID)
+TEST(ControlMessageSerialisation, ClientIDRequest)
 {
   EXPECT_EQ(encode(monomux::request::ClientID{}), "<CLIENT-ID />");
 }
 
-TEST(ControlMessageSerialisation, RSP_ClientID)
+TEST(ControlMessageSerialisation, ClientIDResponse)
 {
   monomux::response::ClientID Obj;
   Obj.Client.ID = 42;
   Obj.Client.Nonce = 16;
-  EXPECT_EQ(encode(Obj), "<CLIENT-ID>42<NONCE>16</NONCE></CLIENT-ID>");
+  EXPECT_EQ(
+    encode(Obj),
+    "<CLIENT-ID><CLIENT><ID>42</ID><NONCE>16</NONCE></CLIENT></CLIENT-ID>");
 
   auto Decode = codec(Obj);
   EXPECT_EQ(Obj.Client.ID, Decode.Client.ID);
   EXPECT_EQ(Obj.Client.Nonce, Decode.Client.Nonce);
 }
 
-TEST(ControlMessageSerialisation, REQ_DataSocket)
+TEST(ControlMessageSerialisation, DataSocketRequest)
 {
   monomux::request::DataSocket Obj;
   Obj.Client.ID = 55;
   Obj.Client.Nonce = 177;
   EXPECT_EQ(
     encode(Obj),
-    "<DATASOCKET><CLIENT-ID>55<NONCE>177</NONCE></CLIENT-ID></DATASOCKET>");
+    "<DATASOCKET><CLIENT><ID>55</ID><NONCE>177</NONCE></CLIENT></DATASOCKET>");
 
   auto Decode = codec(Obj);
   EXPECT_EQ(Obj.Client.ID, Decode.Client.ID);
   EXPECT_EQ(Obj.Client.Nonce, Decode.Client.Nonce);
 }
 
-TEST(ControlMessageSerialisation, RSP_DataSocket)
+TEST(ControlMessageSerialisation, DataSocketRespons)
 {
   {
     monomux::response::DataSocket Obj;
     Obj.Success = true;
-    EXPECT_TRUE(encode(Obj).find("<DATASOCKET>Accept</DATASOCKET>") == 0);
+    EXPECT_TRUE(encode(Obj).find("<DATASOCKET><ACCEPT /></DATASOCKET>") == 0);
 
     auto Decode = codec(Obj);
     EXPECT_EQ(Obj.Success, Decode.Success);
@@ -86,9 +88,44 @@ TEST(ControlMessageSerialisation, RSP_DataSocket)
   {
     monomux::response::DataSocket Obj;
     Obj.Success = false;
-    EXPECT_TRUE(encode(Obj).find("<DATASOCKET>Deny</DATASOCKET>") == 0);
+    EXPECT_TRUE(encode(Obj).find("<DATASOCKET><DENY /></DATASOCKET>") == 0);
 
     auto Decode2 = codec(Obj);
     EXPECT_EQ(Obj.Success, Decode2.Success);
+  }
+}
+
+TEST(ControlMessageSerialisation, MakeSessionRequest)
+{
+  monomux::request::MakeSession Obj;
+  Obj.Name = "Foo";
+  Obj.SpawnOpts.Program = "/bin/bash";
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(Decode.Name, "Foo");
+    EXPECT_EQ(Decode.SpawnOpts.Program, "/bin/bash");
+    EXPECT_TRUE(Decode.SpawnOpts.Arguments.empty());
+    EXPECT_TRUE(Decode.SpawnOpts.SetEnvironment.empty());
+    EXPECT_TRUE(Decode.SpawnOpts.UnsetEnvironment.empty());
+  }
+
+  Obj.SpawnOpts.Arguments.emplace_back("--norc");
+  Obj.SpawnOpts.Arguments.emplace_back("--interactive");
+  Obj.SpawnOpts.SetEnvironment.emplace_back("SHLVL", "8");
+  Obj.SpawnOpts.UnsetEnvironment.emplace_back("TERM");
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(Decode.Name, "Foo");
+    EXPECT_EQ(Decode.SpawnOpts.Program, "/bin/bash");
+    EXPECT_EQ(Decode.SpawnOpts.Arguments.size(), 2);
+    EXPECT_EQ(Decode.SpawnOpts.Arguments.at(0), "--norc");
+    EXPECT_EQ(Decode.SpawnOpts.Arguments.at(1), "--interactive");
+    EXPECT_EQ(Decode.SpawnOpts.SetEnvironment.size(), 1);
+    EXPECT_EQ(Decode.SpawnOpts.SetEnvironment.at(0).first, "SHLVL");
+    EXPECT_EQ(Decode.SpawnOpts.SetEnvironment.at(0).second, "8");
+    EXPECT_EQ(Decode.SpawnOpts.UnsetEnvironment.size(), 1);
+    EXPECT_EQ(Decode.SpawnOpts.UnsetEnvironment.at(0), "TERM");
   }
 }

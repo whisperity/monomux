@@ -93,16 +93,16 @@ HANDLER(requestDataSocket)
   MainClient.getDataSocket()->write(encode(response::DataSocket{true}));
 }
 
-HANDLER(requestSpawnProcess)
+HANDLER(requestMakeSession)
 {
   std::clog << __PRETTY_FUNCTION__ << std::endl;
 
-  MSG(request::SpawnProcess)
-  std::cout << "Spawn: " << Msg->ProcessName << std::endl;
+  MSG(request::MakeSession)
+  std::cout << "Spawn: " << Msg->SpawnOpts.Program << std::endl;
 
   Process::SpawnOptions SOpts;
-  SOpts.Program = Msg->ProcessName;
   SOpts.CreatePTY = true;
+  SOpts.Program = Msg->SpawnOpts.Program;
 
   std::clog << "DEBUG: Spawning '" << SOpts.Program << "'..." << std::endl;
   Process P = Process::spawn(SOpts);

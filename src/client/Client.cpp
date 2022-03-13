@@ -54,7 +54,7 @@ bool Client::handshake()
     std::string Data = ControlSocket.read(128);
 
     MessageBase MB = MessageBase::unpack(Data);
-    if (MB.Kind != MessageKind::RSP_ClientID)
+    if (MB.Kind != MessageKind::ClientIDResponse)
     {
       std::cerr
         << "ERROR: Invalid response from Server when trying to establish "
@@ -90,7 +90,7 @@ bool Client::handshake()
 
     MessageBase MB = MessageBase::unpack(Data);
     std::cout << "DS result:" << MB.RawData << std::endl;
-    if (MB.Kind != MessageKind::RSP_DataSocket)
+    if (MB.Kind != MessageKind::DataSocketResponse)
     {
       std::cerr << "ERROR: Invalid response from Server when trying to "
                    "establish Data connection."
@@ -114,6 +114,9 @@ bool Client::handshake()
     }
 
     DataSocket = std::move(DS);
+
+    // TODO: Request a new nonce here and store it, as the original one got
+    // consumed.
   }
 
   return true;
@@ -129,9 +132,9 @@ std::size_t Client::consumeNonce() noexcept
 
 void Client::requestSpawnProcess(const Process::SpawnOptions& Opts)
 {
-  request::SpawnProcess Msg;
-  Msg.ProcessName = Opts.Program;
-  ControlSocket.write(encode(Msg));
+  // request::SpawnProcess Msg;
+  // Msg.ProcessName = Opts.Program;
+  // ControlSocket.write(encode(Msg));
 }
 
 void Client::sendData(std::string_view Data)

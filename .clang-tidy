@@ -1,5 +1,24 @@
-Checks: '-*,clang-diagnostic-*,llvm-include-order,llvm-namespace-comment,misc-*,readability-identifier-naming,-misc-non-private-member-variables-in-classes'
+Checks: >-
+  -*,
+  clang-diagnosic-*,
+  bugprone-*,
+  cert-*,
+  llvm-header-guard,
+  llvm-include-order,
+  llvm-namespace-comment,
+  misc-*,
+  -misc-non-private-member-variables-in-classes,
+  -misc-unused-parameters,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  performance-*,
+  readability-*,
+  -readability-braces-around-statements,
+  -readability-function-cognitive-complexity,
+  readability-identifier-naming
 CheckOptions:
+  - key:             performance-move-const-arg.CheckTriviallyCopyableMove
+    value:           false
   - key:             readability-identifier-naming.ClassCase
     value:           CamelCase
   - key:             readability-identifier-naming.EnumCase

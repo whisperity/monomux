@@ -19,9 +19,15 @@
 #include "Message.hpp"
 
 #include <cstring>
+#include <sstream>
+#include <tuple>
 
 #define DECODE(NAME) std::optional<NAME> NAME::decode(std::string_view Buffer)
 #define ENCODE(NAME) std::string NAME::encode(const NAME& Object)
+
+#define DECODE_BASE(NAME)                                                      \
+  std::optional<NAME> NAME::decode(std::string_view& Buffer)
+#define ENCODE_BASE(NAME) std::string NAME::encode(const NAME& Object)
 
 namespace monomux
 {
@@ -31,7 +37,7 @@ std::string MessageBase::encodeKind() const
   std::string Str;
   Str.resize(sizeof(MessageKind));
 
-  auto* Data = reinterpret_cast<const char*>(&Kind);
+  const auto* Data = reinterpret_cast<const char*>(&Kind);
   for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
     Str[I] = Data[I];
 
@@ -43,6 +49,7 @@ MessageKind MessageBase::decodeKind(std::string_view Str) noexcept
   if (Str.size() < sizeof(MessageKind))
     return MessageKind::Invalid;
 
+  // NOLINTNEXTLINE(modernize-avoid-c-arrays)
   char MKCh[sizeof(MessageKind)] = {0};
   for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
     MKCh[I] = Str[I];
@@ -77,11 +84,13 @@ MessageBase MessageBase::unpack(std::string_view Str) noexcept
   return MB;
 }
 
-/// Reads \p Literal from the \p Data and returns a new \p string_view that
-/// points after the consumed \p Literal, or the empty \p string_view if it was
-/// not found.
-static std::string_view consume(std::string_view Data,
-                                const std::string_view Literal)
+namespace
+{
+
+/// Reads \p Literal from the \b beginning \p Data and returns a new
+/// \p string_view that points after the consumed \p Literal, or the empty
+/// \p string_view if it was not found.
+std::string_view consume(std::string_view Data, const std::string_view Literal)
 {
   auto Pos = Data.find(Literal);
   if (Pos != 0)
@@ -92,13 +101,211 @@ static std::string_view consume(std::string_view Data,
 
 /// Returns the \p string_view into \p Data until the first occurrence of
 /// \p Literal.
-static std::string_view takeUntil(std::string_view Data,
-                                  const std::string_view Literal)
+std::string_view takeUntil(std::string_view Data,
+                           const std::string_view Literal)
 {
   auto Pos = Data.find(Literal);
   if (Pos == std::string_view::npos)
     return {};
   return Data.substr(0, Pos);
+}
+
+/// Returns \p N characters spliced from the beginning of \p Data and modifies
+/// \p Data to point after the removed characters.
+std::string_view splice(std::string_view& Data, std::size_t N)
+{
+  std::string_view S = Data.substr(0, N);
+  Data.remove_prefix(N);
+  return S;
+}
+
+/// Returns both the data taken until the \p Literal encountered, and the
+/// remaining \p Data buffer. The \p Literal is \b NOT part of the returned
+/// match.
+std::string_view takeUntilAndConsume(std::string_view& Data,
+                                     const std::string_view Literal)
+{
+  auto Pos = Data.find(Literal);
+  if (Pos == std::string_view::npos)
+    return {};
+
+  std::string_view Match = Data.substr(0, Pos);
+  Data.remove_prefix(Match.size() + Literal.size());
+  return Match;
+}
+
+} // namespace
+
+#define CONSUME_OR_NONE(LITERAL)                                               \
+  View = consume(View, LITERAL);                                               \
+  if (View.empty())                                                            \
+    return std::nullopt;
+
+#define EXTRACT_OR_NONE(VARIABLE, UNTIL_LITERAL)                               \
+  auto (VARIABLE) = takeUntilAndConsume(View, UNTIL_LITERAL);                    \
+  if ((VARIABLE).empty())                                                        \
+    return std::nullopt;
+
+#define HEADER_OR_NONE(LITERAL)                                                \
+  std::string_view View = consume(Buffer, LITERAL);                            \
+  if (View.empty())                                                            \
+    return std::nullopt;
+
+#define FOOTER_OR_NONE(LITERAL)                                                \
+  if (View != (LITERAL))                                                       \
+    return std::nullopt;                                                       \
+  View = consume(View, LITERAL);
+
+ENCODE_BASE(ClientID)
+{
+  std::ostringstream Ret;
+  Ret << "<CLIENT>";
+  {
+    Ret << "<ID>" << Object.ID << "</ID>";
+    Ret << "<NONCE>" << Object.Nonce << "</NONCE>";
+  }
+  Ret << "</CLIENT>";
+  return Ret.str();
+}
+DECODE_BASE(ClientID)
+{
+  ClientID Ret;
+  HEADER_OR_NONE("<CLIENT>");
+
+  CONSUME_OR_NONE("<ID>");
+  EXTRACT_OR_NONE(ID, "</ID>");
+  Ret.ID = std::stoull(std::string{ID});
+
+  CONSUME_OR_NONE("<NONCE>");
+  EXTRACT_OR_NONE(Nonce, "</NONCE>");
+  Ret.Nonce = std::stoull(std::string{Nonce});
+
+  // (Must not use FOOTER_OR_NONE in "Base classes" because the decode buffer
+  // might contain additional data!)
+  CONSUME_OR_NONE("</CLIENT>");
+  Buffer = View;
+  return Ret;
+}
+
+ENCODE_BASE(ProcessSpawnOptions)
+{
+  std::ostringstream Buf;
+  Buf << "<PROCESS>";
+  {
+    Buf << "<IMAGE>" << Object.Program << "</IMAGE>";
+    Buf << "<ARGUMENTS Count=\"" << Object.Arguments.size() << "\">";
+    {
+      for (const std::string& Arg : Object.Arguments)
+        Buf << "<ARGUMENT Size=\"" << Arg.size() << "\">" << Arg
+            << "</ARGUMENT>";
+    }
+    Buf << "</ARGUMENTS>";
+    Buf << "<ENVIRONMENT>";
+    {
+      Buf << "<DEFINE Count=\"" << Object.SetEnvironment.size() << "\">";
+      {
+        for (const std::pair<std::string, std::string>& EnvKV :
+             Object.SetEnvironment)
+        {
+          Buf << "<VARVAL>";
+          {
+            Buf << "<VAR Size=\"" << EnvKV.first.size() << "\">" << EnvKV.first
+                << "</VAR>";
+            Buf << "<VAL Size=\"" << EnvKV.second.size() << "\">"
+                << EnvKV.second << "</VAL>";
+          }
+          Buf << "</VARVAL>";
+        }
+      }
+      Buf << "</DEFINE>";
+      Buf << "<UNSET Count=\"" << Object.UnsetEnvironment.size() << "\">";
+      {
+        for (const std::string& EnvK : Object.UnsetEnvironment)
+          Buf << "<VAR Size=\"" << EnvK.size() << "\">" << EnvK << "</VAR>";
+      }
+      Buf << "</UNSET>";
+    }
+    Buf << "</ENVIRONMENT>";
+  }
+  Buf << "</PROCESS>";
+  return Buf.str();
+}
+DECODE_BASE(ProcessSpawnOptions)
+{
+  ProcessSpawnOptions Ret;
+  HEADER_OR_NONE("<PROCESS>");
+
+  CONSUME_OR_NONE("<IMAGE>");
+  EXTRACT_OR_NONE(Image, "</IMAGE>");
+  Ret.Program = Image;
+
+  {
+    CONSUME_OR_NONE("<ARGUMENTS Count=\"");
+    EXTRACT_OR_NONE(ArgumentCount, "\">");
+    std::size_t ArgC = std::stoull(std::string{ArgumentCount});
+    Ret.Arguments.resize(ArgC);
+    for (std::size_t I = 0; I < ArgC; ++I)
+    {
+      CONSUME_OR_NONE("<ARGUMENT Size=\"");
+      EXTRACT_OR_NONE(ArgumentSize, "\">");
+      if (std::size_t S = std::stoull(std::string{ArgumentSize}))
+        Ret.Arguments.at(I) = splice(View, S);
+
+      CONSUME_OR_NONE("</ARGUMENT>");
+    }
+    CONSUME_OR_NONE("</ARGUMENTS>");
+  }
+
+  {
+    CONSUME_OR_NONE("<ENVIRONMENT>");
+    {
+      CONSUME_OR_NONE("<DEFINE Count=\"");
+      EXTRACT_OR_NONE(EnvDefineCount, "\">");
+      std::size_t SetC = std::stoull(std::string{EnvDefineCount});
+      Ret.SetEnvironment.resize(SetC);
+      for (std::size_t I = 0; I < SetC; ++I)
+      {
+        CONSUME_OR_NONE("<VARVAL>");
+
+        CONSUME_OR_NONE("<VAR Size=\"");
+        EXTRACT_OR_NONE(VarSize, "\">");
+        if (std::size_t S = std::stoull(std::string{VarSize}))
+          Ret.SetEnvironment.at(I).first = splice(View, S);
+        CONSUME_OR_NONE("</VAR>");
+
+        CONSUME_OR_NONE("<VAL Size=\"");
+        EXTRACT_OR_NONE(ValSize, "\">");
+        if (std::size_t S = std::stoull(std::string{ValSize}))
+          Ret.SetEnvironment.at(I).second = splice(View, S);
+        CONSUME_OR_NONE("</VAL>");
+
+        CONSUME_OR_NONE("</VARVAL>");
+      }
+      CONSUME_OR_NONE("</DEFINE>");
+    }
+    {
+      CONSUME_OR_NONE("<UNSET Count=\"");
+      EXTRACT_OR_NONE(EnvUnsetCount, "\">");
+      std::size_t UnsetC = std::stoull(std::string{EnvUnsetCount});
+      Ret.UnsetEnvironment.resize(UnsetC);
+      for (std::size_t I = 0; I < UnsetC; ++I)
+      {
+        CONSUME_OR_NONE("<VAR Size=\"");
+        EXTRACT_OR_NONE(VarSize, "\">");
+        if (std::size_t S = std::stoull(std::string{VarSize}))
+          Ret.UnsetEnvironment.at(I) = splice(View, S);
+        CONSUME_OR_NONE("</VAR>");
+      }
+      CONSUME_OR_NONE("</UNSET>");
+    }
+    CONSUME_OR_NONE("</ENVIRONMENT>");
+  }
+
+  // (Must not use FOOTER_OR_NONE in "Base classes" because the decode buffer
+  // might contain additional data!)
+  CONSUME_OR_NONE("</PROCESS>");
+  Buffer = View;
+  return Ret;
 }
 
 namespace request
@@ -118,73 +325,52 @@ DECODE(ClientID)
 
 ENCODE(DataSocket)
 {
-  std::string Ret = "<DATASOCKET><CLIENT-ID>";
-  Ret.append(std::to_string(Object.Client.ID));
-  Ret.append("<NONCE>");
-  Ret.append(std::to_string(Object.Client.Nonce));
-  Ret.append("</NONCE>");
-  Ret.append("</CLIENT-ID></DATASOCKET>");
-  return Ret;
+  std::ostringstream Ret;
+  Ret << "<DATASOCKET>";
+  Ret << monomux::ClientID::encode(Object.Client);
+  Ret << "</DATASOCKET>";
+
+  return Ret.str();
 }
 DECODE(DataSocket)
 {
   DataSocket Ret;
 
-  auto View = consume(Buffer, "<DATASOCKET><CLIENT-ID>");
-  if (View.empty())
-    return std::nullopt;
+  HEADER_OR_NONE("<DATASOCKET>");
 
-  auto ID = takeUntil(View, "<NONCE>");
-  if (ID.empty())
+  auto ClientID = monomux::ClientID::decode(View);
+  if (!ClientID)
     return std::nullopt;
-  Ret.Client.ID = std::stoull(std::string{ID});
-  View.remove_prefix(ID.size());
+  Ret.Client = std::move(*ClientID);
 
-  View = consume(View, "<NONCE>");
-  if (View.empty())
-    return std::nullopt;
-
-  auto Nonce = takeUntil(View, "</NONCE>");
-  if (Nonce.empty())
-    return std::nullopt;
-  Ret.Client.Nonce = std::stoull(std::string{Nonce});
-  View.remove_prefix(Nonce.size());
-
-  View = consume(View, "</NONCE>");
-  if (View.empty())
-    return std::nullopt;
-
-  if (View != "</CLIENT-ID></DATASOCKET>")
-    return std::nullopt;
-
+  FOOTER_OR_NONE("</DATASOCKET>");
   return Ret;
 }
 
-ENCODE(SpawnProcess)
+ENCODE(MakeSession)
 {
-  std::string Ret = "<SPAWN>";
-  Ret.append(Object.ProcessName);
-  Ret.push_back('\0');
-  Ret.append("</SPAWN>");
-  return Ret;
+  std::ostringstream Buf;
+  Buf << "<MAKE-SESSION>";
+  Buf << "<NAME>" << Object.Name << "</NAME>";
+  Buf << monomux::ProcessSpawnOptions::encode(Object.SpawnOpts);
+  Buf << "</MAKE-SESSION>";
+  return Buf.str();
 }
-DECODE(SpawnProcess)
+DECODE(MakeSession)
 {
-  SpawnProcess Ret;
+  MakeSession Ret;
+  HEADER_OR_NONE("<MAKE-SESSION>");
 
-  auto P = Buffer.find("<SPAWN>");
-  if (P == std::string::npos)
+  CONSUME_OR_NONE("<NAME>");
+  EXTRACT_OR_NONE(Name, "</NAME>");
+  Ret.Name = Name;
+
+  auto Spawn = monomux::ProcessSpawnOptions::decode(View);
+  if (!Spawn)
     return std::nullopt;
-  P += std::strlen("<SPAWN>");
+  Ret.SpawnOpts = std::move(*Spawn);
 
-  auto SV = std::string_view{Buffer.data() + P, Buffer.size() - P};
-  P = SV.find('\0');
-  Ret.ProcessName = std::string{SV.substr(0, P)};
-  SV.remove_prefix(P + 1);
-
-  if (SV != "</SPAWN>")
-    return std::nullopt;
-
+  FOOTER_OR_NONE("</MAKE-SESSION>");
   return Ret;
 }
 
@@ -195,81 +381,52 @@ namespace response
 
 ENCODE(ClientID)
 {
-  std::string Ret = "<CLIENT-ID>";
-  Ret.append(std::to_string(Object.Client.ID));
-  Ret.append("<NONCE>");
-  Ret.append(std::to_string(Object.Client.Nonce));
-  Ret.append("</NONCE>");
-  Ret.append("</CLIENT-ID>");
-  return Ret;
+  std::ostringstream Buf;
+  Buf << "<CLIENT-ID>";
+  Buf << monomux::ClientID::encode(Object.Client);
+  Buf << "</CLIENT-ID>";
+  return Buf.str();
 }
 DECODE(ClientID)
 {
   ClientID Ret;
+  HEADER_OR_NONE("<CLIENT-ID>");
 
-  auto View = consume(Buffer, "<CLIENT-ID>");
-  if (View.empty())
+  auto ClientID = monomux::ClientID::decode(View);
+  if (!ClientID)
     return std::nullopt;
+  Ret.Client = std::move(*ClientID);
 
-  auto ID = takeUntil(View, "<NONCE>");
-  if (ID.empty())
-    return std::nullopt;
-  Ret.Client.ID = std::stoull(std::string{ID});
-  View.remove_prefix(ID.size());
-
-  View = consume(View, "<NONCE>");
-  if (View.empty())
-    return std::nullopt;
-
-  auto Nonce = takeUntil(View, "</NONCE>");
-  if (Nonce.empty())
-    return std::nullopt;
-  Ret.Client.Nonce = std::stoull(std::string{Nonce});
-  View.remove_prefix(Nonce.size());
-
-  View = consume(View, "</NONCE>");
-  if (View.empty())
-    return std::nullopt;
-
-  if (View != "</CLIENT-ID>")
-    return std::nullopt;
-
+  FOOTER_OR_NONE("</CLIENT-ID>");
   return Ret;
 }
 
 ENCODE(DataSocket)
 {
-  std::string Ret = "<DATASOCKET>";
-  Ret.append(Object.Success ? "Accept" : "Deny");
-  Ret.append("</DATASOCKET>");
-  Ret.append("!MAINTAIN-RADIO-SILENCE!\0\0\0");
-  return Ret;
+  std::ostringstream Ret;
+  Ret << "<DATASOCKET>";
+  Ret << (Object.Success ? "<ACCEPT />" : "<DENY />");
+  Ret << "</DATASOCKET>";
+
+  using namespace std::string_literals;
+  Ret << "!MAINTAIN-RADIO-SILENCE!\0\0\0"s;
+
+  return Ret.str();
 }
 DECODE(DataSocket)
 {
   DataSocket Ret;
+  HEADER_OR_NONE("<DATASOCKET>");
 
-  auto View = consume(Buffer, "<DATASOCKET>");
-  if (View.empty())
-    return std::nullopt;
-
-  auto Value = takeUntil(View, "</DATASOCKET>");
-  if (Value.empty())
-    return std::nullopt;
-  if (Value == "Accept")
+  EXTRACT_OR_NONE(Contents, "</DATASOCKET>");
+  if (Contents == "<ACCEPT />")
     Ret.Success = true;
-  else if (Value == "Deny")
+  else if (Contents == "<DENY />")
     Ret.Success = false;
   else
     return std::nullopt;
-  View.remove_prefix(Value.size());
 
-  View = consume(View, "</DATASOCKET>");
-  if (View.empty())
-    return std::nullopt;
-
-  // Ignore the "radio silence" message. :)
-
+  // Do not use FOOTER_OR_NONE! We ignore the "radio silence" message. :)
   return Ret;
 }
 
@@ -277,5 +434,11 @@ DECODE(DataSocket)
 
 } // namespace monomux
 
+#undef CONSUME_OR_NONE
+#undef HEADER_OR_NONE
+#undef FOOTER_OR_NONE
+
 #undef ENCODE
+#undef DECODE_BASE
 #undef DECODE
+#undef DECODE_BASE

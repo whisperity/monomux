@@ -21,18 +21,47 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace monomux
 {
 
 /// Contains the data members required to identify a connected Client.
-struct ClientIDBase
+struct ClientID
 {
+  MONOMUX_MESSAGE_BASE(ClientID);
+
   /// The identity number of the client on the server it has connected to.
   std::size_t ID;
   /// A single-use number the client can use in other unassociated requests
   /// to prove its identity.
   std::size_t Nonce;
+};
+
+/// A view of the \p Process::SpawnOptions data structure that is sufficient for
+/// network transmission as a request.
+struct ProcessSpawnOptions
+{
+  MONOMUX_MESSAGE_BASE(ProcessSpawnOptions);
+
+  /// \see Process::SpawnOptions::Program
+  std::string Program;
+  /// \see Process::SpawnOptions::Arguments
+  std::vector<std::string> Arguments;
+
+  // (We do not wish to deal with std::nullopt stuff...)
+
+  /// The list of environment variables to be set for the spawned process.
+  ///
+  /// \see Process::SpawnOptions::Environment
+  std::vector<std::pair<std::string, std::string>> SetEnvironment;
+
+  /// The list of environment variables to be ignored and unset in the spawned
+  /// process, no matter what the server has them set to.
+  ///
+  /// \see Process::SpawnOptions::Environment
+  std::vector<std::string> UnsetEnvironment;
 };
 
 namespace request
@@ -45,7 +74,7 @@ namespace request
 /// established.
 struct ClientID
 {
-  MONOMUX_MESSAGE(REQ_ClientID, ClientID);
+  MONOMUX_MESSAGE(ClientIDRequest, ClientID);
 };
 
 /// A request from the client to the server sent over the data connection to
@@ -56,14 +85,29 @@ struct ClientID
 /// established.
 struct DataSocket
 {
-  MONOMUX_MESSAGE(REQ_DataSocket, DataSocket);
-  ClientIDBase Client;
+  MONOMUX_MESSAGE(DataSocketRequest, DataSocket);
+  monomux::ClientID Client;
 };
 
-struct SpawnProcess
+/// A request from the client to the server to advise the client about the
+/// sessions available on the server for attachment.
+// struct SessionList
+// {
+//   MONOMUX_MESSAGE(SessionListRequest, SessionList);
+// };
+
+/// A request from the client to the server to initialise a new session with
+/// the specified parameters.
+struct MakeSession
 {
-  MONOMUX_MESSAGE(REQ_SpawnProcess, SpawnProcess)
-  std::string ProcessName;
+  MONOMUX_MESSAGE(MakeSessionRequest, MakeSession);
+  /// The name to associate with the created session.
+  ///
+  /// \note This is non-normative, and may be rejected by the server.
+  std::string Name;
+
+  /// The options for the program to create in the session.
+  ProcessSpawnOptions SpawnOpts;
 };
 
 } // namespace request
@@ -74,15 +118,31 @@ namespace response
 /// The response to the \p request::ClientID, sent by the server.
 struct ClientID
 {
-  MONOMUX_MESSAGE(RSP_ClientID, ClientID);
-  ClientIDBase Client;
+  MONOMUX_MESSAGE(ClientIDResponse, ClientID);
+  monomux::ClientID Client;
 };
 
 /// The response to the \p request::DataSocket, sent by the server.
+///
+/// This message is sent back through the connection the request arrived.
+/// In case of \p Success, this is the last (and only) control message that is
+/// passed through what transmogrified into a \e Data connection.
 struct DataSocket
 {
-  MONOMUX_MESSAGE(RSP_DataSocket, DataSocket);
+  MONOMUX_MESSAGE(DataSocketResponse, DataSocket);
   bool Success;
+};
+
+/// The response to the \p request::SessionList, sent by the server.
+// struct SessionList
+// {
+//   MONOMUX_MESSAGE(SessionListResponse, SessionList);
+// };
+
+/// The response to the \p request::MakeSession,sent by the server.
+struct MakeSession
+{
+  MONOMUX_MESSAGE(MakeSessionResponse, MakeSession);
 };
 
 } // namespace response

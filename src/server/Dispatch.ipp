@@ -3,9 +3,10 @@
 #define DISPATCH(KIND, FUNCTION_NAME)
 #endif
 
-DISPATCH(REQ_ClientID, requestClientID)
-DISPATCH(REQ_DataSocket, requestDataSocket)
+DISPATCH(ClientIDRequest, requestClientID)
+DISPATCH(DataSocketRequest, requestDataSocket)
 
-DISPATCH(REQ_SpawnProcess, requestSpawnProcess)
+// DISPATCH(REQ_SpawnProcess, requestSpawnProcess)
+DISPATCH(MakeSessionRequest, requestMakeSession)
 
 #undef DISPATCH

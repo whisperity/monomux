@@ -39,7 +39,14 @@ namespace monomux
 
 /// The monomux server is responsible for creating child processes of sessions.
 /// Clients communicate with a \p Server instance to obtain information about
-/// a session and to initiate attachment procedures.
+/// a session and to initiate attachment procedures, and then it is the
+/// \p Server which transcieves data back and forth in a connection.
+///
+/// The conventional way of executing a Monomux Server is by letting the
+/// \p listen() call deal with the control messages and structures, coming from
+/// an "official" Monomux Client. However, the callbacks are exposed to users
+/// who might want to embed Monomux as a library and self-setup some
+/// connections.
 class Server
 {
 public:
@@ -102,6 +109,41 @@ private:
   std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
 
+public:
+  /// Retrieve data about the client registered as \p ID.
+  ClientData* getClient(std::size_t ID) noexcept;
+
+  /// Retrieve data about the session registered as \p Name.
+  SessionData* getSession(std::string_view Name) noexcept;
+
+  /// Creates a new client on the server.
+  ///
+  /// \note Calling this function only manages the backing data structure and
+  /// does \b NOT fire any associated callbacks!
+  ClientData* makeClient(ClientData Client);
+
+  /// Regiters a new session to the server.
+  ///
+  /// \note Calling this function only manages the backing data structure and
+  /// does \b NOT fire any associated callbacks!
+  SessionData* makeSession(SessionData Session);
+
+  /// Delete the \p Client from the list of clients.
+  ///
+  /// \note Calling this function only manages the backing data structure and
+  /// does \b NOT fire any associated callbacks! Importantly, the connection
+  /// streams are not closed gracefully by this call.
+  void removeClient(ClientData& Client);
+
+  /// Delete the \p Session from the list of sessions.
+  ///
+  /// \note Calling this function only manages the backing data structure and
+  /// does \b NOT fire any associated callbacks! Importantly, the connection
+  /// streams and resources of the session are not shut down gracefully by this
+  /// call.
+  void removeSession(SessionData& Session);
+
+public:
   /// The callback function that is fired when a new \p Client connected.
   void acceptCallback(ClientData& Client);
   /// The callback function that is fired for transmission on a \p Client's

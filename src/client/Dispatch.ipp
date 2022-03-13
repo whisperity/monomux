@@ -3,7 +3,7 @@
 #define DISPATCH(KIND, FUNCTION_NAME)
 #endif
 
-DISPATCH(RSP_ClientID, responseClientID)
-DISPATCH(RSP_DataSocket, responseDataSocket)
+DISPATCH(ClientIDResponse, responseClientID)
+DISPATCH(DataSocketResponse, responseDataSocket)
 
 #undef DISPATCH

@@ -102,22 +102,19 @@ int Server::listen()
         {
           // A new client was accepted.
           raw_fd ClientFD = Established.get();
-
-          auto ExistingIt = Clients.find(ClientFD);
-          if (ExistingIt != Clients.end())
+          if (ClientData* ExistingClient = getClient(ClientFD))
           {
             // The client with the same socket FD is already known.
             // TODO: What is the good way of handling this?
             std::clog << "DEBUG: Server - Stale socket " << ClientFD
                       << " left behind!" << std::endl;
-            exitCallback(*ExistingIt->second);
+            exitCallback(*ExistingClient);
+            removeClient(*ExistingClient);
           }
 
-          auto InsertResult = Clients.emplace(
-            ClientFD,
-            std::make_unique<ClientData>(
-              std::make_unique<Socket>(Socket::wrap(fd(ClientFD)))));
-          acceptCallback(*InsertResult.first->second);
+          ClientData* Client = makeClient(
+            ClientData{std::make_unique<Socket>(Socket::wrap(fd(ClientFD)))});
+          acceptCallback(*Client);
           continue;
         }
       }
@@ -162,6 +159,51 @@ int Server::listen()
   }
 
   return 0;
+}
+
+ClientData* Server::getClient(std::size_t ID) noexcept
+{
+  auto It = Clients.find(ID);
+  return It != Clients.end() ? It->second.get() : nullptr;
+}
+
+SessionData* Server::getSession(std::string_view Name) noexcept
+{
+  auto It =
+    std::find_if(Sessions.begin(), Sessions.end(), [Name](const auto& Elem) {
+      return Elem.first == Name;
+    });
+  return It != Sessions.end() ? It->second.get() : nullptr;
+}
+
+ClientData* Server::makeClient(ClientData Client)
+{
+  std::size_t CID = Client.id();
+  auto InsertRes =
+    Clients.try_emplace(CID, std::make_unique<ClientData>(std::move(Client)));
+  if (!InsertRes.second)
+    return nullptr;
+  return InsertRes.first->second.get();
+}
+
+SessionData* Server::makeSession(SessionData Session) {
+  std::string SN = Session.name();
+  auto InsertRes =
+    Sessions.try_emplace(SN, std::make_unique<SessionData>(std::move(Session)));
+  if (!InsertRes.second)
+    return nullptr;
+  return InsertRes.first->second.get();
+}
+
+void Server::removeClient(ClientData& Client)
+{
+  std::size_t CID = Client.id();
+  Clients.erase(CID);
+}
+
+void Server::removeSession(SessionData& Session)
+{
+  Sessions.erase(Session.name());
 }
 
 void Server::acceptCallback(ClientData& Client)
@@ -223,10 +265,24 @@ void Server::controlCallback(ClientData& Client)
 
 void Server::dataCallback(ClientData& Client)
 {
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  static constexpr std::size_t BUFFER_SIZE = 1024;
+
   std::cout << "Client " << Client.id()
             << " sent some data on their data connection!" << std::endl;
 
-  std::string Data = Client.getDataSocket()->read(1024);
+  std::string Data;
+  try
+  {
+    Data = Client.getDataSocket()->read(BUFFER_SIZE);
+  }
+  catch (const std::system_error& Err)
+  {
+    std::cerr << "Error when reading data from "
+              << Client.getDataSocket()->raw() << ": " << Err.what()
+              << std::endl;
+    return;
+  }
   std::cout << "DEBUG: Client data received:\n\t" << Data << std::endl;
 
   // FIXME: Implement attachment logic.
@@ -251,9 +307,7 @@ void Server::exitCallback(ClientData& Client)
   Poll->stop(Client.getControlSocket().raw());
   FDLookup.erase(Client.getControlSocket().raw());
 
-  auto It = Clients.find(Client.id());
-  if (It != Clients.end())
-    Clients.erase(It);
+  removeClient(Client);
 }
 
 void Server::createCallback(SessionData& Session)
@@ -271,10 +325,25 @@ void Server::createCallback(SessionData& Session)
 
 void Server::dataCallback(SessionData& Session)
 {
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  static constexpr std::size_t BUFFER_SIZE = 1024;
+
   std::cout << "Session " << Session.name()
             << " sent some data on their data connection!" << std::endl;
 
-  std::string Data = Pipe::read(Session.getProcess().getPty()->getFD(), 1024);
+  std::string Data;
+
+  try
+  {
+    Data = Pipe::read(Session.getProcess().getPty()->getFD(), BUFFER_SIZE);
+  }
+  catch (const std::system_error& Err)
+  {
+    std::cerr << "Error when reading data from session "
+              << Session.getProcess().getPty()->getFD() << ": "
+              << Err.what() << std::endl;
+    return;
+  }
   std::cout << "DEBUG: Session data received:\n\t" << Data << std::endl;
 
   // FIXME: Implement attachment logic.
@@ -291,7 +360,6 @@ void Server::clientAttachedCallback(ClientData& Client, SessionData& Session) {}
 void Server::clientDetachedCallback(ClientData& Client, SessionData& Session) {}
 
 void Server::destroyCallback(SessionData& Session) {}
-
 
 void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
                                              ClientData& DataClient)

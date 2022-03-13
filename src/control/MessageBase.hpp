@@ -29,10 +29,15 @@
   static std::string encode(const NAME& Object);
 #endif
 
+#ifndef MONOMUX_MESSAGE_BASE
+#define MONOMUX_MESSAGE_BASE(NAME)                                             \
+  static constexpr MessageKind Kind = MessageKind::Base;                       \
+  static std::optional<NAME> decode(std::string_view& Buffer);                 \
+  static std::string encode(const NAME& Object);
+#endif
+
 namespace monomux
 {
-
-class Socket;
 
 /// A global enumeration table of messages that are supported by the protocol.
 /// For each entry, an appropriate struct in namespace \p monomux::request or
@@ -41,20 +46,37 @@ enum class MessageKind : std::uint16_t
 {
   /// Indicates a broken message that failed to read as a proper entity.
   Invalid = 0,
+  /// Indicates a subobject of a \p Message that cannot be understood
+  /// individually.
+  Base = static_cast<std::uint16_t>(-1),
+
+  // Handskahe procedure messages.
 
   /// A request to the server to reply the client's ID to the client.
-  REQ_ClientID = 1,
-  /// A response for the \p REQ_ClientID request, containing the client's ID.
-  RSP_ClientID = 2,
+  ClientIDRequest = 0x0001,
+  /// A response for the \p ClientIDRequest, containing the client's ID.
+  ClientIDResponse = 0x0002,
+
   /// A request to the server to associate the connection with another client,
   /// marking it as the data connection/socket.
-  REQ_DataSocket = 3,
-  /// A response for the \p REQ_DataSocket request, indicating whether the
+  DataSocketRequest = 0x0003,
+  /// A response for the \p DataSocketRequest, indicating whether the
   /// request was accepted.
-  RSP_DataSocket = 4,
+  DataSocketResponse = 0x0004,
 
-  /// ?
-  REQ_SpawnProcess = 4000,
+  // Session management messages.
+
+  /// A request to the server to reply with data about the running sessions on
+  /// the server.
+  SessionListRequest = 0x0101,
+  /// A response to the \p SessionListRequest, containing \p Session data.
+  SessionListResponse = 0x0102,
+
+  /// A request to the server to create a brand new new session.
+  MakeSessionRequest = 0x0103,
+  /// A reponse to the \p MakeSessionRequest containing the results of the new
+  /// session.
+  MakeSessionResponse = 0x0104,
 };
 
 /// Helper class that contains the parsed \p MessageKind of a \p Message, and
@@ -71,10 +93,10 @@ struct MessageBase
   /// Decodes the binary prefix of a message as a \p Kind.
   static MessageKind decodeKind(std::string_view Str) noexcept;
 
-  /// Pack a raw and encoded message into a full transmissible buffer.
+  /// Pack a raw and encoded message into a full transmissible payload.
   std::string pack() const;
 
-  /// Unpack an encoded and fully read message into its base constitutents.
+  /// Unpack an encoded and fully read payload into its base constitutents.
   static MessageBase unpack(std::string_view Str) noexcept;
 };
 

@@ -60,7 +60,7 @@ HANDLER(responseDataSocket)
   // hard-coded into the handshake process. The listener that handles messages
   // should never listen on the data socket, and should not receive a message
   // like this again, after a successful handshake!
-  unreachable("RSP_DataSocket handler should not fire automatically!");
+  unreachable("DataSocketResponse handler should not fire automatically!");
 }
 
 #undef HANDLER
