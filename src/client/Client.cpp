@@ -19,6 +19,7 @@
 #include "Client.hpp"
 
 #include "control/Message.hpp"
+#include "system/Pipe.hpp"
 
 #include <iostream>
 #include <utility>
@@ -124,7 +125,67 @@ bool Client::handshake()
     // consumed.
   }
 
+  setupPoll();
+
   return true;
+}
+
+void Client::setTerminal(Terminal&& T)
+{
+  if (Term)
+    Poll->stop(Term->input());
+
+  Term.emplace(std::move(T));
+  Poll->listen(Term->input(), /* Incoming =*/true, /* Outgoing =*/false);
+}
+
+void Client::loop()
+{
+  if (!DataSocket)
+    throw std::system_error{std::make_error_code(std::errc::not_connected),
+                            "Client not connected to Server."};
+  if (!Term)
+    throw std::system_error{std::make_error_code(std::errc::not_connected),
+                            "Client not connected to PTY."};
+  if (!Poll)
+    throw std::system_error{std::make_error_code(std::errc::not_connected),
+                            "Client event handler not set up."};
+
+  while (TerminateLoop.get().load() == false)
+  {
+    const std::size_t NumTriggeredFDs = Poll->wait();
+    for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
+    {
+      raw_fd EventFD = Poll->fdAt(I);
+
+      // FIXME: Use Pipes here.
+
+      if (EventFD == DataSocket->raw())
+      {
+        std::string Data = DataSocket->read(256);
+        ::write(Term->output(), Data.c_str(), Data.size());
+        continue;
+      }
+      if (EventFD == Term->input())
+      {
+        POD<char[512]> Buf;
+        unsigned long Size = ::read(Term->input(), &Buf, sizeof(Buf));
+        sendData(std::string_view{&Buf[0], Size});
+        continue;
+      }
+    }
+  }
+}
+
+void Client::setupPoll()
+{
+  if (!Poll)
+    Poll = std::make_unique<EPoll>(2);
+  else
+    Poll->clear();
+
+  if (DataSocket)
+    Poll->listen(DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
 }
 
 std::size_t Client::consumeNonce() noexcept
@@ -135,11 +196,24 @@ std::size_t Client::consumeNonce() noexcept
   return R;
 }
 
-void Client::requestSpawnProcess(const Process::SpawnOptions& Opts)
+bool Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
 {
-  // request::SpawnProcess Msg;
-  // Msg.ProcessName = Opts.Program;
-  // ControlSocket.write(encode(Msg));
+  request::MakeSession Msg;
+  Msg.Name = std::move(Name);
+  Msg.SpawnOpts.Program = Opts.Program;
+  Msg.SpawnOpts.Arguments = Opts.Arguments;
+  for (std::pair<const std::string, std::optional<std::string>>& E :
+       Opts.Environment)
+  {
+    if (!E.second)
+      Msg.SpawnOpts.UnsetEnvironment.emplace_back(E.first);
+    else
+      Msg.SpawnOpts.SetEnvironment.emplace_back(E.first, std::move(*E.second));
+  }
+  ControlSocket.write(encodeWithSize(Msg));
+
+  // TODO: Wait for a response!
+  return true;
 }
 
 void Client::sendData(std::string_view Data)

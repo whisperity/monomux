@@ -116,7 +116,6 @@ Socket& Socket::operator=(Socket&& RHS) noexcept
 
   CommunicationChannel::operator=(std::move(RHS));
 
-  Handle = std::move(RHS.Handle);
   Owning = RHS.Owning;
   Listening = RHS.Listening;
 
@@ -242,16 +241,12 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
   }
 
   Return.append(RawBuffer, ReadBytes.get());
-  std::cout << "Finished reading " << Return.size() << " bytes." << std::endl;
-
   Continue = true;
   return Return;
 }
 
 std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
 {
-
-  std::clog << "DEBUG: Sending data on socket:\n\t" << Buffer << std::endl;
   auto SentBytes = CheckedPOSIX(
     [FD = Handle.get(), Buffer = Buffer.data(), Size = Buffer.size()] {
       return ::send(FD, Buffer, Size, 0);
@@ -273,9 +268,6 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
   }
 
   Continue = true;
-  std::cout << "Sent " << SentBytes.get() << " bytes to " << Handle.get()
-            << std::endl;
-
   if (SentBytes.get() == 0)
   {
     std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;

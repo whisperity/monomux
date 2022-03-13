@@ -56,6 +56,12 @@ void EPoll::stop(raw_fd FD)
   Listeners.erase(It);
 }
 
+void EPoll::clear()
+{
+  for (auto It = Listeners.begin(); It != Listeners.end();)
+    It = Listeners.erase(It);
+}
+
 EPoll::Listener::Listener(EPoll& Master,
                           raw_fd FD,
                           bool Incoming,

@@ -66,22 +66,27 @@ public:
   std::size_t wait();
 
   /// Retrieve the Nth event.
-  struct ::epoll_event& operator[](std::size_t Index) { return at(Index); }
+  struct ::epoll_event& operator[](std::size_t Index)
+  {
+    return const_cast<struct ::epoll_event&>(
+      const_cast<const EPoll*>(this)->at(Index));
+  }
   /// Retrieve the Nth event.
   const struct ::epoll_event& operator[](std::size_t Index) const
   {
-    return const_cast<EPoll*>(this)->at(Index);
+    return at(Index);
   }
   /// Retrieve the Nth event.
   struct ::epoll_event& at(std::size_t Index)
   {
-    assert(Index < FiredEventCount && "Read past the end of the buffer.");
-    return *Events.at(Index);
+    return const_cast<struct ::epoll_event&>(
+      const_cast<const EPoll*>(this)->at(Index));
   }
   /// Retrieve the Nth event.
   const struct ::epoll_event& at(std::size_t Index) const
   {
-    return const_cast<EPoll*>(this)->at(Index);
+    assert(Index < FiredEventCount && "Read past the end of the buffer.");
+    return *Events.at(Index);
   }
 
   /// Retrieve the file descriptor that fired for the Nth event.
@@ -94,6 +99,9 @@ public:
 
   /// Stop listening for changes of \p FD.
   void stop(raw_fd FD);
+
+  /// Stop listening on \b all associated file descriptors.
+  void clear();
 
 private:
   std::size_t FiredEventCount = 0;

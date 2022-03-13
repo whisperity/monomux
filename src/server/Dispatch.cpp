@@ -71,19 +71,22 @@ HANDLER(requestDataSocket)
   auto MainIt = Clients.find(Msg->Client.ID);
   if (MainIt == Clients.end())
   {
-    Client.getControlSocket().write(encodeWithSize(response::DataSocket{false}));
+    Client.getControlSocket().write(
+      encodeWithSize(response::DataSocket{false}));
     return;
   }
 
   ClientData& MainClient = *MainIt->second;
   if (MainClient.getDataSocket() != nullptr)
   {
-    Client.getControlSocket().write(encodeWithSize(response::DataSocket{false}));
+    Client.getControlSocket().write(
+      encodeWithSize(response::DataSocket{false}));
     return;
   }
   if (MainClient.consumeNonce() != Msg->Client.Nonce)
   {
-    Client.getControlSocket().write(encodeWithSize(response::DataSocket{false}));
+    Client.getControlSocket().write(
+      encodeWithSize(response::DataSocket{false}));
     return;
   }
 

@@ -19,7 +19,8 @@
 #include "Main.hpp"
 
 #include "Client.hpp"
-#include "server/Server.hpp"
+#include "Terminal.hpp"
+#include "server/Server.hpp" // FIXME: Do not depend on this.
 
 #include <chrono>
 #include <iostream>
@@ -43,8 +44,6 @@ std::optional<Client> connect(const Options& Opts, bool Block)
   while (!C)
   {
     ++HandshakeCounter;
-
-    std::clog << "DEBUG: Trying to connect to server again..." << std::endl;
     C = Client::create(Server::getServerSocketPath());
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
@@ -55,7 +54,6 @@ std::optional<Client> connect(const Options& Opts, bool Block)
     }
   }
 
-  std::clog << "DEBUG: Connection established!" << std::endl;
   return C;
 }
 
@@ -78,10 +76,11 @@ int main(Options& Opts)
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  std::clog << "DEBUG: Spawning a shell..." << std::endl;
   Process::SpawnOptions SO;
   SO.Program = "/bin/bash";
-  Opts.Connection->requestSpawnProcess(SO);
+  SO.Environment["MONOMUX_UNSET"] = std::nullopt;
+  SO.Environment["MONOMUX_SET"] = "TEST";
+  Opts.Connection->requestMakeSession("???", SO);
 
   setvbuf(stdin, NULL, _IONBF, 0);
   setvbuf(stdout, NULL, _IONBF, 0);
@@ -110,13 +109,12 @@ int main(Options& Opts)
   if (tcsetattr(TTY, TCSANOW, &NewMode) < 0)
     return EXIT_FAILURE;
 
-  POD<char[1024]> Data;
-  while (true)
   {
-    // FIXME: Use a listener on both stdin and the connection.
-    unsigned long Size = ::read(0, &Data, sizeof(Data));
-    Client.sendData(std::string_view{&Data[0], Size});
+    Terminal Term{fd::fileno(stdin), fd::fileno(stdout)};
+    Client.setTerminal(std::move(Term));
   }
+
+  Client.loop();
 
   return EXIT_SUCCESS;
 }

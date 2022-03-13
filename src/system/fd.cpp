@@ -25,6 +25,11 @@
 namespace monomux
 {
 
+raw_fd fd::fileno(std::FILE* File)
+{
+  return CheckedPOSIXThrow([File] { return ::fileno(File); }, "fileno()", -1);
+}
+
 void fd::close(raw_fd FD) noexcept
 {
   std::clog << "DEBUG: Closing FD #" << FD << "..." << std::endl;

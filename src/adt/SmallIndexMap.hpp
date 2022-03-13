@@ -193,8 +193,7 @@ public:
       else
       {
         if constexpr (StoreInPlace)
-          Elem =
-            std::optional<T>{std::in_place, std::forward<Arg>(Args)...};
+          Elem = std::optional<T>{std::in_place, std::forward<Arg>(Args)...};
         else
           Elem = std::make_unique<T>(std::forward<Arg>(Args)...);
       }
@@ -213,8 +212,7 @@ public:
       {
         if constexpr (StoreInPlace)
           getLargeRepr()->emplace(
-            Key,
-            std::optional<T>{std::in_place, std::forward<Arg>(Args)...});
+            Key, std::optional<T>{std::in_place, std::forward<Arg>(Args)...});
         else
           getLargeRepr()->emplace(
             Key, std::make_unique<T>(std::forward<Arg>(Args)...));

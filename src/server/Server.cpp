@@ -166,7 +166,8 @@ ClientData* Server::makeClient(ClientData Client)
   return InsertRes.first->second.get();
 }
 
-SessionData* Server::makeSession(SessionData Session) {
+SessionData* Server::makeSession(SessionData Session)
+{
   std::string SN = Session.name();
   auto InsertRes =
     Sessions.try_emplace(SN, std::make_unique<SessionData>(std::move(Session)));
@@ -322,8 +323,8 @@ void Server::dataCallback(SessionData& Session)
   catch (const std::system_error& Err)
   {
     std::cerr << "Error when reading data from session "
-              << Session.getProcess().getPty()->getFD() << ": "
-              << Err.what() << std::endl;
+              << Session.getProcess().getPty()->getFD() << ": " << Err.what()
+              << std::endl;
     return;
   }
   std::cout << "DEBUG: Session data received:\n\t" << Data << std::endl;

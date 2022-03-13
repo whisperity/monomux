@@ -33,7 +33,7 @@ inline constexpr raw_fd InvalidFD = -1;
 
 /// This is a smart file descriptor wrapper which will call \p close() on the
 /// underyling resource at the end of its life.
-class fd
+class fd // NOLINT(readability-identifier-naming)
 {
   raw_fd Handle;
 
@@ -82,6 +82,9 @@ public:
   }
 
 public:
+  /// Returns the file descriptor for the standard C I/O object.
+  static raw_fd fileno(std::FILE* File);
+
   /// Closes a \b raw file descriptor.
   static void close(raw_fd FD) noexcept;
 

@@ -17,10 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "Terminal.hpp"
+
+#include "adt/MovableAtomic.hpp"
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
+#include "system/epoll.hpp"
 
 #include <cassert>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -51,9 +56,31 @@ public:
   /// \return Whether the handshake process succeeded.
   bool handshake();
 
-  // TODO: Document this.
-  void requestSpawnProcess(const Process::SpawnOptions& Opts);
+  Terminal* getTerminal() noexcept { return Term ? &*Term : nullptr; }
+  const Terminal* getTerminal() const noexcept
+  {
+    return Term ? &*Term : nullptr;
+  }
 
+  /// Sets the \p Client to be attached to the streams of the \p T terminal.
+  void setTerminal(Terminal&& T);
+
+  /// Starts the main loop of the client, taking control of the terminal and
+  /// communicating with the server.
+  void loop();
+
+  /// Sends a request of new session creation to the server the client is
+  /// connected to.
+  ///
+  /// \param Name The name to associate with the session. This is non-normative,
+  /// and the server may overrule the request.
+  /// \param Opts Details of the process to spawn on the server's end.
+  ///
+  /// \returns Whether the creation of the session was successful, as reported
+  /// by the server.
+  bool requestMakeSession(std::string Name, Process::SpawnOptions Opts);
+
+  /// Sends \p Data to the server over the \e data connection.
   void sendData(std::string_view Data);
 
 private:
@@ -64,6 +91,13 @@ private:
   /// The data connection is used to transmit the process data to the client.
   /// (This is initialised in a lazy fashion during operation.)
   std::unique_ptr<Socket> DataSocket;
+
+  /// The terminal the \p Client is attached to, if any.
+  std::optional<Terminal> Term;
+
+  MovableAtomic<bool> TerminateLoop = false;
+  std::unique_ptr<EPoll> Poll;
+  void setupPoll();
 
   /// A unique identifier of the current \p Client, as returned by the server.
   std::size_t ClientID = -1;
