@@ -32,6 +32,30 @@
 namespace monomux
 {
 
+std::string MessageBase::sizeToBinaryString(std::size_t N)
+{
+  std::string Str;
+  Str.resize(sizeof(std::size_t));
+
+  const auto* Data = reinterpret_cast<const char*>(&N);
+  for (std::size_t I = 0; I < sizeof(std::size_t); ++I)
+    Str[I] = Data[I];
+
+  return Str;
+}
+
+std::size_t MessageBase::binaryStringToSize(std::string_view Str) noexcept
+{
+  if (Str.size() < sizeof(std::size_t))
+    return 0;
+
+  // NOLINTNEXTLINE(modernize-avoid-c-arrays)
+  char SCh[sizeof(std::size_t)] = {0};
+  for (std::size_t I = 0; I < sizeof(std::size_t); ++I)
+    SCh[I] = Str[I];
+  return *reinterpret_cast<std::size_t*>(SCh);
+}
+
 std::string MessageBase::encodeKind() const
 {
   std::string Str;
@@ -142,8 +166,8 @@ std::string_view takeUntilAndConsume(std::string_view& Data,
     return std::nullopt;
 
 #define EXTRACT_OR_NONE(VARIABLE, UNTIL_LITERAL)                               \
-  auto (VARIABLE) = takeUntilAndConsume(View, UNTIL_LITERAL);                    \
-  if ((VARIABLE).empty())                                                        \
+  auto(VARIABLE) = takeUntilAndConsume(View, UNTIL_LITERAL);                   \
+  if ((VARIABLE).empty())                                                      \
     return std::nullopt;
 
 #define HEADER_OR_NONE(LITERAL)                                                \

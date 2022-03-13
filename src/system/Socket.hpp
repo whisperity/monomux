@@ -17,76 +17,104 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "CommunicationChannel.hpp"
 #include "fd.hpp"
 
+#include <optional>
 #include <string>
+#include <system_error>
 
 namespace monomux
 {
 
-/// This class is used to create OR open a Unix domain socket (a file on the
-/// disk) and allow reading and writing from it. This is a very low level
-/// interface on top of the related system calls.
-class Socket
+/// A socket is a two-way communication channel between a "client" and a
+/// "server".
+///
+/// This class wraps a Unix domain socket (appearing to applications as a named
+/// file in the filesystem) and allows reading or writing to the socket.
+///
+/// This implementation uses \p SOCK_STREAM, which is similar to TCP
+/// connections: clients connect to the server socket and then a connection is
+/// accepted, at which point the connection \e towards that new client becomes
+/// its own \p Socket.
+///
+/// \note This object does \b NOT manage the set of connected clients or
+/// anything related to such notion, only exposes the low-level system calls
+/// facilitating socket behaviour.
+///
+/// \see socket(7)
+class Socket : public CommunicationChannel
 {
 public:
   /// Creates a new \p Socket which will be owned by the current instance, and
-  /// cleaned up on exit. Such sockets can be used to implement servers.
+  /// removed on exit. Such sockets can be used to await connections and
+  /// implement server-like behaviour.
   ///
   /// If \p InheritInChild is true, the socket will be flagged to be inherited
   /// by a potential child process.
+  ///
+  /// \see bind(2)
   static Socket create(std::string Path, bool InheritInChild = false);
 
-  /// Opens a connection to the socket existing and bound at \p Path. The
-  /// connection will be cleaned up during destruction, but no attempts will be
-  /// made to destroy the socket itself.
+  /// Opens a connection to the socket existing in the file system at \p Path.
+  /// The connection will be cleaned up during destruction, but the file entity
+  /// is left intact. A low-level connection is initiated through the socket.
+  /// Such sockets can be used to implement clients-like behaviour.
   ///
   /// If \p InheritInChild is true, the socket will be flagged to be inherited
   /// by a potential child process.
-  static Socket open(std::string Path, bool InheritInChild = false);
+  ///
+  /// \see connect(2)
+  static Socket connect(std::string Path, bool InheritInChild = false);
 
-  /// Wraps the already existing file descriptor \p FD as a socket. The new
-  /// instance will take ownership and clear the resource up at the end of
-  /// its life.
-  static Socket wrap(fd&& FD);
+  /// Wraps an already existing file descriptor, \p FD as a socket.
+  /// Ownership of the resource itself is taken by the \p Socket instance and
+  /// the file will be closed during destruction, but no additional cleanup
+  /// may take place.
+  ///
+  /// \param Identifier An identifier to assign to the \p Socket. If empty, a
+  /// default value will be created.
+  ///
+  /// \note This method does \b NOT verify whether the wrapped file descriptor
+  /// is indeed a socket, and assumes it is set up (either in server, or client
+  /// mode) already.
+  static Socket wrap(fd&& FD, std::string Identifier);
 
-  /// Closes the connection, and if the socket was created by this instance,
-  /// clears it up.
-  ~Socket() noexcept;
+  /// Starts listening for incoming connection on the current socket by calling
+  /// \p listen(). This is only valid if the current socket was created in full
+  /// ownership mode, with the \p create() method.
+  ///
+  /// \see listen(2)
+  void listen(std::size_t QueueSize);
 
+  /// Accepts a new connection on the current serving socket. This operation
+  /// \b MAY block. This call is only valid if the current socket was created in
+  /// full ownership mode, and \p listen() had already been called for it.
+  ///
+  /// \param Error If non-null and the accepting of the client fails, the error
+  /// code is returned in this parameter.
+  /// \param Recoverable If non-null and the accepting of the client fails, but
+  /// the low-level error is indicative of a potential to try again, will be set
+  /// to \p true.
+  ///
+  /// \see accept(2)
+  std::optional<Socket> accept(std::error_code* Error = nullptr,
+                               bool* Recoverable = nullptr);
+
+  ~Socket() noexcept override;
   Socket(Socket&&) noexcept;
   Socket& operator=(Socket&&) noexcept;
 
-  /// Returns the raw file descriptor for the underlying resource.
-  raw_fd raw() const noexcept { return Handle.get(); }
+protected:
+  Socket(fd Handle, std::string Identifier, bool NeedsCleanup);
 
-  /// Returns the associated path with the socket.
-  const std::string& getPath() const noexcept { return Path; }
-
-  /// Marks the socket as a listen socket via the \p listen() syscall.
-  ///
-  /// \note This operation is only valid if the instance owns the socket.
-  void listen();
-
-  /// Directly read and consume \p Bytes of data from the socket.
-  std::string read(std::size_t Bytes);
-
-  /// Returns whether the instance believes that the underlying resource is
-  /// still open. This is an "a posteriori" method. Certain accesses WILL set
-  /// the flag to be not open anymore.
-  bool believeConnectionOpen() const noexcept { return Open; }
-
-  /// Write \p Data to the socket.
-  void write(std::string_view Data);
+  std::string readImpl(std::size_t Bytes, bool& Continue) override;
+  std::size_t writeImpl(std::string_view Buffer, bool& Continue) override;
 
 private:
-  Socket() = default;
-
-  fd Handle;
-  std::string Path;
+  /// Whether the current instance is \e owning a socket, i.e. controlling it
+  /// as a server.
   bool Owning;
-  bool CleanupPossible;
-  bool Open = true;
   bool Listening = false;
 };
 

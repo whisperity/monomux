@@ -56,7 +56,7 @@ HANDLER(requestClientID)
   Resp.Client.ID = Client.id();
   Resp.Client.Nonce = Client.makeNewNonce();
 
-  Client.getControlSocket().write(encode(Resp));
+  Client.getControlSocket().write(encodeWithSize(Resp));
 }
 
 HANDLER(requestDataSocket)
@@ -71,26 +71,26 @@ HANDLER(requestDataSocket)
   auto MainIt = Clients.find(Msg->Client.ID);
   if (MainIt == Clients.end())
   {
-    Client.getControlSocket().write(encode(response::DataSocket{false}));
+    Client.getControlSocket().write(encodeWithSize(response::DataSocket{false}));
     return;
   }
 
   ClientData& MainClient = *MainIt->second;
   if (MainClient.getDataSocket() != nullptr)
   {
-    Client.getControlSocket().write(encode(response::DataSocket{false}));
+    Client.getControlSocket().write(encodeWithSize(response::DataSocket{false}));
     return;
   }
   if (MainClient.consumeNonce() != Msg->Client.Nonce)
   {
-    Client.getControlSocket().write(encode(response::DataSocket{false}));
+    Client.getControlSocket().write(encodeWithSize(response::DataSocket{false}));
     return;
   }
 
   turnClientIntoDataOfOtherClient(MainClient, Client);
   assert(MainClient.getDataSocket() &&
          "Turnover should have subjugated client!");
-  MainClient.getDataSocket()->write(encode(response::DataSocket{true}));
+  MainClient.getDataSocket()->write(encodeWithSize(response::DataSocket{true}));
 }
 
 HANDLER(requestMakeSession)

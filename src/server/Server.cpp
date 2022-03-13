@@ -48,7 +48,7 @@ Server::~Server()
 
 int Server::listen()
 {
-  Sock.listen();
+  Sock.listen(16);
 
   POD<struct ::sockaddr_storage> SocketAddr;
   POD<::socklen_t> SocketLen;
@@ -67,56 +67,36 @@ int Server::listen()
       if (Poll->fdAt(I) == Sock.raw())
       {
         // Event occured on the main socket.
-        auto Established = CheckedPOSIX(
-          [this, &SocketAddr, &SocketLen] {
-            SocketAddr.reset();
-            SocketLen.reset();
-
-            return ::accept(Sock.raw(),
-                            reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
-                            &SocketLen);
-          },
-          -1);
-        if (!Established)
+        std::error_code Error;
+        bool Recoverable;
+        std::optional<Socket> ClientSock = Sock.accept(&Error, &Recoverable);
+        if (!ClientSock)
         {
-          std::errc EC = static_cast<std::errc>(Established.getError().value());
-          if (EC == std::errc::resource_unavailable_try_again /* EAGAIN */ ||
-              EC == std::errc::interrupted /* EINTR */ ||
-              EC == std::errc::connection_aborted /* ECONNABORTED */)
+          std::cerr << "SERVER - accept() did not succeed: " << Error.message()
+                    << " - recoverable? " << Recoverable << std::endl;
+
+          if (Recoverable)
           {
-            std::cerr << "accept() " << std::make_error_code(EC) << std::endl;
-            continue;
-          }
-          else if (EC == std::errc::too_many_files_open /* EMFILE */ ||
-                   EC == std::errc::too_many_files_open_in_system /* ENFILE */)
-          {
-            std::cerr << "accept() " << std::make_error_code(EC) << ", sleep..."
-                      << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));
+            --I;
           }
-          else
-            std::cerr << "accept() failed: " << Established.getError().message()
-                      << std::endl;
-        }
-        else
-        {
-          // A new client was accepted.
-          raw_fd ClientFD = Established.get();
-          if (ClientData* ExistingClient = getClient(ClientFD))
-          {
-            // The client with the same socket FD is already known.
-            // TODO: What is the good way of handling this?
-            std::clog << "DEBUG: Server - Stale socket " << ClientFD
-                      << " left behind!" << std::endl;
-            exitCallback(*ExistingClient);
-            removeClient(*ExistingClient);
-          }
-
-          ClientData* Client = makeClient(
-            ClientData{std::make_unique<Socket>(Socket::wrap(fd(ClientFD)))});
-          acceptCallback(*Client);
           continue;
         }
+
+        // A new client was accepted.
+        if (ClientData* ExistingClient = getClient(ClientSock->raw()))
+        {
+          // The client with the same socket FD is already known.
+          // TODO: What is the good way of handling this?
+          std::clog << "DEBUG: Server - Stale socket " << ClientSock->raw()
+                    << " left behind!" << std::endl;
+          exitCallback(*ExistingClient);
+          removeClient(*ExistingClient);
+        }
+
+        ClientData* Client = makeClient(
+          ClientData{std::make_unique<Socket>(std::move(*ClientSock))});
+        acceptCallback(*Client);
       }
       else
       {
@@ -222,10 +202,12 @@ void Server::controlCallback(ClientData& Client)
   Socket& ClientSock = Client.getControlSocket();
   std::cout << "Client " << Client.id() << " has data!" << std::endl;
 
-  std::string Data;
+  std::string Size, Data;
   try
   {
-    Data = ClientSock.read(1024);
+    Size = ClientSock.read(sizeof(std::size_t));
+    std::size_t N = MessageBase::binaryStringToSize(Size);
+    Data = ClientSock.read(N);
   }
   catch (const std::system_error& Err)
   {
@@ -233,7 +215,7 @@ void Server::controlCallback(ClientData& Client)
               << Err.what() << std::endl;
   }
 
-  if (!ClientSock.believeConnectionOpen())
+  if (ClientSock.failed())
   {
     // We realise the client disconnected during an attempt to read.
     exitCallback(Client);

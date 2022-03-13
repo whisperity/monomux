@@ -86,6 +86,12 @@ struct MessageBase
   MessageKind Kind;
   std::string_view RawData;
 
+  /// Encodes the given number as a platform-specific binary-string.
+  static std::string sizeToBinaryString(std::size_t N);
+
+  /// Decodes a \p std::size_t from the given \p Str.
+  static std::size_t binaryStringToSize(std::string_view Str) noexcept;
+
   /// Encodes the \p Kind variable as a binary string for appropriately
   /// prefixing a transmissible buffer.
   std::string encodeKind() const;
@@ -110,6 +116,14 @@ template <typename T> std::string encode(const T& Msg)
   MB.RawData = RawForm;
 
   return MB.pack();
+}
+
+/// Encodes a message object into its raw data form, prefixed with a payload
+/// size.
+template <typename T> std::string encodeWithSize(const T& Msg)
+{
+  std::string Payload = encode(Msg);
+  return MessageBase::sizeToBinaryString(Payload.size()) + std::move(Payload);
 }
 
 /// Decodes the given received buffer as a specific message object, and returns

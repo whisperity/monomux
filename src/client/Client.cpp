@@ -30,7 +30,7 @@ std::optional<Client> Client::create(std::string SocketPath)
 {
   try
   {
-    Client Conn{Socket::open(SocketPath)};
+    Client Conn{Socket::connect(SocketPath)};
     return Conn;
   }
   catch (const std::system_error& Err)
@@ -50,8 +50,10 @@ bool Client::handshake()
 {
   // Authenticate the client on the server.
   {
-    ControlSocket.write(encode(request::ClientID{}));
-    std::string Data = ControlSocket.read(128);
+    ControlSocket.write(encodeWithSize(request::ClientID{}));
+    std::string Size = ControlSocket.read(sizeof(std::size_t));
+    std::size_t N = MessageBase::binaryStringToSize(Size);
+    std::string Data = ControlSocket.read(N);
 
     MessageBase MB = MessageBase::unpack(Data);
     if (MB.Kind != MessageKind::ClientIDResponse)
@@ -75,7 +77,8 @@ bool Client::handshake()
 
   // If the control socket is now successfully established, establish another
   // connection to the same location, but for the data socket.
-  auto DS = std::make_unique<Socket>(Socket::open(ControlSocket.getPath()));
+  auto DS =
+    std::make_unique<Socket>(Socket::connect(ControlSocket.identifier()));
   // (At this point, the server believes a brand new client has connected, and
   // is awaiting that client's handshake request. Instead, use our identity to
   // tell the server that this connection is in fact the same client, but it's
@@ -85,8 +88,10 @@ bool Client::handshake()
     Req.Client.ID = ClientID;
     Req.Client.Nonce = consumeNonce();
 
-    DS->write(encode(Req));
-    std::string Data = DS->read(128);
+    DS->write(encodeWithSize(Req));
+    std::string Size = DS->read(sizeof(std::size_t));
+    std::size_t N = MessageBase::binaryStringToSize(Size);
+    std::string Data = DS->read(N);
 
     MessageBase MB = MessageBase::unpack(Data);
     std::cout << "DS result:" << MB.RawData << std::endl;

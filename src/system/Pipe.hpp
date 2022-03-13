@@ -29,7 +29,7 @@ namespace monomux
 /// This class is used to create OR open a pipe (a file on the disk), which
 /// allows either reading OR writing (but not both!) data. Data written to the
 /// pipe is buffered by the kernel and appears on the read end of the pipe.
-class Pipe
+class Pipe /* TODO: : public CommunicationChannel */
 {
 public:
   /// The mode with which the \p Pipe is opened.

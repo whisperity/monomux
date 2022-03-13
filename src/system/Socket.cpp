@@ -30,6 +30,10 @@
 namespace monomux
 {
 
+Socket::Socket(fd Handle, std::string Identifier, bool NeedsCleanup)
+  : CommunicationChannel(std::move(Handle), std::move(Identifier), NeedsCleanup)
+{}
+
 Socket Socket::create(std::string Path, bool InheritInChild)
 {
   flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
@@ -51,18 +55,15 @@ Socket Socket::create(std::string Path, bool InheritInChild)
                     reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
                     sizeof(SocketAddr));
     },
-    "Failed to bind socket to path '" + Path + "'",
+    "bind('" + Path + "')",
     -1);
 
-  Socket S;
-  S.Handle = std::move(Handle);
-  S.Path = std::move(Path);
+  Socket S{std::move(Handle), std::move(Path), true};
   S.Owning = true;
-  S.CleanupPossible = true;
   return S;
 }
 
-Socket Socket::open(std::string Path, bool InheritInChild)
+Socket Socket::connect(std::string Path, bool InheritInChild)
 {
   flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
@@ -81,32 +82,30 @@ Socket Socket::open(std::string Path, bool InheritInChild)
                        reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
                        sizeof(SocketAddr));
     },
-    "Failed to connect to path '" + Path + "'",
+    "connect('" + Path + "'",
     -1);
 
-  Socket S;
-  S.Handle = std::move(Handle);
-  S.Path = std::move(Path);
+  Socket S{std::move(Handle), std::move(Path), false};
   S.Owning = false;
-  S.CleanupPossible = false;
   return S;
 }
 
-Socket Socket::wrap(fd&& FD)
+Socket Socket::wrap(fd&& FD, std::string Identifier)
 {
-  Socket S;
-  S.Path = "<fd:";
-  S.Path.append(std::to_string(FD.get()));
-  S.Path.push_back('>');
-  S.Handle = std::move(FD);
-  S.Owning = true;
-  S.CleanupPossible = false;
+  if (Identifier.empty())
+  {
+    Identifier.append("<sock-fd:");
+    Identifier.append(std::to_string(FD.get()));
+    Identifier.push_back('>');
+  }
+
+  Socket S{std::move(FD), std::move(Identifier), false};
+  S.Owning = false;
   return S;
 }
 
 Socket::Socket(Socket&& RHS) noexcept
-  : Handle(std::move(RHS.Handle)), Path(std::move(RHS.Path)),
-    Owning(RHS.Owning), CleanupPossible(RHS.CleanupPossible), Open(RHS.Open),
+  : CommunicationChannel(std::move(RHS)), Owning(RHS.Owning),
     Listening(RHS.Listening)
 {}
 
@@ -115,10 +114,10 @@ Socket& Socket::operator=(Socket&& RHS) noexcept
   if (this == &RHS)
     return *this;
 
+  CommunicationChannel::operator=(std::move(RHS));
+
   Handle = std::move(RHS.Handle);
-  Path = std::move(RHS.Path);
   Owning = RHS.Owning;
-  CleanupPossible = RHS.CleanupPossible;
   Listening = RHS.Listening;
 
   return *this;
@@ -126,165 +125,164 @@ Socket& Socket::operator=(Socket&& RHS) noexcept
 
 Socket::~Socket() noexcept
 {
-  if (!Handle.has())
-    return;
-
-  if (Owning && CleanupPossible)
+  if (Owning && needsCleanup())
   {
     auto RemoveResult =
-      CheckedPOSIX([this] { return ::unlink(Path.c_str()); }, -1);
+      CheckedPOSIX([this] { return ::unlink(identifier().c_str()); }, -1);
     if (!RemoveResult)
     {
-      std::cerr << "Failed to remove file '" << Path
+      std::cerr << "Failed to remove file '" << identifier()
                 << "' when closing the socket.\n";
       std::cerr << std::strerror(RemoveResult.getError().value()) << std::endl;
     }
   }
-
-  CheckedPOSIX([this] { return ::close(Handle); }, -1);
 }
 
-void Socket::listen()
+void Socket::listen(std::size_t QueueSize)
 {
   if (!Owning)
     throw std::system_error{
       std::make_error_code(std::errc::operation_not_permitted),
-      "Can't start listening on an outbound socket!"};
-
+      "Can't start listening on a non-controlled socket!"};
   if (Listening)
     throw std::system_error{
       std::make_error_code(std::errc::operation_in_progress),
       "The socket is already listening!"};
 
-  CheckedPOSIXThrow([this] { return ::listen(Handle, 128); }, "listen()", -1);
+  CheckedPOSIXThrow(
+    [this, QueueSize] { return ::listen(Handle, static_cast<int>(QueueSize)); },
+    "listen()",
+    -1);
   Listening = true;
 }
 
-std::string Socket::read(std::size_t Bytes)
+std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
 {
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  static constexpr std::size_t BUFFER_SIZE = 1024;
+  POD<struct ::sockaddr_un> SocketAddr;
+  POD<::socklen_t> SocketAddrLen;
 
-  if (!Open)
-    throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Closed."};
-
-  std::string Return;
-  Return.reserve(Bytes);
-  POD<char[BUFFER_SIZE]> Buffer;
-  bool FirstRead = true;
-
-  while (Return.size() < Bytes)
+  auto MaybeClient = CheckedPOSIX(
+    [this, &SocketAddr, &SocketAddrLen] {
+      return ::accept(raw(),
+                      reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
+                      &SocketAddrLen);
+    },
+    -1);
+  if (!MaybeClient)
   {
-    auto ReadBytes = CheckedPOSIX(
-      [this, FirstRead, &Buffer] {
-        Buffer.reset();
+    if (Error)
+      *Error = MaybeClient.getError();
 
-        return ::recv(
-          Handle.get(), &Buffer, BUFFER_SIZE, FirstRead ? 0 : MSG_DONTWAIT);
-      },
-      -1);
-    if (!ReadBytes)
+    bool ConsiderRecoverable = false;
+    std::errc EC = static_cast<std::errc>(MaybeClient.getError().value());
+    if (EC == std::errc::resource_unavailable_try_again /* EAGAIN */ ||
+        EC == std::errc::interrupted /* EINTR */ ||
+        EC == std::errc::connection_aborted /* ECONNABORTED */)
     {
-      std::errc EC = static_cast<std::errc>(ReadBytes.getError().value());
-      if (EC == std::errc::interrupted /* EINTR */)
-        // Not an error, continue.
-        continue;
-      if (EC == std::errc::operation_would_block /* EWOULDBLOCK */ ||
-          EC == std::errc::resource_unavailable_try_again /* EAGAIN */)
-      {
-        // No more data left in the stream.
-        std::cout << "read(): " << std::strerror(static_cast<int>(EC))
-                  << std::endl;
-        break;
-      }
-
-      std::cerr << "Socket " << Handle.get() << " - read error." << std::endl;
-      Open = false;
-      throw std::system_error{std::make_error_code(EC)};
+      std::cerr << "accept() " << std::make_error_code(EC) << std::endl;
+      ConsiderRecoverable = false;
     }
-
-    FirstRead = false;
-    std::cout << "Received chunk " << ReadBytes.get() << " bytes from "
-              << Handle.get() << std::endl;
-    if (ReadBytes.get() == 0)
+    else if (EC == std::errc::too_many_files_open /* EMFILE */ ||
+             EC == std::errc::too_many_files_open_in_system /* ENFILE */)
     {
-      std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;
-      Open = false;
-      break;
-    }
-
-    if (Return.size() + ReadBytes.get() <= Bytes)
-    {
-      std::cout << "Space remaining, current=" << Return.size()
-                << ", inserting " << ReadBytes.get() << " bytes..."
+      std::cerr << "accept() " << std::make_error_code(EC) << ", recoverable..."
                 << std::endl;
-      Return.insert(Return.size(), *Buffer, ReadBytes.get());
-      std::cout << "Now data at " << Return.size() << ", continuing..."
-                << std::endl;
+      ConsiderRecoverable = true;
     }
     else
     {
-      // Do not overflow the requested amount.
-      std::cout << "Input would overflow, appending only "
-                << Bytes - Return.size() << " bytes." << std::endl;
-      Return.insert(Return.size(), *Buffer, Bytes - Return.size());
-      break;
+      std::cerr << "accept() failed: " << MaybeClient.getError().message()
+                << std::endl;
+      ConsiderRecoverable = false;
     }
+
+    if (Recoverable)
+      *Recoverable = ConsiderRecoverable;
+    return std::nullopt;
   }
 
+  // Successfully accepted a client.
+  return Socket::wrap(MaybeClient.get(), std::string{SocketAddr->sun_path});
+}
+
+std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
+{
+  std::string Return;
+  Return.reserve(Bytes);
+
+  POD<char[BufferSize]> RawBuffer; // NOLINT(modernize-avoid-c-arrays)
+
+  auto ReadBytes = CheckedPOSIX(
+    [FD = Handle.get(), Bytes, &RawBuffer] { // NOLINT(modernize-avoid-c-arrays)
+      return ::recv(FD, &RawBuffer, Bytes, 0);
+    },
+    -1);
+  if (!ReadBytes)
+  {
+    std::errc EC = static_cast<std::errc>(ReadBytes.getError().value());
+    if (EC == std::errc::interrupted /* EINTR */)
+    {
+      // Not an error, continue.
+      Continue = true;
+      return {};
+    }
+    if (EC == std::errc::operation_would_block /* EWOULDBLOCK */ ||
+        EC == std::errc::resource_unavailable_try_again /* EAGAIN */)
+    {
+      // No more data left in the stream.
+      std::cout << "read(): " << std::strerror(static_cast<int>(EC))
+                << std::endl;
+      Continue = false;
+      return {};
+    }
+
+    std::cerr << "Socket " << Handle.get() << " - read error." << std::endl;
+    Continue = false;
+    throw std::system_error{std::make_error_code(EC)};
+  }
+
+  Return.append(RawBuffer, ReadBytes.get());
   std::cout << "Finished reading " << Return.size() << " bytes." << std::endl;
 
+  Continue = true;
   return Return;
 }
 
-void Socket::write(std::string_view Data)
+std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
 {
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  static constexpr std::size_t BUFFER_SIZE = 1024;
 
-  if (!Open)
-    throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Closed."};
-  const std::size_t DataSize = Data.size();
-
-  std::clog << "DEBUG: Sending data on socket:\n\t" << Data << std::endl;
-  while (!Data.empty())
+  std::clog << "DEBUG: Sending data on socket:\n\t" << Buffer << std::endl;
+  auto SentBytes = CheckedPOSIX(
+    [FD = Handle.get(), Buffer = Buffer.data(), Size = Buffer.size()] {
+      return ::send(FD, Buffer, Size, 0);
+    },
+    -1);
+  if (!SentBytes)
   {
-    auto SentBytes = CheckedPOSIX(
-      [this, &Data] {
-        return ::send(
-          Handle.get(), Data.data(), std::min(BUFFER_SIZE, Data.size()), 0);
-      },
-      -1);
-    if (!SentBytes)
+    std::errc EC = static_cast<std::errc>(SentBytes.getError().value());
+    if (EC == std::errc::interrupted /* EINTR */)
     {
-      std::errc EC = static_cast<std::errc>(SentBytes.getError().value());
-      if (EC == std::errc::interrupted /* EINTR */)
-        // Not an error.
-        continue;
-
-      std::cerr << "Socket " << Handle.get() << " - write error." << std::endl;
-      Open = false;
-      throw std::system_error{std::make_error_code(EC)};
+      // Not an error, may continue.
+      Continue = true;
+      return 0;
     }
 
-    std::cout << "Sent " << SentBytes.get() << " bytes to " << Handle.get()
-              << std::endl;
-    if (SentBytes.get() == 0)
-    {
-      std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;
-      Open = false;
-      break;
-    }
-
-    if (static_cast<std::size_t>(SentBytes.get()) <= Data.size())
-      Data.remove_prefix(SentBytes.get());
-    else
-      Data.remove_prefix(Data.size());
+    std::cerr << "Socket " << Handle.get() << " - write error." << std::endl;
+    Continue = false;
+    throw std::system_error{std::make_error_code(EC)};
   }
 
-  std::cout << "Finished sending " << DataSize << " bytes." << std::endl;
+  Continue = true;
+  std::cout << "Sent " << SentBytes.get() << " bytes to " << Handle.get()
+            << std::endl;
+
+  if (SentBytes.get() == 0)
+  {
+    std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;
+    Continue = false;
+  }
+
+  return SentBytes.get();
 }
 
 } // namespace monomux

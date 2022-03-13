@@ -2,6 +2,8 @@ Checks: >-
   -*,
   clang-diagnosic-*,
   bugprone-*,
+  -bugprone-narrowing-conversions,
+  bugprone-easily-swappable-parameters,
   cert-*,
   llvm-header-guard,
   llvm-include-order,
@@ -10,13 +12,21 @@ Checks: >-
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,
   modernize-*,
+  -modernize-concat-nested-namespaces,
+  -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
   performance-*,
   readability-*,
   -readability-braces-around-statements,
   -readability-function-cognitive-complexity,
-  readability-identifier-naming
+  -readability-implicit-bool-conversion,
+  readability-identifier-naming,
+  readability-suspicious-call-argument
 CheckOptions:
+  - key:             bugprone-easily-swappable-parameters.QualifiersMix
+    value:           true
+  - key:             bugprone-easily-swappable-parameters.ModelImplicitConversions
+    value:           true
   - key:             performance-move-const-arg.CheckTriviallyCopyableMove
     value:           false
   - key:             readability-identifier-naming.ClassCase
