@@ -16,38 +16,25 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "SessionData.hpp"
+#pragma once
 
-#include <iostream>
+#include <chrono>
+#include <string>
 
 namespace monomux
 {
-namespace server
+namespace client
 {
 
-void SessionData::setProcess(Process&& Process) noexcept
+/// A snaphot view of sessions running on a server, as reported by the server.
+///
+/// \see monomux::message::SessionData
+/// \see monomux::server::SessionData
+struct SessionData
 {
-  std::clog << "DEBUG: Setting process for session " << Name << std::endl;
-  MainProcess.reset();
-  MainProcess.emplace(std::move(Process));
-}
+  std::string Name;
+  std::chrono::time_point<std::chrono::system_clock> Created;
+};
 
-void SessionData::attachClient(ClientData& Client)
-{
-  AttachedClients.emplace_back(&Client);
-}
-
-void SessionData::removeClient(ClientData& Client) noexcept
-{
-  for (auto It = AttachedClients.begin(); It != AttachedClients.end(); ++It)
-  {
-    if (*It == &Client)
-    {
-      It = AttachedClients.erase(It);
-      break;
-    }
-  }
-}
-
-} // namespace server
+} // namespace client
 } // namespace monomux

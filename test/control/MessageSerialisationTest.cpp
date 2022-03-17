@@ -18,6 +18,9 @@
  */
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <ctime>
+
 #include "control/Message.hpp"
 
 /// Helper function for removing the explicit terminator from the created buffer
@@ -92,6 +95,45 @@ TEST(ControlMessageSerialisation, DataSocketRespons)
 
     auto Decode2 = codec(Obj);
     EXPECT_EQ(Obj.Success, Decode2.Success);
+  }
+}
+
+TEST(ControlMessageSerialisation, SessionListRequest)
+{
+  EXPECT_EQ(encode(monomux::message::request::SessionList{}),
+            "<SESSION-LIST />");
+}
+
+TEST(ControlMessageSerialisation, SessionListResponse)
+{
+  monomux::message::response::SessionList Obj;
+  std::time_t CurrentTimeEncoded =
+    std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+
+  Obj.Sessions.push_back({});
+  Obj.Sessions.at(0).Name = "Foo";
+  Obj.Sessions.at(0).Created = CurrentTimeEncoded;
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(Decode.Sessions.size(), 1);
+    EXPECT_EQ(Decode.Sessions.at(0).Name, "Foo");
+    EXPECT_EQ(Decode.Sessions.at(0).Created, CurrentTimeEncoded);
+  }
+
+  std::time_t CurrentTimeEncoded2 =
+    std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  Obj.Sessions.push_back({});
+  Obj.Sessions.at(1).Name = "Bar";
+  Obj.Sessions.at(1).Created = CurrentTimeEncoded2;
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(Decode.Sessions.size(), 2);
+    EXPECT_EQ(Decode.Sessions.at(0).Name, "Foo");
+    EXPECT_EQ(Decode.Sessions.at(0).Created, CurrentTimeEncoded);
+    EXPECT_EQ(Decode.Sessions.at(1).Name, "Bar");
+    EXPECT_EQ(Decode.Sessions.at(1).Created, CurrentTimeEncoded2);
   }
 }
 

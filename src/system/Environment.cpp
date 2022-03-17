@@ -17,8 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Environment.hpp"
+#include "CheckedPOSIX.hpp"
+#include "POD.hpp"
 
 #include <cstdlib>
+
+#include <sys/stat.h>
 
 namespace monomux
 {
@@ -29,6 +33,36 @@ std::string getEnv(const std::string& Key)
   if (!Value)
     return {};
   return {Value};
+}
+
+std::string defaultShell()
+{
+  std::string EnvVar = getEnv("SHELL");
+  if (!EnvVar.empty())
+    return EnvVar;
+
+  // Try to see if /bin/bash is available and default to that.
+  auto Bash = CheckedPOSIX(
+    [] {
+      POD<struct ::stat> Stat;
+      return ::stat("/bin/bash", &Stat);
+    },
+    -1);
+  if (Bash)
+    return "/bin/bash";
+
+  // Try to see if /bin/sh is available and default to that.
+  auto Sh = CheckedPOSIX(
+    [] {
+      POD<struct ::stat> Stat;
+      return ::stat("/bin/sh", &Stat);
+    },
+    -1);
+  if (Sh)
+    return "/bin/sh";
+
+  // Did not succeed.
+  return {};
 }
 
 } // namespace monomux

@@ -22,10 +22,13 @@
 namespace monomux
 {
 
-/// Returns the value of the environment variable \p Key.
+/// \returns the value of the environment variable \p Key.
 ///
-/// This function is a safe alternative to \p getenv() as it immediately
+/// \note This function is a safe alternative to \p getenv() as it immediately
 /// allocates a \e new string with the result.
 std::string getEnv(const std::string& Key);
+
+/// \returns the default shell (command interpreter) for the current user.
+std::string defaultShell();
 
 } // namespace monomux

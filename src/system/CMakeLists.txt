@@ -9,6 +9,7 @@ list(APPEND libmonomux_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/Process.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Pty.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Socket.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/Time.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/unreachable.hpp
   )
 set(libmonomux_HEADERS "${libmonomux_HEADERS}" PARENT_SCOPE)

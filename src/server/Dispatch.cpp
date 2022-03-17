@@ -19,6 +19,7 @@
 #include "Server.hpp"
 
 #include "control/Message.hpp"
+#include "control/Messaging.hpp"
 #include "system/Process.hpp"
 
 using namespace monomux::message;
@@ -60,12 +61,15 @@ HANDLER(requestClientID)
   Resp.Client.ID = Client.id();
   Resp.Client.Nonce = Client.makeNewNonce();
 
-  Client.getControlSocket().write(encodeWithSize(Resp));
+  sendMessage(Client.getControlSocket(), Resp);
 }
 
 HANDLER(requestDataSocket)
 {
   MSG(request::DataSocket);
+  response::DataSocket Resp;
+  Resp.Success = false;
+
   // In this function, Client is the message sender, so the connection that
   // wants to become the data socket.
 
@@ -75,36 +79,49 @@ HANDLER(requestDataSocket)
   auto MainIt = Clients.find(Msg->Client.ID);
   if (MainIt == Clients.end())
   {
-    Client.getControlSocket().write(
-      encodeWithSize(response::DataSocket{false}));
+    sendMessage(Client.getControlSocket(), Resp);
     return;
   }
 
   ClientData& MainClient = *MainIt->second;
   if (MainClient.getDataSocket() != nullptr)
   {
-    Client.getControlSocket().write(
-      encodeWithSize(response::DataSocket{false}));
+    sendMessage(Client.getControlSocket(), Resp);
     return;
   }
   if (MainClient.consumeNonce() != Msg->Client.Nonce)
   {
-    Client.getControlSocket().write(
-      encodeWithSize(response::DataSocket{false}));
+    sendMessage(Client.getControlSocket(), Resp);
     return;
   }
 
   turnClientIntoDataOfOtherClient(MainClient, Client);
   assert(MainClient.getDataSocket() &&
          "Turnover should have subjugated client!");
-  MainClient.getDataSocket()->write(encodeWithSize(response::DataSocket{true}));
+  Resp.Success = true;
+  sendMessage(*MainClient.getDataSocket(), Resp);
+}
+
+HANDLER(requestSessionList)
+{
+  MSG(request::SessionList);
+  response::SessionList Resp;
+
+  for (const auto& SessionElem : Sessions)
+  {
+    monomux::message::SessionData TransmitData;
+    TransmitData.Name = SessionElem.first;
+    TransmitData.Created = std::chrono::system_clock::to_time_t(SessionElem.second->whenCreated());
+
+    Resp.Sessions.emplace_back(std::move(TransmitData));
+  }
+
+  sendMessage(Client.getControlSocket(), Resp);
 }
 
 HANDLER(requestMakeSession)
 {
-  std::clog << __PRETTY_FUNCTION__ << std::endl;
-
-  MSG(request::MakeSession)
+  MSG(request::MakeSession);
   std::cout << "Spawn: " << Msg->SpawnOpts.Program << std::endl;
 
   Process::SpawnOptions SOpts;
@@ -129,6 +146,8 @@ HANDLER(requestMakeSession)
     Sessions.try_emplace(std::move(SessionName2), std::move(S));
 
   createCallback(*InsertResult.first->second);
+
+  // TODO: Response?
 }
 
 #undef HANDLER

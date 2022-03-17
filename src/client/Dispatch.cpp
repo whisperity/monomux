@@ -41,30 +41,22 @@ void Client::setUpDispatch()
 
 #define HANDLER(NAME) void Client::NAME(std::string_view Message)
 
+#define MSG(TYPE)                                                              \
+  std::optional<TYPE> Msg = TYPE::decode(Message);                             \
+  if (!Msg)                                                                    \
+    return;
+
 HANDLER(responseClientID)
 {
   std::clog << __PRETTY_FUNCTION__ << std::endl;
 
-  auto R = response::ClientID::decode(Message);
-  if (!R.has_value())
-    return;
+  MSG(response::ClientID);
 
-  ClientID = R->Client.ID;
-  Nonce.emplace(R->Client.Nonce);
+  ClientID = Msg->Client.ID;
+  Nonce.emplace(Msg->Client.Nonce);
 
   std::clog << "DEBUG: Client is " << ClientID << " (with nonce " << *Nonce
             << ')' << std::endl;
-}
-
-HANDLER(responseDataSocket)
-{
-  (void)Message;
-
-  // This handler is a DNI placeholder. The handler for this message is
-  // hard-coded into the handshake process. The listener that handles messages
-  // should never listen on the data socket, and should not receive a message
-  // like this again, after a successful handshake!
-  unreachable("DataSocketResponse handler should not fire automatically!");
 }
 
 #undef HANDLER

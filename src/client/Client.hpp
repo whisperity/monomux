@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "SessionData.hpp"
 #include "Terminal.hpp"
 
 #include "adt/MovableAtomic.hpp"
@@ -53,6 +54,9 @@ public:
   /// Initialise a \p Client over the already established \p ControlSocket.
   Client(Socket&& ControlSocket);
 
+  Socket& getControlSocket() noexcept { return ControlSocket; }
+  const Socket& getControlSocket() const noexcept { return ControlSocket; }
+
   Terminal* getTerminal() noexcept { return Term ? &*Term : nullptr; }
   const Terminal* getTerminal() const noexcept
   {
@@ -87,6 +91,13 @@ public:
   /// communicating with the server.
   void loop();
 
+  /// Sends a request to the connected server to tell what sessions are running
+  /// on the server.
+  ///
+  /// \returns The data received from the server, or \p nullopt, if
+  /// commmuniation failed.
+  std::optional<std::vector<SessionData>> requestSessionList();
+
   /// Sends a request of new session creation to the server the client is
   /// connected to.
   ///
@@ -116,6 +127,26 @@ private:
   MovableAtomic<bool> TerminateLoop = false;
   std::unique_ptr<EPoll> Poll;
   void setupPoll();
+  /// If channel polling is initialised, adds \p ControlSocket to the list of
+  /// channels to poll and handle incoming messages.
+  void enableControlResponsePoll();
+  /// If channel polling is initialised, removes \p ControlSocket from the list
+  /// of channels to poll. When inhibited, messages sent by the server are
+  /// expected to be handled synchronously by the request sending function,
+  /// instead of being handled "automatically" by a dispatch handler.
+  void inhibitControlResponsePoll();
+
+  friend class ControlPollInhibitor;
+  /// Inhibits the poll handler from handling responses on the \e control
+  /// connection in the current scope.
+  class ControlPollInhibitor
+  {
+    Client& C;
+  public:
+    ControlPollInhibitor(Client& C);
+    ~ControlPollInhibitor();
+  };
+  ControlPollInhibitor scopedInhibitControlResponsePoll();
 
   /// A unique identifier of the current \p Client, as returned by the server.
   std::size_t ClientID = -1;

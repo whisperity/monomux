@@ -16,38 +16,27 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "SessionData.hpp"
-
-#include <iostream>
+#pragma once
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
+#include <string>
 
 namespace monomux
 {
-namespace server
-{
 
-void SessionData::setProcess(Process&& Process) noexcept
+/// Formats the given \p Chrono \p Time object to an internationally viable
+/// representation.
+template <typename T> std::string formatTime(const T& Time)
 {
-  std::clog << "DEBUG: Setting process for session " << Name << std::endl;
-  MainProcess.reset();
-  MainProcess.emplace(std::move(Process));
+  std::time_t RawTime = T::clock::to_time_t(Time);
+  std::tm SplitTime = *std::localtime(&RawTime);
+
+  std::ostringstream Buf;
+  // Mirror the behaviour of tmux/byobu menu.
+  Buf << std::put_time(&SplitTime, "%a %b %e %H:%M:%S %Y");
+  return Buf.str();
 }
 
-void SessionData::attachClient(ClientData& Client)
-{
-  AttachedClients.emplace_back(&Client);
-}
-
-void SessionData::removeClient(ClientData& Client) noexcept
-{
-  for (auto It = AttachedClients.begin(); It != AttachedClients.end(); ++It)
-  {
-    if (*It == &Client)
-    {
-      It = AttachedClients.erase(It);
-      break;
-    }
-  }
-}
-
-} // namespace server
 } // namespace monomux

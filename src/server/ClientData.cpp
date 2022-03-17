@@ -26,7 +26,8 @@ namespace server
 {
 
 ClientData::ClientData(std::unique_ptr<Socket> Connection)
-: ID(Connection->raw()), ControlConnection(std::move(Connection))
+  : ID(Connection->raw()), ControlConnection(std::move(Connection)),
+    AttachedSession(nullptr)
 {}
 
 static std::size_t NonceCounter = 0; // FIXME: Remove this.

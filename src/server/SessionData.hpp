@@ -20,6 +20,7 @@
 #include "system/Process.hpp"
 
 #include <cassert>
+#include <chrono>
 #include <optional>
 #include <string>
 #include <utility>
@@ -29,13 +30,22 @@ namespace monomux
 namespace server
 {
 
+class ClientData;
+
 /// Encapsulates a running session under the server owning the instance.
 class SessionData
 {
 public:
-  SessionData(std::string Name) : Name(std::move(Name)) {}
+  SessionData(std::string Name)
+    : Name(std::move(Name)), Created(std::chrono::system_clock::now())
+  {}
 
   const std::string& name() const noexcept { return Name; }
+  std::chrono::time_point<std::chrono::system_clock>
+  whenCreated() const noexcept
+  {
+    return Created;
+  }
 
   bool hasProcess() const noexcept { return MainProcess.has_value(); }
   void setProcess(Process&& Process) noexcept;
@@ -50,9 +60,28 @@ public:
     return *MainProcess;
   }
 
+  const std::vector<ClientData*>& getAttachedClients() const noexcept
+  {
+    return AttachedClients;
+  }
+  void attachClient(ClientData& Client);
+  void removeClient(ClientData& Client) noexcept;
+
 private:
+  /// A user-given identifier for the session.
   std::string Name;
+  /// The timestamp when the session was spawned.
+  std::chrono::time_point<std::chrono::system_clock> Created;
+
+  /// The process (if any) executing in the session.
+  ///
+  /// \note This is only set when the session is spawned with a process, and
+  /// stores no information about the underlying process, outside of Monomux's
+  /// control, changing its image via an \p exec() call...
   std::optional<Process> MainProcess;
+
+  /// The list of clients currently attached to this session.
+  std::vector<ClientData*> AttachedClients;
 };
 
 } // namespace server

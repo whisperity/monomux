@@ -4,6 +4,5 @@
 #endif
 
 DISPATCH(ClientIDResponse, responseClientID)
-DISPATCH(DataSocketResponse, responseDataSocket)
 
 #undef DISPATCH

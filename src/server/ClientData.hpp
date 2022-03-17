@@ -20,6 +20,7 @@
 
 #include "system/Socket.hpp"
 
+#include <chrono>
 #include <memory>
 #include <optional>
 
@@ -27,6 +28,8 @@ namespace monomux
 {
 namespace server
 {
+
+class SessionData;
 
 /// Stores information about and associated resources to a connected client.
 class ClientData
@@ -49,15 +52,32 @@ public:
   /// data connection of the current client.
   void subjugateIntoDataSocket(ClientData& Other) noexcept;
 
+  SessionData* getAttachedSession() noexcept { return AttachedSession; }
+  const SessionData* getAttachedSession() const noexcept
+  {
+    return AttachedSession;
+  }
+  void detachSession() noexcept { AttachedSession = nullptr; }
+  void attachToSession(SessionData& Session) noexcept
+  {
+    AttachedSession = &Session;
+  }
+
 private:
   std::size_t ID;
   std::optional<std::size_t> Nonce;
+  /// The timestamp when the client connected.
+  std::chrono::time_point<std::chrono::system_clock> Created;
 
   /// The control connection transcieves control information and commands.
   std::unique_ptr<Socket> ControlConnection;
 
   /// The data connection transcieves the actual program data.
   std::unique_ptr<Socket> DataConnection;
+
+  /// \e If the client is attached to a session, points to the data record of
+  /// the session.
+  SessionData* AttachedSession;
 };
 
 } // namespace server

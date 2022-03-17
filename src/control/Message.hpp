@@ -20,6 +20,7 @@
 #include "MessageBase.hpp"
 
 #include <cstdint>
+#include <ctime>
 #include <string>
 #include <utility>
 #include <vector>
@@ -42,7 +43,7 @@ struct ClientID
 };
 
 /// A view of the \p Process::SpawnOptions data structure that is sufficient for
-/// network transmission as a request.
+/// network transmission.
 struct ProcessSpawnOptions
 {
   MONOMUX_MESSAGE_BASE(ProcessSpawnOptions);
@@ -64,6 +65,18 @@ struct ProcessSpawnOptions
   ///
   /// \see Process::SpawnOptions::Environment
   std::vector<std::string> UnsetEnvironment;
+};
+
+/// A view of the \p Server::SessionData data structure that is sufficient for
+/// network transmission.
+struct SessionData {
+  MONOMUX_MESSAGE_BASE(SessionData);
+
+  /// \see server::SessionData::Name.
+  std::string Name;
+
+  /// \see server::SessionData::Created.
+  std::time_t Created;
 };
 
 namespace request
@@ -139,7 +152,7 @@ struct DataSocket
 struct SessionList
 {
   MONOMUX_MESSAGE(SessionListResponse, SessionList);
-
+  std::vector<monomux::message::SessionData> Sessions;
 };
 
 /// The response to the \p request::MakeSession,sent by the server.

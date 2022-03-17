@@ -6,7 +6,7 @@
 DISPATCH(ClientIDRequest, requestClientID)
 DISPATCH(DataSocketRequest, requestDataSocket)
 
-// DISPATCH(REQ_SpawnProcess, requestSpawnProcess)
+DISPATCH(SessionListRequest, requestSessionList)
 DISPATCH(MakeSessionRequest, requestMakeSession)
 
 #undef DISPATCH

@@ -19,6 +19,7 @@
 #include "Server.hpp"
 
 #include "control/Message.hpp"
+#include "control/Messaging.hpp"
 #include "system/CheckedPOSIX.hpp"
 #include "system/POD.hpp"
 #include "system/Pipe.hpp"
@@ -207,12 +208,10 @@ void Server::controlCallback(ClientData& Client)
   Socket& ClientSock = Client.getControlSocket();
   std::cout << "Client " << Client.id() << " has data!" << std::endl;
 
-  std::string Size, Data;
+  std::string Data;
   try
   {
-    Size = ClientSock.read(sizeof(std::size_t));
-    std::size_t N = Message::binaryStringToSize(Size);
-    Data = ClientSock.read(N);
+    Data = readPascalString(ClientSock);
   }
   catch (const std::system_error& Err)
   {
@@ -233,7 +232,6 @@ void Server::controlCallback(ClientData& Client)
   std::cout << Data << std::endl;
 
   std::cout << "Check for message kind... ";
-
   Message MB = Message::unpack(Data);
   auto Action =
     Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));

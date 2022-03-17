@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Message.hpp"
+#include "Messaging.hpp"
+#include "system/unreachable.hpp"
 
 #include <cstring>
 #include <sstream>
@@ -110,6 +112,14 @@ Message Message::unpack(std::string_view Str) noexcept
   return MB;
 }
 
+std::string readPascalString(CommunicationChannel& Channel)
+{
+  std::string SizeStr = Channel.read(sizeof(std::size_t));
+  std::size_t Size = Message::binaryStringToSize(SizeStr);
+  std::string DataStr = Channel.read(Size);
+  return DataStr;
+}
+
 namespace
 {
 
@@ -177,10 +187,11 @@ std::string_view takeUntilAndConsume(std::string_view& Data,
   if (View.empty())                                                            \
     return std::nullopt;
 
-#define FOOTER_OR_NONE(LITERAL)                                                \
-  if (View != (LITERAL))                                                       \
-    return std::nullopt;                                                       \
-  View = consume(View, LITERAL);
+// Must not use FOOTER_OR_NONE in "Base classes" because the decode buffer might
+// contain additional data!
+#define BASE_FOOTER_OR_NONE(LITERAL)                                           \
+  CONSUME_OR_NONE(LITERAL)                                                     \
+  Buffer = View;
 
 ENCODE_BASE(ClientID)
 {
@@ -206,10 +217,7 @@ DECODE_BASE(ClientID)
   EXTRACT_OR_NONE(Nonce, "</NONCE>");
   Ret.Nonce = std::stoull(std::string{Nonce});
 
-  // (Must not use FOOTER_OR_NONE in "Base classes" because the decode buffer
-  // might contain additional data!)
-  CONSUME_OR_NONE("</CLIENT>");
-  Buffer = View;
+  BASE_FOOTER_OR_NONE("</CLIENT>");
   return Ret;
 }
 
@@ -327,12 +335,58 @@ DECODE_BASE(ProcessSpawnOptions)
     CONSUME_OR_NONE("</ENVIRONMENT>");
   }
 
-  // (Must not use FOOTER_OR_NONE in "Base classes" because the decode buffer
-  // might contain additional data!)
-  CONSUME_OR_NONE("</PROCESS>");
-  Buffer = View;
+  BASE_FOOTER_OR_NONE("</PROCESS>");
   return Ret;
 }
+
+ENCODE_BASE(SessionData)
+{
+  std::ostringstream Buf;
+  Buf << "<SESSION>";
+  Buf << "<NAME>" << Object.Name << "</NAME>";
+  Buf << "<CREATED>" << Object.Created << "</CREATED>";
+  Buf << "</SESSION>";
+  return Buf.str();
+}
+DECODE_BASE(SessionData)
+{
+  SessionData Ret;
+  HEADER_OR_NONE("<SESSION>");
+
+  CONSUME_OR_NONE("<NAME>");
+  EXTRACT_OR_NONE(Name, "</NAME>");
+  Ret.Name = Name;
+
+  CONSUME_OR_NONE("<CREATED>");
+  EXTRACT_OR_NONE(Created, "</CREATED>");
+  static_assert(std::is_arithmetic_v<decltype(Ret.Created)>,
+                "SessionData::Created should be an arithmetic type.");
+  if constexpr (std::is_integral_v<decltype(Ret.Created)>)
+  {
+    static_assert(std::is_unsigned_v<decltype(Ret.Created)> ||
+                    std::is_signed_v<decltype(Ret.Created)>,
+                  "Integer should be signed or unsigned!");
+    if constexpr (std::is_unsigned_v<decltype(Ret.Created)>)
+    {
+      Ret.Created = std::stoull(std::string{Created});
+    } else if constexpr (std::is_signed_v<decltype(Ret.Created)>)
+    {
+      Ret.Created = std::stoll(std::string{Created});
+    }
+  } else if constexpr (std::is_floating_point_v<decltype(Ret.Created)>)
+  {
+    Ret.Created = std::stold(std::string{Created});
+  }
+
+  BASE_FOOTER_OR_NONE("</SESSION>");
+  return Ret;
+}
+
+#undef BASE_FOOTER_OR_NONE
+#define FOOTER_OR_NONE(LITERAL)                                                \
+  if (View != (LITERAL))                                                       \
+    return std::nullopt;                                                       \
+  View = consume(View, LITERAL);
 
 namespace request
 {
@@ -351,17 +405,16 @@ DECODE(ClientID)
 
 ENCODE(DataSocket)
 {
-  std::ostringstream Ret;
-  Ret << "<DATASOCKET>";
-  Ret << monomux::message::ClientID::encode(Object.Client);
-  Ret << "</DATASOCKET>";
+  std::ostringstream Buf;
+  Buf << "<DATASOCKET>";
+  Buf << monomux::message::ClientID::encode(Object.Client);
+  Buf << "</DATASOCKET>";
 
-  return Ret.str();
+  return Buf.str();
 }
 DECODE(DataSocket)
 {
   DataSocket Ret;
-
   HEADER_OR_NONE("<DATASOCKET>");
 
   auto ClientID = monomux::message::ClientID::decode(View);
@@ -371,6 +424,18 @@ DECODE(DataSocket)
 
   FOOTER_OR_NONE("</DATASOCKET>");
   return Ret;
+}
+
+ENCODE(SessionList)
+{
+  (void)Object;
+  return "<SESSION-LIST />";
+}
+DECODE(SessionList)
+{
+  if (Buffer == "<SESSION-LIST />")
+    return SessionList{};
+  return std::nullopt;
 }
 
 ENCODE(MakeSession)
@@ -455,6 +520,46 @@ DECODE(DataSocket)
   // Do not use FOOTER_OR_NONE! We ignore the "radio silence" message. :)
   return Ret;
 }
+
+ENCODE(SessionList)
+{
+  std::ostringstream Buf;
+  Buf << "<SESSION-LIST Count=\"" << Object.Sessions.size() << "\">";
+  for (const SessionData& SD : Object.Sessions)
+    Buf << monomux::message::SessionData::encode(SD);
+  Buf << "</SESSION-LIST>";
+  return Buf.str();
+}
+DECODE(SessionList)
+{
+  SessionList Ret;
+  HEADER_OR_NONE("<SESSION-LIST Count=\"");
+
+  {
+    EXTRACT_OR_NONE(ListCount, "\">");
+    std::size_t ListC = std::stoull(std::string{ListCount});
+    Ret.Sessions.reserve(ListC);
+    for (std::size_t I = 0; I < ListC; ++I)
+    {
+      auto SD = monomux::message::SessionData::decode(View);
+      if (!SD)
+        return std::nullopt;
+      Ret.Sessions.emplace_back(*std::move(SD));
+    }
+  }
+
+  FOOTER_OR_NONE("</SESSION-LIST>");
+  return Ret;
+}
+
+// ENCODE(MakeSession)
+// {
+//
+// }
+// DECODE(MakeSession)
+// {
+//
+// }
 
 } // namespace response
 

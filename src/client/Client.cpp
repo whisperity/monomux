@@ -19,6 +19,7 @@
 #include "Client.hpp"
 
 #include "control/Message.hpp"
+#include "control/Messaging.hpp"
 #include "system/Pipe.hpp"
 
 #include <iostream>
@@ -60,7 +61,14 @@ void Client::setTerminal(Terminal&& T)
 
 void Client::setDataSocket(Socket&& DataSocket)
 {
+  if (Poll)
+    Poll->stop(this->DataSocket->raw());
+
   this->DataSocket = std::make_unique<Socket>(std::move(DataSocket));
+
+  if (Poll)
+    Poll->listen(
+      this->DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
 }
 
 bool Client::handshake()
@@ -69,11 +77,10 @@ bool Client::handshake()
 
   // Authenticate the client on the server.
   {
-    ControlSocket.write(encodeWithSize(request::ClientID{}));
-    std::string Size = ControlSocket.read(sizeof(std::size_t));
-    std::size_t N = Message::binaryStringToSize(Size);
-    std::string Data = ControlSocket.read(N);
+    sendMessage(ControlSocket, request::ClientID{});
 
+    // We decode the response message to be able to fire the handler manually.
+    std::string Data = readPascalString(ControlSocket);
     Message MB = Message::unpack(Data);
     if (MB.Kind != MessageKind::ClientIDResponse)
     {
@@ -106,23 +113,10 @@ bool Client::handshake()
     request::DataSocket Req;
     Req.Client.ID = ClientID;
     Req.Client.Nonce = consumeNonce();
+    sendMessage(*DS, Req);
 
-    DS->write(encodeWithSize(Req));
-    std::string Size = DS->read(sizeof(std::size_t));
-    std::size_t N = Message::binaryStringToSize(Size);
-    std::string Data = DS->read(N);
-
-    Message MB = Message::unpack(Data);
-    std::cout << "DS result:" << MB.RawData << std::endl;
-    if (MB.Kind != MessageKind::DataSocketResponse)
-    {
-      std::cerr << "ERROR: Invalid response from Server when trying to "
-                   "establish Data connection."
-                << std::endl;
-      return false;
-    }
     std::optional<response::DataSocket> Response =
-      response::DataSocket::decode(MB.RawData);
+      receiveMessage<response::DataSocket>(*DS);
     if (!Response.has_value())
     {
       std::cerr << "ERROR: Invalid response from Server when trying to "
@@ -144,7 +138,6 @@ bool Client::handshake()
   }
 
   setupPoll();
-
   return true;
 }
 
@@ -182,6 +175,13 @@ void Client::loop()
         sendData(std::string_view{&Buf[0], Size});
         continue;
       }
+      if (EventFD == ControlSocket.raw())
+      {
+        std::clog << "DEBUG: Handler received on Control connection."
+                  << std::endl;
+        // FIXME: Not yet implemented.
+        continue;
+      }
     }
   }
 }
@@ -193,8 +193,38 @@ void Client::setupPoll()
   else
     Poll->clear();
 
+  enableControlResponsePoll();
   if (DataSocket)
     Poll->listen(DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
+}
+
+void Client::enableControlResponsePoll()
+{
+  if (!Poll)
+    return;
+  Poll->listen(ControlSocket.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+}
+
+void Client::inhibitControlResponsePoll()
+{
+  if (!Poll)
+    return;
+  Poll->stop(ControlSocket.raw());
+}
+
+Client::ControlPollInhibitor::ControlPollInhibitor(Client& C) : C(C)
+{
+  C.inhibitControlResponsePoll();
+}
+
+Client::ControlPollInhibitor::~ControlPollInhibitor()
+{
+  C.enableControlResponsePoll();
+}
+
+Client::ControlPollInhibitor Client::scopedInhibitControlResponsePoll()
+{
+  return ControlPollInhibitor{*this};
 }
 
 std::size_t Client::consumeNonce() noexcept
@@ -205,9 +235,37 @@ std::size_t Client::consumeNonce() noexcept
   return R;
 }
 
+std::optional<std::vector<SessionData>> Client::requestSessionList()
+{
+  std::clog << __PRETTY_FUNCTION__ << std::endl;
+  using namespace monomux::message;
+  auto X = scopedInhibitControlResponsePoll();
+
+  sendMessage(ControlSocket, request::SessionList{});
+
+  std::optional<response::SessionList> Resp =
+    receiveMessage<response::SessionList>(ControlSocket);
+  if (!Resp)
+    return std::nullopt;
+
+  std::vector<SessionData> R;
+
+  for (monomux::message::SessionData& TransmitData : Resp->Sessions)
+  {
+    SessionData SD;
+    SD.Name = std::move(TransmitData.Name);
+    SD.Created = std::chrono::system_clock::from_time_t(TransmitData.Created);
+
+    R.emplace_back(std::move(SD));
+  }
+
+  return R;
+}
+
 bool Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
 {
   using namespace monomux::message;
+  auto X = scopedInhibitControlResponsePoll();
 
   request::MakeSession Msg;
   Msg.Name = std::move(Name);
@@ -221,7 +279,7 @@ bool Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
     else
       Msg.SpawnOpts.SetEnvironment.emplace_back(E.first, std::move(*E.second));
   }
-  ControlSocket.write(encodeWithSize(Msg));
+  sendMessage(ControlSocket, Msg);
 
   // TODO: Wait for a response!
   return true;
