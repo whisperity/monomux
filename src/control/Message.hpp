@@ -26,6 +26,8 @@
 
 namespace monomux
 {
+namespace message
+{
 
 /// Contains the data members required to identify a connected Client.
 struct ClientID
@@ -86,15 +88,15 @@ struct ClientID
 struct DataSocket
 {
   MONOMUX_MESSAGE(DataSocketRequest, DataSocket);
-  monomux::ClientID Client;
+  monomux::message::ClientID Client;
 };
 
 /// A request from the client to the server to advise the client about the
 /// sessions available on the server for attachment.
-// struct SessionList
-// {
-//   MONOMUX_MESSAGE(SessionListRequest, SessionList);
-// };
+struct SessionList
+{
+  MONOMUX_MESSAGE(SessionListRequest, SessionList);
+};
 
 /// A request from the client to the server to initialise a new session with
 /// the specified parameters.
@@ -119,7 +121,7 @@ namespace response
 struct ClientID
 {
   MONOMUX_MESSAGE(ClientIDResponse, ClientID);
-  monomux::ClientID Client;
+  monomux::message::ClientID Client;
 };
 
 /// The response to the \p request::DataSocket, sent by the server.
@@ -134,10 +136,11 @@ struct DataSocket
 };
 
 /// The response to the \p request::SessionList, sent by the server.
-// struct SessionList
-// {
-//   MONOMUX_MESSAGE(SessionListResponse, SessionList);
-// };
+struct SessionList
+{
+  MONOMUX_MESSAGE(SessionListResponse, SessionList);
+
+};
 
 /// The response to the \p request::MakeSession,sent by the server.
 struct MakeSession
@@ -147,4 +150,5 @@ struct MakeSession
 
 } // namespace response
 
+} // namespace message
 } // namespace monomux

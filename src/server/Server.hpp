@@ -36,6 +36,8 @@
 
 namespace monomux
 {
+namespace server
+{
 
 /// The monomux server is responsible for creating child processes of sessions.
 /// Clients communicate with a \p Server instance to obtain information about
@@ -189,4 +191,5 @@ private:
 #include "Dispatch.ipp"
 };
 
+} // namespace server
 } // namespace monomux

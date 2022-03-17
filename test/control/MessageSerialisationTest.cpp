@@ -24,18 +24,18 @@
 /// for ease of testing.
 template <typename Msg> static std::string encode(const Msg& M)
 {
-  using namespace monomux;
+  using namespace monomux::message;
 
-  std::string S = monomux::encode(M);
-  std::string_view Unpacked = MessageBase::unpack(S).RawData;
+  std::string S = monomux::message::encode(M);
+  std::string_view Unpacked = Message::unpack(S).RawData;
   return std::string{Unpacked};
 }
 
 template <typename Msg> static Msg codec(const Msg& M)
 {
-  using namespace monomux;
+  using namespace monomux::message;
 
-  std::string Data = monomux::encode(M);
+  std::string Data = monomux::message::encode(M);
   std::optional<Msg> Decode = decode<Msg>(Data);
   EXPECT_TRUE(Decode && "Decoding just encoded message should succeed!");
   return *Decode;
@@ -43,12 +43,12 @@ template <typename Msg> static Msg codec(const Msg& M)
 
 TEST(ControlMessageSerialisation, ClientIDRequest)
 {
-  EXPECT_EQ(encode(monomux::request::ClientID{}), "<CLIENT-ID />");
+  EXPECT_EQ(encode(monomux::message::request::ClientID{}), "<CLIENT-ID />");
 }
 
 TEST(ControlMessageSerialisation, ClientIDResponse)
 {
-  monomux::response::ClientID Obj;
+  monomux::message::response::ClientID Obj;
   Obj.Client.ID = 42;
   Obj.Client.Nonce = 16;
   EXPECT_EQ(
@@ -62,7 +62,7 @@ TEST(ControlMessageSerialisation, ClientIDResponse)
 
 TEST(ControlMessageSerialisation, DataSocketRequest)
 {
-  monomux::request::DataSocket Obj;
+  monomux::message::request::DataSocket Obj;
   Obj.Client.ID = 55;
   Obj.Client.Nonce = 177;
   EXPECT_EQ(
@@ -77,7 +77,7 @@ TEST(ControlMessageSerialisation, DataSocketRequest)
 TEST(ControlMessageSerialisation, DataSocketRespons)
 {
   {
-    monomux::response::DataSocket Obj;
+    monomux::message::response::DataSocket Obj;
     Obj.Success = true;
     EXPECT_TRUE(encode(Obj).find("<DATASOCKET><ACCEPT /></DATASOCKET>") == 0);
 
@@ -86,7 +86,7 @@ TEST(ControlMessageSerialisation, DataSocketRespons)
   }
 
   {
-    monomux::response::DataSocket Obj;
+    monomux::message::response::DataSocket Obj;
     Obj.Success = false;
     EXPECT_TRUE(encode(Obj).find("<DATASOCKET><DENY /></DATASOCKET>") == 0);
 
@@ -97,7 +97,7 @@ TEST(ControlMessageSerialisation, DataSocketRespons)
 
 TEST(ControlMessageSerialisation, MakeSessionRequest)
 {
-  monomux::request::MakeSession Obj;
+  monomux::message::request::MakeSession Obj;
   Obj.Name = "Foo";
   Obj.SpawnOpts.Program = "/bin/bash";
 

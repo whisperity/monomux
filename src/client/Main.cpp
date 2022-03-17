@@ -30,13 +30,12 @@
 
 namespace monomux
 {
-
 namespace client
 {
 
 std::optional<Client> connect(const Options& Opts, bool Block)
 {
-  auto C = Client::create(Server::getServerSocketPath());
+  auto C = Client::create(server::Server::getServerSocketPath());
   if (!Block)
     return C;
 
@@ -44,7 +43,7 @@ std::optional<Client> connect(const Options& Opts, bool Block)
   while (!C)
   {
     ++HandshakeCounter;
-    C = Client::create(Server::getServerSocketPath());
+    C = Client::create(server::Server::getServerSocketPath());
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     if (HandshakeCounter == 5)
@@ -120,5 +119,4 @@ int main(Options& Opts)
 }
 
 } // namespace client
-
 } // namespace monomux

@@ -34,6 +34,8 @@
 
 namespace monomux
 {
+namespace client
+{
 
 /// This class represents a connection to a running \p Server - or rather,
 /// a wrapper over the communication channel that allows talking to the
@@ -51,11 +53,6 @@ public:
   /// Initialise a \p Client over the already established \p ControlSocket.
   Client(Socket&& ControlSocket);
 
-  /// Perform a handshake mechanism over the control socket.
-  ///
-  /// \return Whether the handshake process succeeded.
-  bool handshake();
-
   Terminal* getTerminal() noexcept { return Term ? &*Term : nullptr; }
   const Terminal* getTerminal() const noexcept
   {
@@ -64,6 +61,27 @@ public:
 
   /// Sets the \p Client to be attached to the streams of the \p T terminal.
   void setTerminal(Terminal&& T);
+
+  Socket* getDataSocket() noexcept
+  {
+    return DataSocket ? DataSocket.get() : nullptr;
+  }
+  const Socket* getDataSocket() const noexcept
+  {
+    return DataSocket ? DataSocket.get() : nullptr;
+  }
+  /// Takes ownership of and stores the given \p Socket as the data socket of
+  /// the client.
+  ///
+  /// \note No appropriate handshaking is done by this call! The server needs to
+  /// be communicated with in advance to associate the connection with the
+  /// client.
+  void setDataSocket(Socket&& DataSocket);
+
+  /// Perform a handshake mechanism over the control socket.
+  ///
+  /// \return Whether the handshake process succeeded.
+  bool handshake();
 
   /// Starts the main loop of the client, taking control of the terminal and
   /// communicating with the server.
@@ -120,4 +138,5 @@ private:
 #include "Dispatch.ipp"
 };
 
+} // namespace client
 } // namespace monomux

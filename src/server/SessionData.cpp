@@ -22,6 +22,8 @@
 
 namespace monomux
 {
+namespace server
+{
 
 void SessionData::setProcess(Process&& Process) noexcept
 {
@@ -30,4 +32,5 @@ void SessionData::setProcess(Process&& Process) noexcept
   MainProcess.emplace(std::move(Process));
 }
 
+} // namespace server
 } // namespace monomux

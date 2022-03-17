@@ -22,7 +22,6 @@
 
 namespace monomux
 {
-
 namespace server
 {
 

@@ -25,6 +25,8 @@
 
 namespace monomux
 {
+namespace server
+{
 
 /// Stores information about and associated resources to a connected client.
 class ClientData
@@ -58,4 +60,5 @@ private:
   std::unique_ptr<Socket> DataConnection;
 };
 
+} // namespace server
 } // namespace monomux

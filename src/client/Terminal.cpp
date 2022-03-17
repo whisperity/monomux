@@ -19,4 +19,11 @@
 #include "Terminal.hpp"
 
 namespace monomux
-{} // namespace monomux
+{
+namespace client
+{
+
+// Empty.
+
+} // namespace client
+} // namespace monomux

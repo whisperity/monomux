@@ -27,6 +27,7 @@ struct CheckedPOSIX;
 
 namespace monomux
 {
+
 namespace detail
 {
 

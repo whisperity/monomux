@@ -21,7 +21,11 @@
 #include "control/Message.hpp"
 #include "system/Process.hpp"
 
+using namespace monomux::message;
+
 namespace monomux
+{
+namespace server
 {
 
 void Server::setUpDispatch()
@@ -129,4 +133,5 @@ HANDLER(requestMakeSession)
 
 #undef HANDLER
 
+} // namespace server
 } // namespace monomux

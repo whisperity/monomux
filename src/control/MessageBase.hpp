@@ -38,6 +38,8 @@
 
 namespace monomux
 {
+namespace message
+{
 
 /// A global enumeration table of messages that are supported by the protocol.
 /// For each entry, an appropriate struct in namespace \p monomux::request or
@@ -81,7 +83,7 @@ enum class MessageKind : std::uint16_t
 
 /// Helper class that contains the parsed \p MessageKind of a \p Message, and
 /// the remaining, not yet parsed \p Buffer.
-struct MessageBase
+struct Message
 {
   MessageKind Kind;
   std::string_view RawData;
@@ -103,7 +105,7 @@ struct MessageBase
   std::string pack() const;
 
   /// Unpack an encoded and fully read payload into its base constitutents.
-  static MessageBase unpack(std::string_view Str) noexcept;
+  static Message unpack(std::string_view Str) noexcept;
 };
 
 /// Encodes a message object into its raw data form.
@@ -111,7 +113,7 @@ template <typename T> std::string encode(const T& Msg)
 {
   std::string RawForm = T::encode(Msg);
 
-  MessageBase MB;
+  Message MB;
   MB.Kind = Msg.Kind;
   MB.RawData = RawForm;
 
@@ -123,14 +125,14 @@ template <typename T> std::string encode(const T& Msg)
 template <typename T> std::string encodeWithSize(const T& Msg)
 {
   std::string Payload = encode(Msg);
-  return MessageBase::sizeToBinaryString(Payload.size()) + std::move(Payload);
+  return Message::sizeToBinaryString(Payload.size()) + std::move(Payload);
 }
 
 /// Decodes the given received buffer as a specific message object, and returns
 /// it if successful.
 template <typename T> std::optional<T> decode(std::string_view Str) noexcept
 {
-  MessageBase MB = MessageBase::unpack(Str);
+  Message MB = Message::unpack(Str);
   if (MB.Kind == MessageKind::Invalid)
     return std::nullopt;
 
@@ -138,4 +140,5 @@ template <typename T> std::optional<T> decode(std::string_view Str) noexcept
   return Msg;
 }
 
+} // namespace message
 } // namespace monomux

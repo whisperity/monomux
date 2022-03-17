@@ -131,7 +131,7 @@ int main(int ArgC, char* ArgV[])
   // there will be no server running. For convenience, we can initialise a
   // server right here.
   {
-    std::optional<Client> ToServer = client::connect(ClientOpts, false);
+    std::optional<client::Client> ToServer = client::connect(ClientOpts, false);
     if (!ToServer)
     {
       // TODO: Work out how this would work with signals and the TTY of the

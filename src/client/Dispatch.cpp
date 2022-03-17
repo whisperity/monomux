@@ -21,7 +21,11 @@
 #include "control/Message.hpp"
 #include "system/unreachable.hpp"
 
+using namespace monomux::message;
+
 namespace monomux
+{
+namespace client
 {
 
 void Client::setUpDispatch()
@@ -65,4 +69,5 @@ HANDLER(responseDataSocket)
 
 #undef HANDLER
 
+} // namespace client
 } // namespace monomux

@@ -31,8 +31,10 @@
 
 namespace monomux
 {
+namespace message
+{
 
-std::string MessageBase::sizeToBinaryString(std::size_t N)
+std::string Message::sizeToBinaryString(std::size_t N)
 {
   std::string Str;
   Str.resize(sizeof(std::size_t));
@@ -44,7 +46,7 @@ std::string MessageBase::sizeToBinaryString(std::size_t N)
   return Str;
 }
 
-std::size_t MessageBase::binaryStringToSize(std::string_view Str) noexcept
+std::size_t Message::binaryStringToSize(std::string_view Str) noexcept
 {
   if (Str.size() < sizeof(std::size_t))
     return 0;
@@ -56,7 +58,7 @@ std::size_t MessageBase::binaryStringToSize(std::string_view Str) noexcept
   return *reinterpret_cast<std::size_t*>(SCh);
 }
 
-std::string MessageBase::encodeKind() const
+std::string Message::encodeKind() const
 {
   std::string Str;
   Str.resize(sizeof(MessageKind));
@@ -68,7 +70,7 @@ std::string MessageBase::encodeKind() const
   return Str;
 }
 
-MessageKind MessageBase::decodeKind(std::string_view Str) noexcept
+MessageKind Message::decodeKind(std::string_view Str) noexcept
 {
   if (Str.size() < sizeof(MessageKind))
     return MessageKind::Invalid;
@@ -80,7 +82,7 @@ MessageKind MessageBase::decodeKind(std::string_view Str) noexcept
   return *reinterpret_cast<MessageKind*>(MKCh);
 }
 
-std::string MessageBase::pack() const
+std::string Message::pack() const
 {
   std::string Str;
   Str.reserve(sizeof(MessageKind) + RawData.size() + sizeof('\0'));
@@ -92,9 +94,9 @@ std::string MessageBase::pack() const
   return Str;
 }
 
-MessageBase MessageBase::unpack(std::string_view Str) noexcept
+Message Message::unpack(std::string_view Str) noexcept
 {
-  MessageBase MB;
+  Message MB;
   MB.Kind = decodeKind(Str);
   if (MB.Kind == MessageKind::Invalid)
     return MB;
@@ -351,7 +353,7 @@ ENCODE(DataSocket)
 {
   std::ostringstream Ret;
   Ret << "<DATASOCKET>";
-  Ret << monomux::ClientID::encode(Object.Client);
+  Ret << monomux::message::ClientID::encode(Object.Client);
   Ret << "</DATASOCKET>";
 
   return Ret.str();
@@ -362,7 +364,7 @@ DECODE(DataSocket)
 
   HEADER_OR_NONE("<DATASOCKET>");
 
-  auto ClientID = monomux::ClientID::decode(View);
+  auto ClientID = monomux::message::ClientID::decode(View);
   if (!ClientID)
     return std::nullopt;
   Ret.Client = std::move(*ClientID);
@@ -376,7 +378,7 @@ ENCODE(MakeSession)
   std::ostringstream Buf;
   Buf << "<MAKE-SESSION>";
   Buf << "<NAME>" << Object.Name << "</NAME>";
-  Buf << monomux::ProcessSpawnOptions::encode(Object.SpawnOpts);
+  Buf << monomux::message::ProcessSpawnOptions::encode(Object.SpawnOpts);
   Buf << "</MAKE-SESSION>";
   return Buf.str();
 }
@@ -389,7 +391,7 @@ DECODE(MakeSession)
   EXTRACT_OR_NONE(Name, "</NAME>");
   Ret.Name = Name;
 
-  auto Spawn = monomux::ProcessSpawnOptions::decode(View);
+  auto Spawn = monomux::message::ProcessSpawnOptions::decode(View);
   if (!Spawn)
     return std::nullopt;
   Ret.SpawnOpts = std::move(*Spawn);
@@ -407,7 +409,7 @@ ENCODE(ClientID)
 {
   std::ostringstream Buf;
   Buf << "<CLIENT-ID>";
-  Buf << monomux::ClientID::encode(Object.Client);
+  Buf << monomux::message::ClientID::encode(Object.Client);
   Buf << "</CLIENT-ID>";
   return Buf.str();
 }
@@ -416,7 +418,7 @@ DECODE(ClientID)
   ClientID Ret;
   HEADER_OR_NONE("<CLIENT-ID>");
 
-  auto ClientID = monomux::ClientID::decode(View);
+  auto ClientID = monomux::message::ClientID::decode(View);
   if (!ClientID)
     return std::nullopt;
   Ret.Client = std::move(*ClientID);
@@ -456,6 +458,7 @@ DECODE(DataSocket)
 
 } // namespace response
 
+} // namespace message
 } // namespace monomux
 
 #undef CONSUME_OR_NONE

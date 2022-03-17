@@ -21,6 +21,8 @@
 
 namespace monomux
 {
+namespace client
+{
 
 class Terminal
 {
@@ -37,4 +39,5 @@ public:
   raw_fd output() const noexcept { return Out; }
 };
 
+} // namespace client
 } // namespace monomux

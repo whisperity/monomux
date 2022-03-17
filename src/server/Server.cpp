@@ -31,6 +31,8 @@
 
 namespace monomux
 {
+namespace server
+{
 
 std::string Server::getServerSocketPath()
 {
@@ -200,6 +202,8 @@ void Server::acceptCallback(ClientData& Client)
 
 void Server::controlCallback(ClientData& Client)
 {
+  using namespace monomux::message;
+
   Socket& ClientSock = Client.getControlSocket();
   std::cout << "Client " << Client.id() << " has data!" << std::endl;
 
@@ -207,7 +211,7 @@ void Server::controlCallback(ClientData& Client)
   try
   {
     Size = ClientSock.read(sizeof(std::size_t));
-    std::size_t N = MessageBase::binaryStringToSize(Size);
+    std::size_t N = Message::binaryStringToSize(Size);
     Data = ClientSock.read(N);
   }
   catch (const std::system_error& Err)
@@ -230,7 +234,7 @@ void Server::controlCallback(ClientData& Client)
 
   std::cout << "Check for message kind... ";
 
-  MessageBase MB = MessageBase::unpack(Data);
+  Message MB = Message::unpack(Data);
   auto Action =
     Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
   if (Action == Dispatch.end())
@@ -358,4 +362,5 @@ void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
   Clients.erase(DataClient.id());
 }
 
+} // namespace server
 } // namespace monomux

@@ -26,6 +26,8 @@
 
 namespace monomux
 {
+namespace client
+{
 
 std::optional<Client> Client::create(std::string SocketPath)
 {
@@ -47,16 +49,32 @@ Client::Client(Socket&& ControlSock) : ControlSocket(std::move(ControlSock))
   setUpDispatch();
 }
 
+void Client::setTerminal(Terminal&& T)
+{
+  if (Term)
+    Poll->stop(Term->input());
+
+  Term.emplace(std::move(T));
+  Poll->listen(Term->input(), /* Incoming =*/true, /* Outgoing =*/false);
+}
+
+void Client::setDataSocket(Socket&& DataSocket)
+{
+  this->DataSocket = std::make_unique<Socket>(std::move(DataSocket));
+}
+
 bool Client::handshake()
 {
+  using namespace monomux::message;
+
   // Authenticate the client on the server.
   {
     ControlSocket.write(encodeWithSize(request::ClientID{}));
     std::string Size = ControlSocket.read(sizeof(std::size_t));
-    std::size_t N = MessageBase::binaryStringToSize(Size);
+    std::size_t N = Message::binaryStringToSize(Size);
     std::string Data = ControlSocket.read(N);
 
-    MessageBase MB = MessageBase::unpack(Data);
+    Message MB = Message::unpack(Data);
     if (MB.Kind != MessageKind::ClientIDResponse)
     {
       std::cerr
@@ -91,10 +109,10 @@ bool Client::handshake()
 
     DS->write(encodeWithSize(Req));
     std::string Size = DS->read(sizeof(std::size_t));
-    std::size_t N = MessageBase::binaryStringToSize(Size);
+    std::size_t N = Message::binaryStringToSize(Size);
     std::string Data = DS->read(N);
 
-    MessageBase MB = MessageBase::unpack(Data);
+    Message MB = Message::unpack(Data);
     std::cout << "DS result:" << MB.RawData << std::endl;
     if (MB.Kind != MessageKind::DataSocketResponse)
     {
@@ -128,15 +146,6 @@ bool Client::handshake()
   setupPoll();
 
   return true;
-}
-
-void Client::setTerminal(Terminal&& T)
-{
-  if (Term)
-    Poll->stop(Term->input());
-
-  Term.emplace(std::move(T));
-  Poll->listen(Term->input(), /* Incoming =*/true, /* Outgoing =*/false);
 }
 
 void Client::loop()
@@ -198,6 +207,8 @@ std::size_t Client::consumeNonce() noexcept
 
 bool Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
 {
+  using namespace monomux::message;
+
   request::MakeSession Msg;
   Msg.Name = std::move(Name);
   Msg.SpawnOpts.Program = Opts.Program;
@@ -228,4 +239,5 @@ void Client::sendData(std::string_view Data)
   DataSocket->write(Data);
 }
 
+} // namespace client
 } // namespace monomux

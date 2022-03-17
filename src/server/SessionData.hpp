@@ -26,6 +26,8 @@
 
 namespace monomux
 {
+namespace server
+{
 
 /// Encapsulates a running session under the server owning the instance.
 class SessionData
@@ -53,4 +55,5 @@ private:
   std::optional<Process> MainProcess;
 };
 
+} // namespace server
 } // namespace monomux

@@ -25,7 +25,6 @@
 
 namespace monomux
 {
-
 namespace client
 {
 
