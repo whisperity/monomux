@@ -34,12 +34,20 @@ EPoll::EPoll(std::size_t EventCount)
 
 std::size_t EPoll::wait()
 {
-  FiredEventCount = CheckedPOSIXThrow(
+  auto MaybeFiredEventCount = CheckedPOSIX(
     [this] {
       return ::epoll_wait(MasterFD, &(*Events.data()), Events.size(), -1);
     },
-    "epoll_wait()",
     -1);
+  if (!MaybeFiredEventCount)
+  {
+    std::error_code EC = MaybeFiredEventCount.getError();
+    if (EC == std::errc::interrupted /* EINTR */)
+      // Interrupting epoll_wait() is not an issue.
+      return 0;
+    throw std::system_error{EC, "epoll_wait()"};
+  }
+  FiredEventCount = MaybeFiredEventCount.get();
   return FiredEventCount;
 }
 

@@ -14,7 +14,8 @@ It allows most of the core features of _screen_ or _tmux_, with being less intru
 Dependencies
 ------------
 
-> TODO.
+MonoMux uses modern C++ features, and as such, a C++17-capable compiler and associated standard library is needed to compile and execute the tool.
+There are no other dependencies.
 
 Installation
 ------------

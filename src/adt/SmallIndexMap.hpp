@@ -456,7 +456,7 @@ private:
   /// Coverts the representation to the large representation, if currently in
   /// the small representation.
   ///
-  /// \note This is a costly operation that rebalances the
+  /// \note This is a costly operation that rebalances the lookup map.
   void convertToLarge()
   {
     if (isLarge())

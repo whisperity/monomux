@@ -43,13 +43,9 @@ std::string Server::getServerSocketPath()
 
 Server::Server(Socket&& Sock) : Sock(std::move(Sock)) { setUpDispatch(); }
 
-Server::~Server()
-{
-  TerminateListenLoop.store(true);
-  // TODO: Wake the poller so the loop can gracefully exit.
-}
+Server::~Server() = default;
 
-int Server::listen()
+void Server::listen()
 {
   Sock.listen(16);
 
@@ -60,7 +56,7 @@ int Server::listen()
   Poll = std::make_unique<EPoll>(8);
   Poll->listen(Sock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
 
-  while (TerminateListenLoop.load() == false)
+  while (!TerminateListenLoop.load())
   {
     const std::size_t NumTriggeredFDs = Poll->wait();
     std::clog << "DEBUG: Server - " << NumTriggeredFDs << " events received!"
@@ -140,8 +136,11 @@ int Server::listen()
       }
     }
   }
+}
 
-  return 0;
+void Server::interrupt() const noexcept
+{
+  TerminateListenLoop.store(true);
 }
 
 ClientData* Server::getClient(std::size_t ID) noexcept

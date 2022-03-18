@@ -82,7 +82,7 @@ Socket Socket::connect(std::string Path, bool InheritInChild)
                        reinterpret_cast<struct ::sockaddr*>(&SocketAddr),
                        sizeof(SocketAddr));
     },
-    "connect('" + Path + "'",
+    "connect('" + Path + "')",
     -1);
 
   Socket S{std::move(Handle), std::move(Path), false};
@@ -105,9 +105,10 @@ Socket Socket::wrap(fd&& FD, std::string Identifier)
 }
 
 Socket::Socket(Socket&& RHS) noexcept
-  : CommunicationChannel(std::move(RHS)), Owning(RHS.Owning),
-    Listening(RHS.Listening)
-{}
+  : CommunicationChannel(std::move(RHS)), Owning(std::move(RHS.Owning)),
+    Listening(std::move(RHS.Listening))
+{
+}
 
 Socket& Socket::operator=(Socket&& RHS) noexcept
 {
@@ -116,8 +117,8 @@ Socket& Socket::operator=(Socket&& RHS) noexcept
 
   CommunicationChannel::operator=(std::move(RHS));
 
-  Owning = RHS.Owning;
-  Listening = RHS.Listening;
+  Owning = std::move(RHS.Owning);
+  Listening = std::move(RHS.Listening);
 
   return *this;
 }

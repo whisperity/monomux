@@ -62,7 +62,7 @@ public:
   /// Replaces the current process (as if by calling the \p exec() family) in
   /// the system with the started one.
   ///
-  /// \note WARNING: This command does \b NOT \p fork()!
+  /// \warning This command does \b NOT \p fork()!
   [[noreturn]] static void exec(const SpawnOptions& Opts);
 
   /// Spawns a new process based on the specified \p Opts. This process calls
@@ -79,7 +79,7 @@ public:
   /// process. The specified callbacks \p ParentAction and \p ChildAction will
   /// be run in the parent and the child process, respectively.
   ///
-  /// \note Execution continues normally after the callbacks retur returnn!
+  /// \note Execution continues normally after the callbacks retur return!
   template <typename ParentFn, typename ChildFn>
   static void fork(ParentFn ParentAction, ChildFn ChildAction)
   {

@@ -35,9 +35,10 @@ CommunicationChannel::CommunicationChannel(fd Handle,
 CommunicationChannel::CommunicationChannel(CommunicationChannel&& RHS) noexcept
   : Handle(std::move(RHS.Handle)), Identifier(std::move(RHS.Identifier)),
     ReadBuffer(std::move(RHS.ReadBuffer)),
-    WriteBuffer(std::move(RHS.WriteBuffer)), EntityCleanup(RHS.EntityCleanup),
-    Failed(RHS.Failed)
-{}
+    WriteBuffer(std::move(RHS.WriteBuffer)), EntityCleanup(std::move(RHS.EntityCleanup)),
+    Failed(std::move(RHS.Failed))
+{
+}
 
 CommunicationChannel&
 CommunicationChannel::operator=(CommunicationChannel&& RHS) noexcept
@@ -49,8 +50,8 @@ CommunicationChannel::operator=(CommunicationChannel&& RHS) noexcept
   Identifier = std::move(RHS.Identifier);
   ReadBuffer = std::move(RHS.ReadBuffer);
   WriteBuffer = std::move(RHS.WriteBuffer);
-  EntityCleanup = RHS.EntityCleanup;
-  Failed = RHS.Failed;
+  EntityCleanup = std::move(RHS.EntityCleanup);
+  Failed = std::move(RHS.Failed);
 
   return *this;
 }

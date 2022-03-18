@@ -25,3 +25,12 @@ list(APPEND libmonomux_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/unreachable.cpp
   )
 set(libmonomux_SOURCES "${libmonomux_SOURCES}" PARENT_SCOPE)
+
+list(APPEND monomux_HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/Signal.hpp
+  )
+set(monomux_HEADERS "${monomux_HEADERS}" PARENT_SCOPE)
+list(APPEND monomux_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/Signal.cpp
+  )
+set(monomux_SOURCES "${monomux_SOURCES}" PARENT_SCOPE)

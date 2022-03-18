@@ -20,6 +20,7 @@
 
 #include "Server.hpp"
 #include "system/Process.hpp"
+#include "system/Signal.hpp"
 #include "system/unreachable.hpp"
 
 #include <iostream>
@@ -29,6 +30,17 @@ namespace monomux
 {
 namespace server
 {
+
+static void serverShutdown(SignalHandling::Signal /* SigNum */,
+                           ::siginfo_t* /* Info */,
+                           const SignalHandling* Handling)
+{
+  std::clog << "INFO: Server shutting down..." << std::endl;
+  const auto* Srv = std::any_cast<Server*>(Handling->getObject("Server"));
+  if (!Srv)
+    return;
+  (*Srv)->interrupt();
+}
 
 std::vector<std::string> Options::toArgv() const
 {
@@ -60,16 +72,23 @@ int main(Options& Opts)
 
   Socket ServerSock = Socket::create(Server::getServerSocketPath());
   Server S = Server(std::move(ServerSock));
-  // TODO: Signal handler! If interrupted, the cleanup does not happen here.
+
+  {
+    SignalHandling& Sig = SignalHandling::get();
+    Sig.registerObject("Server", &S);
+    Sig.registerCallback(SIGINT, &serverShutdown);
+    Sig.registerCallback(SIGTERM, &serverShutdown);
+    Sig.enable();
+  }
 
   std::cout << "INFO: Monomux Server starting to listen..." << std::endl;
-  int R = S.listen();
-  std::cout << "INFO: Server listen exited with " << R << std::endl;
+  S.listen();
+  std::cout << "INFO: Server listen exited" << std::endl;
 
-  std::this_thread::sleep_for(std::chrono::seconds(30));
+  SignalHandling::get().disable();
 
   std::cout << "INFO: Server shut down..." << std::endl;
-  return R;
+  return 0;
 }
 
 } // namespace server

@@ -18,6 +18,7 @@
  */
 #pragma once
 #include "fd.hpp"
+#include "adt/unique_scalar.hpp"
 
 #include <string>
 #include <vector>
@@ -102,8 +103,8 @@ protected:
   std::vector<char> WriteBuffer;
 
 private:
-  bool EntityCleanup;
-  bool Failed = false;
+  unique_scalar<bool, false> EntityCleanup;
+  unique_scalar<bool, false> Failed;
 };
 
 } // namespace monomux

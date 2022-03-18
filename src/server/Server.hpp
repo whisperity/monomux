@@ -62,7 +62,10 @@ public:
   /// Start actively listening and handling connections.
   ///
   /// \note This is a blocking call!
-  int listen();
+  void listen();
+
+  /// Atomcially request the server's \p listen() loop to die.
+  void interrupt() const noexcept;
 
 private:
   /// Create a data structure that allows us to (in the optimal case) quickly
@@ -108,7 +111,7 @@ private:
   /// invalidate other references to the data.
   std::map<std::string, std::unique_ptr<SessionData>> Sessions;
 
-  std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
+  mutable std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
 
 public:
