@@ -69,7 +69,8 @@ struct ProcessSpawnOptions
 
 /// A view of the \p Server::SessionData data structure that is sufficient for
 /// network transmission.
-struct SessionData {
+struct SessionData
+{
   MONOMUX_MESSAGE_BASE(SessionData);
 
   /// \see server::SessionData::Name.

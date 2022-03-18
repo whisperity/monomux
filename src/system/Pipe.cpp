@@ -89,8 +89,8 @@ Pipe Pipe::wrap(fd&& FD, Mode OpenMode, std::string Identifier)
 }
 
 Pipe::Pipe(Pipe&& RHS) noexcept
-   : CommunicationChannel(std::move(RHS)), OpenedAs(std::move(RHS.OpenedAs)),
-   Nonblock(std::move(RHS.Nonblock))
+  : CommunicationChannel(std::move(RHS)), OpenedAs(std::move(RHS.OpenedAs)),
+    Nonblock(std::move(RHS.Nonblock))
 {}
 
 Pipe& Pipe::operator=(Pipe&& RHS) noexcept
@@ -262,7 +262,8 @@ std::string Pipe::readImpl(std::size_t Bytes, bool& Continue)
 std::size_t Pipe::writeImpl(std::string_view Buffer, bool& Continue)
 {
   if (failed())
-    throw std::system_error{std::make_error_code(std::errc::io_error), "Pipe failed."};
+    throw std::system_error{std::make_error_code(std::errc::io_error),
+                            "Pipe failed."};
   if (OpenedAs != Write)
     throw std::system_error{
       std::make_error_code(std::errc::operation_not_permitted),

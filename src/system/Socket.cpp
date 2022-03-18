@@ -107,8 +107,7 @@ Socket Socket::wrap(fd&& FD, std::string Identifier)
 Socket::Socket(Socket&& RHS) noexcept
   : CommunicationChannel(std::move(RHS)), Owning(std::move(RHS.Owning)),
     Listening(std::move(RHS.Listening))
-{
-}
+{}
 
 Socket& Socket::operator=(Socket&& RHS) noexcept
 {

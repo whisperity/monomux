@@ -132,10 +132,7 @@ void Server::listen()
   }
 }
 
-void Server::interrupt() const noexcept
-{
-  TerminateListenLoop.store(true);
-}
+void Server::interrupt() const noexcept { TerminateListenLoop.store(true); }
 
 ClientData* Server::getClient(std::size_t ID) noexcept
 {

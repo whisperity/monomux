@@ -142,6 +142,7 @@ private:
   class ControlPollInhibitor
   {
     Client& C;
+
   public:
     ControlPollInhibitor(Client& C);
     ~ControlPollInhibitor();

@@ -34,25 +34,25 @@ static std::size_t NonceCounter = 0; // FIXME: Remove this.
 
 std::size_t ClientData::consumeNonce() noexcept
 {
-std::size_t N = Nonce.value_or(0);
-Nonce.reset();
-return N;
+  std::size_t N = Nonce.value_or(0);
+  Nonce.reset();
+  return N;
 }
 
 std::size_t ClientData::makeNewNonce() noexcept
 {
-// FIXME: Better random number generation.
-Nonce.emplace(++NonceCounter);
-return *Nonce;
+  // FIXME: Better random number generation.
+  Nonce.emplace(++NonceCounter);
+  return *Nonce;
 }
 
 void ClientData::subjugateIntoDataSocket(ClientData& Other) noexcept
 {
-assert(!DataConnection && "Current client already has a data connection!");
-assert(!Other.DataConnection &&
-       "Other client already has a data connection!");
-DataConnection.swap(Other.ControlConnection);
-assert(!Other.ControlConnection && "Other client stayed alive");
+  assert(!DataConnection && "Current client already has a data connection!");
+  assert(!Other.DataConnection &&
+         "Other client already has a data connection!");
+  DataConnection.swap(Other.ControlConnection);
+  assert(!Other.ControlConnection && "Other client stayed alive");
 }
 
 } // namespace server

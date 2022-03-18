@@ -373,11 +373,13 @@ DECODE_BASE(SessionData)
     if constexpr (std::is_unsigned_v<decltype(Ret.Created)>)
     {
       Ret.Created = std::stoull(std::string{Created});
-    } else if constexpr (std::is_signed_v<decltype(Ret.Created)>)
+    }
+    else if constexpr (std::is_signed_v<decltype(Ret.Created)>)
     {
       Ret.Created = std::stoll(std::string{Created});
     }
-  } else if constexpr (std::is_floating_point_v<decltype(Ret.Created)>)
+  }
+  else if constexpr (std::is_floating_point_v<decltype(Ret.Created)>)
   {
     Ret.Created = std::stold(std::string{Created});
   }
