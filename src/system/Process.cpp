@@ -24,10 +24,13 @@
 
 #include <cstring>
 
+#include <sys/wait.h>
+
 namespace monomux
 {
 
 static void allocCopyString(const std::string& Source,
+                            // NOLINTNEXTLINE(modernize-avoid-c-arrays)
                             char* DestinationStringArray[],
                             std::size_t Index)
 {
@@ -108,6 +111,29 @@ Process Process::spawn(const SpawnOptions& Opts)
 
   Process::exec(Opts);
   unreachable("Process::exec() should've replaced the process.");
+}
+
+bool Process::reapIfDead()
+{
+  if (Handle == InvalidPID)
+    return true;
+
+  auto ChangedPID =
+    CheckedPOSIX([this] { return ::waitpid(Handle, nullptr, WNOHANG); }, -1);
+  if (!ChangedPID)
+  {
+    std::error_code EC = ChangedPID.getError();
+    if (EC == std::errc::no_child_process)
+      return false;
+    throw std::system_error{EC, "waitpid(" + std::to_string(Handle) + ")"};
+  }
+
+  if (ChangedPID.get() == Handle)
+    return true;
+  if (ChangedPID.get() == 0)
+    return false;
+
+  return false;
 }
 
 } // namespace monomux

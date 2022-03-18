@@ -30,6 +30,8 @@
 namespace monomux
 {
 
+inline constexpr ::pid_t InvalidPID = -1;
+
 /// Responsible for creating, executing, and handling processes on the
 /// system.
 class Process
@@ -51,6 +53,12 @@ public:
   handle raw() const noexcept { return Handle; }
   bool hasPty() const noexcept { return PTY.has_value(); }
   Pty* getPty() noexcept { return hasPty() ? &*PTY : nullptr; }
+
+  /// \returns Checks if the process had died, and if so, returns \p true.
+  ///
+  /// \note This call does not block. If the process died, the operating system
+  /// \b MAY remove associated information at the invocation of this call.
+  bool reapIfDead();
 
 private:
   handle Handle;

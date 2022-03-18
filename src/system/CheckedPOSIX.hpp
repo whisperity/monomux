@@ -43,7 +43,7 @@ public:
     : Value(std::move(Value)), Errored(Errored), ErrorCode(Error)
   {}
 
-  operator bool() const noexcept { return !Errored; }
+  explicit operator bool() const noexcept { return !Errored; }
   std::error_code getError() const noexcept { return ErrorCode; }
   R& get() noexcept { return Value; }
   const R& get() const noexcept { return Value; }
@@ -60,7 +60,7 @@ public:
     : Errored(Errored), ErrorCode(Error)
   {}
 
-  operator bool() const noexcept { return !Errored; }
+  explicit operator bool() const noexcept { return !Errored; }
   std::error_code getError() const noexcept { return ErrorCode; }
 };
 
@@ -85,7 +85,9 @@ public:
 ///     }
 ///     Open.get(); // Obtain the return value from the lambda.
 template <typename Fn, typename... ErrTys>
-decltype(auto) CheckedPOSIX(Fn&& F, ErrTys&&... ErrorValues) noexcept
+decltype(auto)
+// NOLINTNEXTLINE(readability-identifier-naming)
+CheckedPOSIX(Fn&& F, ErrTys&&... ErrorValues) noexcept
 {
   using namespace monomux::detail;
   static_assert(!std::is_same_v<decltype(F()), void>,
@@ -117,6 +119,7 @@ decltype(auto) CheckedPOSIX(Fn&& F, ErrTys&&... ErrorValues) noexcept
 ///     FD; // Obtain the return value from the lambda.
 template <typename Fn, typename... ErrTys>
 decltype(auto)
+// NOLINTNEXTLINE(readability-identifier-naming)
 CheckedPOSIXThrow(Fn&& F, std::string ErrMsg, ErrTys&&... ErrorValues)
 {
   auto Result =
@@ -152,7 +155,9 @@ CheckedPOSIXThrow(Fn&& F, std::string ErrMsg, ErrTys&&... ErrorValues)
 ///       // Do something as the call failed.
 ///     }
 ///     Open.get(); // Obtain the return value from the lambda.
-template <typename Fn> decltype(auto) CheckedPOSIX(Fn&& F) noexcept
+template <typename Fn>
+decltype(auto)
+CheckedPOSIX(Fn&& F) noexcept // NOLINT(readability-identifier-naming)
 {
   using namespace monomux::detail;
   bool Errored = false;

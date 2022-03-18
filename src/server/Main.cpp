@@ -64,11 +64,23 @@ static void serverShutdown(SignalHandling::Signal /* SigNum */,
                            ::siginfo_t* /* Info */,
                            const SignalHandling* Handling)
 {
-  std::clog << "INFO: Server shutting down..." << std::endl;
-  const auto* Srv = std::any_cast<Server*>(Handling->getObject("Server"));
+  const volatile auto* Srv =
+    std::any_cast<Server*>(Handling->getObject("Server"));
   if (!Srv)
     return;
   (*Srv)->interrupt();
+}
+
+static void childExited(SignalHandling::Signal /* SigNum */,
+                        ::siginfo_t* Info,
+                        const SignalHandling* Handling)
+{
+  Process::handle CPID = Info->si_pid;
+  const volatile auto* Srv =
+    std::any_cast<Server*>(Handling->getObject("Server"));
+  if (!Srv)
+    return;
+  (*Srv)->registerDeadChild(CPID);
 }
 
 int main(Options& Opts)
@@ -88,11 +100,12 @@ int main(Options& Opts)
     Sig.registerObject("Server", &S);
     Sig.registerCallback(SIGINT, &serverShutdown);
     Sig.registerCallback(SIGTERM, &serverShutdown);
+    Sig.registerCallback(SIGCHLD, &childExited);
     Sig.enable();
   }
 
   std::cout << "INFO: Monomux Server starting to listen..." << std::endl;
-  S.listen();
+  S.loop();
   std::cout << "INFO: Server listen exited" << std::endl;
 
   SignalHandling::get().disable();

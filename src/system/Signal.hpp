@@ -20,6 +20,7 @@
 #include "POD.hpp"
 
 #include <any>
+#include <array>
 #include <csignal>
 #include <cstdint>
 #include <functional>
@@ -68,6 +69,17 @@ public:
                               ::siginfo_t* Info,
                               const SignalHandling* Handling);
 
+  /// The type of the signal handler callback required by the low-level
+  /// interface.
+  ///
+  /// \param Context \b UNUSED! Low-level data structure about the state of the
+  /// program when the signal happened. This field is not used.
+  ///
+  /// \see SignalCallback
+  using KernelSignalHandler = void(Signal SigNum,
+                                   ::siginfo_t* Info,
+                                   void* Context);
+
 private:
   /// The signal handler callback required by the low-level interface.
   /// This function dispatches to the user-facing registered handlers.
@@ -96,10 +108,21 @@ private:
   /// A lookup table for the signal codes that are registered by \p enable().
   std::array<bool, SignalCount> RegisteredSignals;
 
+  /// A lookup table for the signal codes that were masked by \p ignore().
+  std::array<bool, SignalCount> MaskedSignals;
+
 public:
   /// Retrieve the \b GLOBAL \p SignalHandling object for the process.
   /// If no such object exists, it will be constructed.
   static SignalHandling& get();
+
+  /// Creates a new \p SignalHandling object.
+  ///
+  /// \warning As signal handling configuration is a \b GLOBAL state, users
+  /// should not construct this class directly!
+  ///
+  /// \see get()
+  SignalHandling();
 
   /// Perform the low-level functions that registers the handler callback of
   /// \p SignalHandling in the kernel for the process, effectively \e enabling
@@ -109,11 +132,27 @@ public:
   /// updating the set of to-be-handled signals on the kernel's side.
   ///
   /// \note Only signals that a callback has been registered for with
-  /// \p registerCallback will be enabled in the kernel.
+  /// \p registerCallback and \b NOT ignored with \p ignore will be enabled in
+  /// the kernel.
   void enable();
 
   /// Perform the low-level functions that remove the effects of \p enable().
+  ///
+  /// \note Only signals that are \b NOT ignored with \p ignore will be
+  /// restored.
   void disable();
+
+  /// Sets \p SigNum to be ignored. Signals of this kind will not trigger a
+  /// handling if received.
+  ///
+  /// \see \p SIG_IGN
+  void ignore(Signal SigNum);
+
+  /// Removes \p SigNum from the ignore list. If the signal handling was enabled
+  /// \b prior to calling \p ignore(), the callbacks will start firing again.
+  /// Otherwise, the default signal handling behaviour (as if by calling
+  /// \p disable()) will be restored.
+  void unignore(Signal SigNum);
 
   /// Registers a callback to fire when \p SigNum is received.
   /// The callback is added at the \b end of the signal queue.

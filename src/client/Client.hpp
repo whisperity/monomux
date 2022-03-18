@@ -21,9 +21,9 @@
 #include "Terminal.hpp"
 
 #include "adt/MovableAtomic.hpp"
+#include "system/EPoll.hpp"
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
-#include "system/epoll.hpp"
 
 #include <cassert>
 #include <cstdint>

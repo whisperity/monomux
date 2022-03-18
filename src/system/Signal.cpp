@@ -23,6 +23,7 @@
 #include <exception>
 #include <iostream>
 #include <system_error>
+#include <type_traits>
 
 namespace monomux
 {
@@ -36,7 +37,7 @@ void SignalHandling::handler(Signal SigNum,
   if (static_cast<std::size_t>(SigNum) > SignalCount)
     unreachable("Unhandleable too large signal number received");
 
-  SignalHandling* Context = Singleton.get();
+  SignalHandling* volatile Context = Singleton.get();
   if (!Context)
     return;
 
@@ -58,6 +59,52 @@ SignalHandling& SignalHandling::get()
   return *Singleton;
 }
 
+SignalHandling::SignalHandling()
+{
+  static_assert(std::is_same_v<decltype(handler), KernelSignalHandler>,
+                "Signal handler type invalid.");
+
+  for (std::size_t S = 0; S < SignalCount; ++S)
+    Callbacks.at(S).fill(std::function<SignalCallback>{});
+  ObjectNames.fill(std::string{});
+  Objects.fill(std::any{});
+  RegisteredSignals.fill(false);
+  MaskedSignals.fill(false);
+}
+
+static void handleSignal(SignalHandling::Signal S,
+                         SignalHandling::KernelSignalHandler* Handler)
+{
+  POD<struct ::sigaction> SigAct;
+  // TODO: Maybe extra flag support for SIGCHLD?
+  SigAct->sa_flags = SA_SIGINFO;
+  SigAct->sa_sigaction = Handler;
+
+  CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
+                    "sigaction(" + std::to_string(S) + ")",
+                    -1);
+}
+
+static void defaultSignal(SignalHandling::Signal S)
+{
+  POD<struct ::sigaction> SigAct;
+  SigAct->sa_handler = SIG_DFL;
+
+  CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
+                    "sigaction(" + std::to_string(S) + ", SIG_DFL)",
+                    -1);
+}
+
+static void ignoreSignal(SignalHandling::Signal S)
+{
+  POD<struct ::sigaction> SigAct;
+  SigAct->sa_handler = SIG_IGN;
+
+  CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
+                    "sigaction(" + std::to_string(S) + ", SIG_IGN)",
+                    -1);
+}
+
 void SignalHandling::enable()
 {
   for (std::size_t S = 0; S < SignalCount; ++S)
@@ -69,15 +116,11 @@ void SignalHandling::enable()
     if (RegisteredSignals.at(S))
       // This signal is (assumed to be) already registered in the kernel.
       continue;
+    if (MaskedSignals.at(S))
+      // Ignored signals will not be overwritten.
+      continue;
 
-    POD<struct ::sigaction> SigAct;
-    // TODO: Maybe extra flag support for SIGCHLD?
-    SigAct->sa_flags = SA_SIGINFO;
-    SigAct->sa_sigaction = &handler;
-
-    CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
-                      "sigaction(" + std::to_string(S) + ")",
-                      -1);
+    handleSignal(S, &handler);
     RegisteredSignals.at(S) = true;
   }
 }
@@ -89,15 +132,43 @@ void SignalHandling::disable()
     if (!RegisteredSignals.at(S))
       // This signal is (assumed to be) not registered in the kernel.
       continue;
+    if (MaskedSignals.at(S))
+      // Ignored signals will not be overwritten.
+      continue;
 
-    POD<struct ::sigaction> SigAct;
-    SigAct->sa_handler = SIG_DFL;
-
-    CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
-                      "sigaction(" + std::to_string(S) + ", SIG_DFL)",
-                      -1);
-    RegisteredSignals.at(S) = true;
+    defaultSignal(S);
+    RegisteredSignals.at(S) = false;
   }
+}
+
+void SignalHandling::ignore(Signal SigNum)
+{
+  if (static_cast<std::size_t>(SigNum) > SignalCount)
+    throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
+
+  if (MaskedSignals.at(SigNum))
+    // Already ignored signals will not be touched.
+    return;
+
+  ignoreSignal(SigNum);
+  MaskedSignals.at(SigNum) = true;
+}
+
+void SignalHandling::unignore(Signal SigNum)
+{
+  if (static_cast<std::size_t>(SigNum) > SignalCount)
+    throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
+
+  if (!MaskedSignals.at(SigNum))
+    // Not ignored signals will not be touched.
+    return;
+
+  if (RegisteredSignals.at(SigNum))
+    handleSignal(SigNum, &handler);
+  else
+    defaultSignal(SigNum);
+
+  MaskedSignals.at(SigNum) = false;
 }
 
 void SignalHandling::registerCallback(Signal SigNum,

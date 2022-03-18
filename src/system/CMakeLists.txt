@@ -2,7 +2,7 @@ list(APPEND libmonomux_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/CheckedPOSIX.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/CommunicationChannel.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Environment.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/epoll.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/EPoll.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fd.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Pipe.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/POD.hpp
@@ -16,7 +16,7 @@ set(libmonomux_HEADERS "${libmonomux_HEADERS}" PARENT_SCOPE)
 list(APPEND libmonomux_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/CommunicationChannel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Environment.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/epoll.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/EPoll.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fd.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Pipe.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Process.cpp

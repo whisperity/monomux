@@ -182,7 +182,7 @@ std::string_view takeUntilAndConsume(std::string_view& Data,
       P == 0 && (View.remove_prefix(std::strlen(LITERAL)), P == 0))
 
 #define EXTRACT_OR_NONE(VARIABLE, UNTIL_LITERAL)                               \
-  auto(VARIABLE) = takeUntilAndConsume(View, UNTIL_LITERAL);                   \
+  auto VARIABLE = takeUntilAndConsume(View, UNTIL_LITERAL);                    \
   if ((VARIABLE).empty())                                                      \
     return std::nullopt;
 

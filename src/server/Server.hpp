@@ -22,8 +22,9 @@
 
 #include "adt/SmallIndexMap.hpp"
 #include "adt/TaggedPointer.hpp"
+#include "system/EPoll.hpp"
+#include "system/Process.hpp"
 #include "system/Socket.hpp"
-#include "system/epoll.hpp"
 #include "system/fd.hpp"
 
 #include <atomic>
@@ -60,7 +61,7 @@ public:
   /// Start actively listening and handling connections.
   ///
   /// \note This is a blocking call!
-  void listen();
+  void loop();
 
   /// Atomcially request the server's \p listen() loop to die.
   void interrupt() const noexcept;
@@ -86,13 +87,13 @@ private:
                                      ClientDataConnection,
                                      SessionConnection>;
 
-private:
   Socket Sock;
 
+  static constexpr std::size_t FDLookupSize = 256;
   /// A quick lookup that associates a file descriptor to the data for the
   /// entity behind the file descriptor.
   SmallIndexMap<LookupVariant,
-                256,
+                FDLookupSize,
                 /* StoreInPlace =*/true,
                 /* IntrusiveDefaultSentinel =*/true>
     FDLookup;
@@ -109,8 +110,14 @@ private:
   /// invalidate other references to the data.
   std::map<std::string, std::unique_ptr<SessionData>> Sessions;
 
+  static constexpr std::size_t DeadChildrenVecSize = 8;
+  /// A list of process handles that were signalle
+  mutable std::array<Process::handle, DeadChildrenVecSize> DeadChildren;
+
   mutable std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
+
+  void reapDeadChildren();
 
 public:
   /// Retrieve data about the client registered as \p ID.
@@ -146,7 +153,12 @@ public:
   /// call.
   void removeSession(SessionData& Session);
 
-public:
+  /// Adds the specified \p PID to the list of subprocesses of the server that
+  /// had died. This function is meaningful to be called from a signal handler.
+  /// The server's \p loop() will take care of destroying the session in its
+  /// normal iteration.
+  void registerDeadChild(Process::handle PID) const noexcept;
+
   /// The callback function that is fired when a new \p Client connected.
   void acceptCallback(ClientData& Client);
   /// The callback function that is fired for transmission on a \p Client's

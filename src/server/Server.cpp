@@ -35,23 +35,31 @@ namespace monomux
 namespace server
 {
 
-Server::Server(Socket&& Sock) : Sock(std::move(Sock)) { setUpDispatch(); }
+Server::Server(Socket&& Sock) : Sock(std::move(Sock))
+{
+  setUpDispatch();
+  DeadChildren.fill(InvalidPID);
+}
 
 Server::~Server() = default;
 
-void Server::listen()
+void Server::loop()
 {
-  Sock.listen(16);
+  static constexpr std::size_t ListenQueue = 16;
+  static constexpr std::size_t EventQueue = 1 << 16;
+  Sock.listen(ListenQueue);
 
   POD<struct ::sockaddr_storage> SocketAddr;
   POD<::socklen_t> SocketLen;
 
   fd::addStatusFlag(Sock.raw(), O_NONBLOCK);
-  Poll = std::make_unique<EPoll>(8);
+  Poll = std::make_unique<EPoll>(EventQueue);
   Poll->listen(Sock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
 
   while (!TerminateListenLoop.load())
   {
+    reapDeadChildren();
+
     const std::size_t NumTriggeredFDs = Poll->wait();
     std::clog << "DEBUG: Server - " << NumTriggeredFDs << " events received!"
               << std::endl;
@@ -180,6 +188,16 @@ void Server::removeSession(SessionData& Session)
   Sessions.erase(Session.name());
 }
 
+void Server::registerDeadChild(Process::handle PID) const noexcept
+{
+  for (std::size_t I = 0; I < DeadChildrenVecSize; ++I)
+    if (DeadChildren.at(I) == InvalidPID)
+    {
+      DeadChildren.at(I) = PID;
+      return;
+    }
+}
+
 void Server::acceptCallback(ClientData& Client)
 {
   std::cout << "Client connected as " << Client.id() << std::endl;
@@ -265,7 +283,7 @@ void Server::dataCallback(ClientData& Client)
   {
     std::clog << "Send data to Session " << S.second->name() << std::endl;
     if (S.second->hasProcess() && S.second->getProcess().hasPty())
-      Pipe::write(S.second->getProcess().getPty()->getFD(), Data);
+      Pipe::write(S.second->getProcess().getPty()->raw(), Data);
   }
 }
 
@@ -291,7 +309,7 @@ void Server::createCallback(SessionData& Session)
 
   if (Session.hasProcess() && Session.getProcess().hasPty())
   {
-    raw_fd FD = Session.getProcess().getPty()->getFD();
+    raw_fd FD = Session.getProcess().getPty()->raw();
 
     Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
     FDLookup[FD] = SessionConnection{&Session};
@@ -310,12 +328,12 @@ void Server::dataCallback(SessionData& Session)
 
   try
   {
-    Data = Pipe::read(Session.getProcess().getPty()->getFD(), BUFFER_SIZE);
+    Data = Pipe::read(Session.getProcess().getPty()->raw(), BUFFER_SIZE);
   }
   catch (const std::system_error& Err)
   {
     std::cerr << "Error when reading data from session "
-              << Session.getProcess().getPty()->getFD() << ": " << Err.what()
+              << Session.getProcess().getPty()->raw() << ": " << Err.what()
               << std::endl;
     return;
   }
@@ -334,7 +352,20 @@ void Server::clientAttachedCallback(ClientData& Client, SessionData& Session) {}
 
 void Server::clientDetachedCallback(ClientData& Client, SessionData& Session) {}
 
-void Server::destroyCallback(SessionData& Session) {}
+void Server::destroyCallback(SessionData& Session)
+{
+  std::cout << "Session " << Session.name() << " exited..." << std::endl;
+
+  if (Session.hasProcess() && Session.getProcess().hasPty())
+  {
+    raw_fd FD = Session.getProcess().getPty()->raw();
+
+    Poll->stop(FD);
+    FDLookup.erase(FD);
+  }
+
+  removeSession(Session);
+}
 
 void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
                                              ClientData& DataClient)
@@ -348,6 +379,33 @@ void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
   // Remove the object from the owning data structure but do not fire the exit
   // handler!
   Clients.erase(DataClient.id());
+}
+
+void Server::reapDeadChildren()
+{
+  for (Process::handle& PID : DeadChildren)
+  {
+    if (PID == InvalidPID)
+      continue;
+
+    auto SessionForProc =
+      std::find_if(Sessions.begin(), Sessions.end(), [PID](auto&& E) {
+        return E.second->hasProcess() && E.second->getProcess().raw() == PID;
+      });
+    if (SessionForProc == Sessions.end())
+      continue;
+
+    bool Dead = SessionForProc->second->getProcess().reapIfDead();
+    if (Dead)
+    {
+      std::clog << "INFO: Child process #" << PID << " of session '"
+                << SessionForProc->second->name() << "' exited." << std::endl;
+
+      destroyCallback(*SessionForProc->second);
+    }
+
+    PID = InvalidPID;
+  }
 }
 
 } // namespace server

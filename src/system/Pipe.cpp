@@ -137,7 +137,7 @@ void Pipe::setNonblocking()
   Nonblock = true;
 }
 
-std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
+std::string Pipe::read(raw_fd FD, std::size_t Bytes, bool* Success)
 {
   std::string Return;
   Return.reserve(Bytes);
@@ -150,10 +150,10 @@ std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
     POD<char[BufferSize]> RawBuffer; // NOLINT(modernize-avoid-c-arrays)
 
     auto ReadBytes = CheckedPOSIX(
-      [RawFD = FD.get(),
+      [FD,
        ReadSize = std::min(BufferSize, RemainingBytes),
        &RawBuffer /* NOLINT(modernize-avoid-c-arrays) */] {
-        return ::read(RawFD, &RawBuffer, ReadSize);
+        return ::read(FD, &RawBuffer, ReadSize);
       },
       -1);
     if (!ReadBytes)
@@ -171,7 +171,7 @@ std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
         break;
       }
 
-      std::cerr << "Pipe " << FD.get() << " - read error." << std::endl;
+      std::cerr << "Pipe " << FD << " - read error." << std::endl;
       if (Success)
         *Success = false;
       throw std::system_error{std::make_error_code(EC)};
@@ -179,7 +179,7 @@ std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
 
     if (ReadBytes.get() == 0)
     {
-      std::cout << "Pipe " << FD.get() << " disconnected." << std::endl;
+      std::cout << "Pipe " << FD << " disconnected." << std::endl;
       ContinueReading = false;
       break;
     }
@@ -198,15 +198,15 @@ std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
   return Return;
 }
 
-std::size_t Pipe::write(fd& FD, std::string_view Buffer, bool* Success)
+std::size_t Pipe::write(raw_fd FD, std::string_view Buffer, bool* Success)
 {
   std::size_t BytesSent = 0;
   while (!Buffer.empty())
   {
     auto SentBytes = CheckedPOSIX(
-      [RawFD = FD.get(),
-       WriteSize = std::min(BufferSize, Buffer.size()),
-       &Buffer] { return ::write(RawFD, Buffer.data(), WriteSize); },
+      [FD, WriteSize = std::min(BufferSize, Buffer.size()), &Buffer] {
+        return ::write(FD, Buffer.data(), WriteSize);
+      },
       -1);
     if (!SentBytes)
     {
@@ -215,7 +215,7 @@ std::size_t Pipe::write(fd& FD, std::string_view Buffer, bool* Success)
         // Not an error.
         continue;
 
-      std::cerr << "Pipe " << FD.get() << " - write error." << std::endl;
+      std::cerr << "Pipe " << FD << " - write error." << std::endl;
       if (Success)
         *Success = false;
       throw std::system_error{std::make_error_code(EC)};
@@ -223,7 +223,7 @@ std::size_t Pipe::write(fd& FD, std::string_view Buffer, bool* Success)
 
     if (SentBytes.get() == 0)
     {
-      std::cout << "Pipe " << FD.get() << " disconnected." << std::endl;
+      std::cout << "Pipe " << FD << " disconnected." << std::endl;
       if (Success)
         *Success = false;
       break;

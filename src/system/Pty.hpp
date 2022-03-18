@@ -45,7 +45,7 @@ public:
 
   /// \returns the raw file descriptor for the \p Pty side that is currently
   /// open.
-  fd& getFD() noexcept { return isMaster() ? Master : Slave; }
+  fd& raw() noexcept { return isMaster() ? Master : Slave; }
 
   /// Executes actions that configure the current PTY from the owning parent's
   /// point of view. This usually means that the PTS (pseudoterminal-slave)

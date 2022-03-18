@@ -188,8 +188,9 @@ void Client::loop()
 
 void Client::setupPoll()
 {
+  static constexpr std::size_t EventQueue = 1 << 16;
   if (!Poll)
-    Poll = std::make_unique<EPoll>(2);
+    Poll = std::make_unique<EPoll>(EventQueue);
   else
     Poll->clear();
 

@@ -98,7 +98,8 @@ public:
   ///
   /// \param Success If not \p nullptr, and the read encounters an error, will
   /// be set to \p false.
-  static std::string read(fd& FD, std::size_t Bytes, bool* Success = nullptr);
+  static std::string
+  read(raw_fd FD, std::size_t Bytes, bool* Success = nullptr);
 
   /// Write \p Data into the file descriptor \p FD.
   ///
@@ -107,7 +108,7 @@ public:
   ///
   /// \return The number of bytes written.
   static std::size_t
-  write(fd& FD, std::string_view Buffer, bool* Success = nullptr);
+  write(raw_fd FD, std::string_view Buffer, bool* Success = nullptr);
 
   ~Pipe() noexcept override;
   Pipe(Pipe&&) noexcept;
