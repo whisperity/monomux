@@ -35,12 +35,6 @@ namespace monomux
 namespace server
 {
 
-std::string Server::getServerSocketPath()
-{
-  // TODO: Handle XDG_RUNTIME_DIR, etc.
-  return "monomux.server.sock";
-}
-
 Server::Server(Socket&& Sock) : Sock(std::move(Sock)) { setUpDispatch(); }
 
 Server::~Server() = default;

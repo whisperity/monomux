@@ -17,35 +17,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include <optional>
-#include <string>
-#include <vector>
 
 namespace monomux
 {
-namespace server
+
+/// Contains the exit codes MonoMux \p main() functions return with.
+enum ExitCode : int
 {
+  /// Successful execution (processes exited gracefully).
+  EXIT_Success = 0,
 
-/// Options interested to invocation of a Monomux Server.
-struct Options
-{
-  /// Format the options back into the CLI invocation they were parsed from.
-  std::vector<std::string> toArgv() const;
+  /// Indicates a fatal error in the communication with the server.
+  EXIT_SystemError = 1,
 
-  /// Whether the server mode was enabled.
-  bool ServerMode : 1;
-
-  /// The path of the server socket to start listening on.
-  std::optional<std::string> SocketPath;
+  /// Values specified on the command-line of MonoMux are erroneous.
+  EXIT_InvocationError = 2,
 };
 
-/// \p exec() into a server process that is created with the \p Opts options.
-[[noreturn]] void exec(const Options& Opts, const char* ArgV0);
-
-/// Executes the Monomux Server logic.
-///
-/// \returns \p ExitCode
-int main(Options& Opts);
-
-} // namespace server
 } // namespace monomux

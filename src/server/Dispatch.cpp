@@ -111,7 +111,8 @@ HANDLER(requestSessionList)
   {
     monomux::message::SessionData TransmitData;
     TransmitData.Name = SessionElem.first;
-    TransmitData.Created = std::chrono::system_clock::to_time_t(SessionElem.second->whenCreated());
+    TransmitData.Created =
+      std::chrono::system_clock::to_time_t(SessionElem.second->whenCreated());
 
     Resp.Sessions.emplace_back(std::move(TransmitData));
   }
@@ -121,30 +122,44 @@ HANDLER(requestSessionList)
 
 HANDLER(requestMakeSession)
 {
+  (void)Client;
   MSG(request::MakeSession);
-  std::cout << "Spawn: " << Msg->SpawnOpts.Program << std::endl;
+
+  if (!Msg->Name.empty() && getSession(Msg->Name))
+  {
+    std::clog << "INFO: Spawning session of name '" << Msg->Name
+              << "' failed: Already exists." << std::endl;
+    // TODO: Respond!
+    return;
+  }
+  if (Msg->Name.empty())
+  {
+    // Generate a default session name, which will just be a numeric ID.
+    std::size_t SessionNum = 1;
+    while (getSession(std::to_string(SessionNum)))
+      ++SessionNum;
+    Msg->Name = std::to_string(SessionNum);
+  }
+
+  std::clog << "DEBUG: Creating session '" << Msg->Name << "'..." << std::endl;
+  std::string NameCopy = Msg->Name;
+  auto S = std::make_unique<SessionData>(std::move(Msg->Name));
 
   Process::SpawnOptions SOpts;
   SOpts.CreatePTY = true;
-  SOpts.Program = Msg->SpawnOpts.Program;
+  SOpts.Program = std::move(Msg->SpawnOpts.Program);
+  SOpts.Arguments = std::move(Msg->SpawnOpts.Arguments);
+  for (std::pair<std::string, std::string>& EnvVar :
+       Msg->SpawnOpts.SetEnvironment)
+    SOpts.Environment.try_emplace(std::move(EnvVar.first),
+                                  std::move(EnvVar.second));
+  for (std::string& UnsetEnvVar : Msg->SpawnOpts.UnsetEnvironment)
+    SOpts.Environment.try_emplace(std::move(UnsetEnvVar), std::nullopt);
 
-  std::clog << "DEBUG: Spawning '" << SOpts.Program << "'..." << std::endl;
   Process P = Process::spawn(SOpts);
-
-  // FIXME: Make this with no collision! Currently the child throws if a client
-  // disconnects and connects again.
-  std::string SessionName = "client-";
-  SessionName.append(std::to_string(Client.id()));
-  SessionName.push_back(':');
-  SessionName.append(SOpts.Program);
-  std::string SessionName2 = SessionName;
-
-  auto S = std::make_unique<SessionData>(std::move(SessionName));
   S->setProcess(std::move(P));
 
-  auto InsertResult =
-    Sessions.try_emplace(std::move(SessionName2), std::move(S));
-
+  auto InsertResult = Sessions.try_emplace(std::move(NameCopy), std::move(S));
   createCallback(*InsertResult.first->second);
 
   // TODO: Response?

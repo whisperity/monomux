@@ -18,7 +18,9 @@
  */
 #include "Main.hpp"
 
+#include "ExitCode.hpp"
 #include "Server.hpp"
+#include "system/Environment.hpp"
 #include "system/Process.hpp"
 #include "system/Signal.hpp"
 #include "system/unreachable.hpp"
@@ -31,23 +33,17 @@ namespace monomux
 namespace server
 {
 
-static void serverShutdown(SignalHandling::Signal /* SigNum */,
-                           ::siginfo_t* /* Info */,
-                           const SignalHandling* Handling)
-{
-  std::clog << "INFO: Server shutting down..." << std::endl;
-  const auto* Srv = std::any_cast<Server*>(Handling->getObject("Server"));
-  if (!Srv)
-    return;
-  (*Srv)->interrupt();
-}
-
 std::vector<std::string> Options::toArgv() const
 {
   std::vector<std::string> Ret;
 
   if (ServerMode)
     Ret.emplace_back("--server");
+  if (SocketPath.has_value())
+  {
+    Ret.emplace_back("--socket");
+    Ret.emplace_back(*SocketPath);
+  }
 
   return Ret;
 }
@@ -64,13 +60,27 @@ std::vector<std::string> Options::toArgv() const
   unreachable("[[noreturn]]");
 }
 
+static void serverShutdown(SignalHandling::Signal /* SigNum */,
+                           ::siginfo_t* /* Info */,
+                           const SignalHandling* Handling)
+{
+  std::clog << "INFO: Server shutting down..." << std::endl;
+  const auto* Srv = std::any_cast<Server*>(Handling->getObject("Server"));
+  if (!Srv)
+    return;
+  (*Srv)->interrupt();
+}
+
 int main(Options& Opts)
 {
   // Server::consumeProcessMarkedAsServer();
   // CheckedPOSIXThrow([] { return ::daemon(0, 0); }, "Backgrounding ourselves
   // failed", -1);
 
-  Socket ServerSock = Socket::create(Server::getServerSocketPath());
+  if (!Opts.SocketPath.has_value())
+    Opts.SocketPath.emplace(SocketDir::defaultSocketDir().toString());
+
+  Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));
 
   {
@@ -88,7 +98,7 @@ int main(Options& Opts)
   SignalHandling::get().disable();
 
   std::cout << "INFO: Server shut down..." << std::endl;
-  return 0;
+  return EXIT_Success;
 }
 
 } // namespace server

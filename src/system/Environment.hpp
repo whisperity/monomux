@@ -31,4 +31,21 @@ std::string getEnv(const std::string& Key);
 /// \returns the default shell (command interpreter) for the current user.
 std::string defaultShell();
 
+struct SocketDir
+{
+  /// \returns the default directory where a server socket should be placed for
+  /// the current user.
+  static SocketDir defaultSocketDir();
+
+  /// \returns the \p Path and \p Filename concatenated appropriately.
+  std::string toString() const;
+
+  std::string Path;
+  std::string Filename;
+
+  /// Whether the \p Path value (without the \p Filename) is likely specific to
+  /// the current user.
+  bool IsPathLikelyUserSpecific;
+};
+
 } // namespace monomux

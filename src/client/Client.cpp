@@ -269,8 +269,8 @@ bool Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
 
   request::MakeSession Msg;
   Msg.Name = std::move(Name);
-  Msg.SpawnOpts.Program = Opts.Program;
-  Msg.SpawnOpts.Arguments = Opts.Arguments;
+  Msg.SpawnOpts.Program = std::move(Opts.Program);
+  Msg.SpawnOpts.Arguments = std::move(Opts.Arguments);
   for (std::pair<const std::string, std::optional<std::string>>& E :
        Opts.Environment)
   {

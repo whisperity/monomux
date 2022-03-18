@@ -37,6 +37,21 @@ struct Options
   /// Whether the client mode was enabled.
   bool ClientMode : 1;
 
+  /// The path to the server socket where the client should connect to.
+  std::optional<std::string> SocketPath;
+
+  /// The name of the session the client should create if does not exist, or
+  /// attach to if exists.
+  std::optional<std::string> SessionName;
+
+  /// The program to start if a new session is created during the client's
+  /// connection.
+  std::optional<std::string> Program;
+
+  /// The command-line arguments to give to the invoked program during session
+  /// start.
+  std::vector<std::string> ProgramArgs;
+
   /// Contains the master connection to the server, if such was established.
   std::optional<Client> Connection;
 };
@@ -45,9 +60,11 @@ struct Options
 ///
 /// \param Block Whether to continue retrying the connection and block until
 /// success.
-std::optional<Client> connect(const Options& Opts, bool Block);
+std::optional<Client> connect(Options& Opts, bool Block);
 
 /// Executes the Monomux Client logic.
+///
+/// \returns \p ExitCode
 int main(Options& Opts);
 
 } // namespace client

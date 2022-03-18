@@ -25,7 +25,25 @@ Installation
 Usage
 -----
 
-> TODO.
+The easiest use of MonoMux is simply starting it: `monomux`.
+By default, a server starts in the background, and a default session is created with the default shell of the current user, and the client automatically attaches to this session.
+Executing the client with a server already running will attach to the only session on the server, or if multiple sessions exist, an interactive menu will start with which a session can be selected.
+
+> **ℹ️ Note:** Please always refer to the output of `monomux -h` for up-to-date information about what flags the installed tool supports.
+
+To run multiple independent servers, specify the `-s`/`--socket` option with a path on the file system.
+Communication between the server and the client takes place on this socket.
+
+### Fine-tuning Client options
+
+The client can be fine-tuned during its start-up with several flags:
+
+ * `monomux /bin/myshell` will start the specified program without passing any arguments to it.
+ * `monomux -- /bin/myshell -a -b --arg-to-shell` will start the specified program with command-line arguments, if a new session is created.
+   (If the started program takes `-` or `--` arguments, an _explicit_ separator `--` must be given **BEFORE** the program's name!)
+ * `monomux -n SESSION_NAME` will attach or start the session `SESSION_NAME`, bypassing the interactive menu.
+
+A server can be started explicitly via `monomux --server`, in which case no client creation and attachment will be done.
 
 Why?
 ----

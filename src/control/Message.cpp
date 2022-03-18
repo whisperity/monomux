@@ -177,6 +177,10 @@ std::string_view takeUntilAndConsume(std::string_view& Data,
   if (View.empty())                                                            \
     return std::nullopt;
 
+#define PEEK_AND_CONSUME(LITERAL)                                              \
+  if (std::string_view::size_type P = View.find(LITERAL);                      \
+      P == 0 && (View.remove_prefix(std::strlen(LITERAL)), P == 0))
+
 #define EXTRACT_OR_NONE(VARIABLE, UNTIL_LITERAL)                               \
   auto(VARIABLE) = takeUntilAndConsume(View, UNTIL_LITERAL);                   \
   if ((VARIABLE).empty())                                                      \
@@ -442,7 +446,10 @@ ENCODE(MakeSession)
 {
   std::ostringstream Buf;
   Buf << "<MAKE-SESSION>";
-  Buf << "<NAME>" << Object.Name << "</NAME>";
+  if (Object.Name.empty())
+    Buf << "<NAME />";
+  else
+    Buf << "<NAME>" << Object.Name << "</NAME>";
   Buf << monomux::message::ProcessSpawnOptions::encode(Object.SpawnOpts);
   Buf << "</MAKE-SESSION>";
   return Buf.str();
@@ -452,9 +459,12 @@ DECODE(MakeSession)
   MakeSession Ret;
   HEADER_OR_NONE("<MAKE-SESSION>");
 
-  CONSUME_OR_NONE("<NAME>");
-  EXTRACT_OR_NONE(Name, "</NAME>");
-  Ret.Name = Name;
+  PEEK_AND_CONSUME("<NAME />") { Ret.Name = ""; }
+  PEEK_AND_CONSUME("<NAME>")
+  {
+    EXTRACT_OR_NONE(Name, "</NAME>");
+    Ret.Name = Name;
+  }
 
   auto Spawn = monomux::message::ProcessSpawnOptions::decode(View);
   if (!Spawn)
@@ -567,6 +577,7 @@ DECODE(SessionList)
 } // namespace monomux
 
 #undef CONSUME_OR_NONE
+#undef PEEK_AND_CONSUME
 #undef HEADER_OR_NONE
 #undef FOOTER_OR_NONE
 

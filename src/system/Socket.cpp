@@ -245,6 +245,12 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
 
   Return.append(RawBuffer, ReadBytes.get());
   Continue = true;
+  if (ReadBytes.get() == 0)
+  {
+    std::clog << "Socket " << Handle.get() << " - disconnected." << std::endl;
+    setFailed();
+    Continue = false;
+  }
   return Return;
 }
 

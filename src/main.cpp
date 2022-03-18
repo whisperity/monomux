@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "client/Main.hpp"
+#include "ExitCode.hpp"
 #include "server/Main.hpp"
 #include "server/Server.hpp"
 #include "system/CheckedPOSIX.hpp"
@@ -35,12 +36,14 @@
 
 using namespace monomux;
 
-static const char* ShortOptions = "h";
+static const char* ShortOptions = "hs:n:";
 // clang-format off
-static struct ::option LongOptions[] = {
-  {"help",   no_argument, 0, 'h'},
-  {"server", no_argument, 0, 0},
-  {0, 0, 0, 0}
+static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
+  {"help",   no_argument,       nullptr, 'h'},
+  {"server", no_argument,       nullptr, 0},
+  {"socket", required_argument, nullptr, 's'},
+  {"name",   required_argument, nullptr, 'n'},
+  {nullptr,  0,                 nullptr, 0}
 };
 // clang-format on
 
@@ -48,7 +51,10 @@ static void printOptionHelp()
 {
   using std::cout, std::endl;
 
-  cout << R"EOF(Usage: monomux [OPTIONS...] [PROGRAM...]
+  cout << R"EOF(Usage:
+    monomux [SERVER OPTIONS...] --server
+    monomux [CLIENT OPTIONS...] [PROGRAM]
+    monomux [CLIENT OPTIONS...] -- PROGRAM [ARGS...]
 
                  MonoMux -- Monophone Terminal Multiplexer
 
@@ -71,21 +77,58 @@ To put it bluntly, MonoMux is **NOT A TERMINAL EMULATOR**! Data from the
 underlying program is passed verbatim to the attached client(s).
 
 Options:
-    --server        Start the Monomux server explicitly, without creating a
-                    default session. (This option should seldom be given by
-                    users.)
+    --server                      Start the Monomux server explicitly, without
+                                  creating a client, or any sessions. (This
+                                  option should seldom be given by users.)
+
+
+Client options:
+    PROGRAM [ARGS...]             If the session specified by '-n' does not
+                                  exist, MonoMux will create a new session, in
+                                  which the PROGRAM binary (with ARGS... given
+                                  as its command-line arguments) will be
+                                  started.
+
+                                  It is recommended to specify a shell as the
+                                  program. Defaults to the user's default shell
+                                  (SHELL environment variable), "/bin/bash", or
+                                  "/bin/sh", in this order.
+
+                                  If the arguments to be passed to the started
+                                  program start with '-' or '--', the program
+                                  invocation and MonoMux's arguments must be
+                                  separated by an explicit '--':
+
+                                      monomux -n session /bin/zsh
+
+                                      monomux -n session -- /bin/bash --no-rc
+
+    -n NAME, --name NAME          Name of the remote session to attach to, or
+                                  create. (Defaults to: "default")
+    -s PATH, --socket PATH        Path of the server socket to connect to.
+
+
+Server options:
+    -s PATH, --socket PATH        Path of the sever socket to create and await
+                                  clients on.
+
 )EOF";
   cout << endl;
 }
 
 int main(int ArgC, char* ArgV[])
 {
-  server::Options ServerOpts;
-  client::Options ClientOpts;
+  server::Options ServerOpts{};
+  client::Options ClientOpts{};
+
+  // -------------------------- Set up default values --------------------------
+  ClientOpts.ClientMode = true; // Expect Client usage by default.
 
   // ------------------------ Parse command-line options -----------------------
   {
-    int Opt, LongOptIndex;
+    bool HadErrors = false;
+    int Opt;
+    int LongOptIndex;
     while ((Opt = ::getopt_long(
               ArgC, ArgV, ShortOptions, LongOptions, &LongOptIndex)) != -1)
     {
@@ -96,7 +139,10 @@ int main(int ArgC, char* ArgV[])
           // Long-option was specified.
           std::string_view Opt = LongOptions[LongOptIndex].name;
           if (Opt == "server")
+          {
             ServerOpts.ServerMode = true;
+            ClientOpts.ClientMode = false;
+          }
           else
           {
             std::cerr << ArgV[0] << ": option '--" << Opt
@@ -106,24 +152,57 @@ int main(int ArgC, char* ArgV[])
           }
           break;
         }
+        case '?':
+          HadErrors = true;
+          break;
         case 'h':
           printOptionHelp();
-          return EXIT_SUCCESS;
+          return EXIT_Success;
+        case 'n':
+          ClientOpts.SessionName.emplace(optarg);
+          break;
+        case 's':
+          ServerOpts.SocketPath.emplace(optarg);
+          ClientOpts.SocketPath.emplace(optarg);
+          break;
       }
     }
 
+    // Handle positional arguments not handled earlier.
     for (; ::optind < ArgC; ++::optind)
     {
-      std::cout << "Remaining argument: " << ArgV[::optind] << std::endl;
+      if (ServerOpts.ServerMode)
+      {
+        std::cerr << "ERROR: '--server' does not take positional argument \""
+                  << ArgV[::optind] << "\"" << std::endl;
+        HadErrors = true;
+        break;
+      }
+
+      assert(ClientOpts.ClientMode);
+      if (!ClientOpts.Program.has_value())
+        // The first positional argument is the program name to spawn.
+        ClientOpts.Program.emplace(ArgV[::optind]);
+      else
+        // Otherwise they are arguments to the program to start.
+        ClientOpts.ProgramArgs.emplace_back(ArgV[::optind]);
     }
+
+    if (HadErrors)
+      return EXIT_InvocationError;
   }
+
+  std::clog << "Server args: ";
+  for (const std::string& Arg : ServerOpts.toArgv())
+    std::clog << Arg << ' ';
+  std::clog << std::endl << "Client args: ";
+  for (const std::string& Arg : ClientOpts.toArgv())
+    std::clog << Arg << ' ';
+  std::clog << std::endl;
 
   // --------------------- Dispatch to appropriate handler ---------------------
   if (ServerOpts.ServerMode)
     return server::main(ServerOpts);
-
-  // Assume client mode, if no options were present.
-  ClientOpts.ClientMode = true;
 
   // The default behaviour in the client is to always try establishing a
   // connection to a server. However, it is very likely that the current process

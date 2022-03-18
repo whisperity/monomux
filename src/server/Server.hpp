@@ -52,8 +52,6 @@ namespace server
 class Server
 {
 public:
-  static std::string getServerSocketPath();
-
   /// Create a new server that will listen on the associated socket.
   Server(Socket&& Sock);
 

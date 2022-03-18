@@ -21,6 +21,7 @@
 #include "POD.hpp"
 
 #include <cstdlib>
+#include <sstream>
 
 #include <sys/stat.h>
 
@@ -63,6 +64,33 @@ std::string defaultShell()
 
   // Did not succeed.
   return {};
+}
+
+SocketDir SocketDir::defaultSocketDir()
+{
+  SocketDir R;
+
+  std::string Dir = getEnv("XDG_RUNTIME_DIR");
+  if (!Dir.empty())
+    return {std::move(Dir), "mnmx", true};
+
+  Dir = getEnv("TMPDIR");
+  if (!Dir.empty())
+  {
+    std::string User = getEnv("USER");
+    if (!User.empty())
+      return {std::move(Dir), "mnmx" + std::move(User), false};
+    return {std::move(Dir), "mnmx", false};
+  }
+
+  return {"/tmp", "mnmx", false};
+}
+
+std::string SocketDir::toString() const
+{
+  std::ostringstream Buf;
+  Buf << Path << '/' << Filename;
+  return Buf.str();
 }
 
 } // namespace monomux

@@ -140,8 +140,18 @@ TEST(ControlMessageSerialisation, SessionListResponse)
 TEST(ControlMessageSerialisation, MakeSessionRequest)
 {
   monomux::message::request::MakeSession Obj;
-  Obj.Name = "Foo";
   Obj.SpawnOpts.Program = "/bin/bash";
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_TRUE(Decode.Name.empty());
+    EXPECT_EQ(Decode.SpawnOpts.Program, "/bin/bash");
+    EXPECT_TRUE(Decode.SpawnOpts.Arguments.empty());
+    EXPECT_TRUE(Decode.SpawnOpts.SetEnvironment.empty());
+    EXPECT_TRUE(Decode.SpawnOpts.UnsetEnvironment.empty());
+  }
+
+  Obj.Name = "Foo";
 
   {
     auto Decode = codec(Obj);
