@@ -22,8 +22,8 @@
 #include "POD.hpp"
 
 #include <iostream>
+#include <iterator>
 
-// #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -31,6 +31,10 @@ namespace monomux
 {
 
 static constexpr auto UserACL = S_IRUSR | S_IWUSR;
+
+Pipe::Pipe(fd Handle, std::string Identifier, bool NeedsCleanup)
+  : CommunicationChannel(std::move(Handle), std::move(Identifier), NeedsCleanup)
+{}
 
 Pipe Pipe::create(std::string Path, bool InheritInChild)
 {
@@ -43,12 +47,9 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
     "open('" + Path + "')",
     -1);
 
-  Pipe P;
+  Pipe P{std::move(Handle), std::move(Path), true};
   P.Handle = std::move(Handle);
   P.OpenedAs = Write;
-  P.Path = std::move(Path);
-  P.Owning = true;
-  P.CleanupPossible = true;
   return P;
 }
 
@@ -62,34 +63,34 @@ Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
     "open('" + Path + "')",
     -1);
 
-  Pipe P;
+  Pipe P{std::move(Handle), std::move(Path), false};
   P.Handle = std::move(Handle);
   P.OpenedAs = OpenMode;
-  P.Path = std::move(Path);
-  P.Owning = false;
-  P.CleanupPossible = false;
   return P;
 }
 
-Pipe Pipe::wrap(fd&& FD, Mode OpenMode)
+Pipe Pipe::wrap(fd&& FD, Mode OpenMode, std::string Identifier)
 {
-  Pipe P;
-  P.Path = "<fd:";
-  P.Path.append(std::to_string(FD.get()));
-  P.Path.push_back(':');
-  P.Path.append(OpenMode == Read ? "r" : "w");
-  P.Path.push_back('>');
-  P.Handle = std::move(FD);
+  if (Identifier.empty())
+  {
+    Identifier.push_back('<');
+    if (OpenMode == Read)
+      Identifier.push_back('r');
+    else if (OpenMode == Write)
+      Identifier.push_back('w');
+    Identifier.append(":pipe-fd:");
+    Identifier.append(std::to_string(FD.get()));
+    Identifier.push_back('>');
+  }
+
+  Pipe P{std::move(FD), std::move(Identifier), false};
   P.OpenedAs = OpenMode;
-  P.Owning = true;
-  P.CleanupPossible = false;
   return P;
 }
 
 Pipe::Pipe(Pipe&& RHS) noexcept
-  : Handle(std::move(RHS.Handle)), OpenedAs(RHS.OpenedAs),
-    Path(std::move(RHS.Path)), Owning(RHS.Owning),
-    CleanupPossible(RHS.CleanupPossible), Open(RHS.Open)
+   : CommunicationChannel(std::move(RHS)), OpenedAs(std::move(RHS.OpenedAs)),
+   Nonblock(std::move(RHS.Nonblock))
 {}
 
 Pipe& Pipe::operator=(Pipe&& RHS) noexcept
@@ -97,33 +98,27 @@ Pipe& Pipe::operator=(Pipe&& RHS) noexcept
   if (this == &RHS)
     return *this;
 
-  Handle = std::move(RHS.Handle);
-  OpenedAs = RHS.OpenedAs;
-  Path = std::move(RHS.Path);
-  Owning = RHS.Owning;
-  CleanupPossible = RHS.CleanupPossible;
+  CommunicationChannel::operator=(std::move(RHS));
+
+  OpenedAs = std::move(RHS.OpenedAs);
+  Nonblock = std::move(RHS.Nonblock);
 
   return *this;
 }
 
 Pipe::~Pipe() noexcept
 {
-  if (!Handle.has())
-    return;
-
-  if (Owning && CleanupPossible)
+  if (needsCleanup())
   {
     auto RemoveResult =
-      CheckedPOSIX([this] { return ::unlink(Path.c_str()); }, -1);
+      CheckedPOSIX([this] { return ::unlink(identifier().c_str()); }, -1);
     if (!RemoveResult)
     {
-      std::cerr << "Failed to remove file '" << Path
+      std::cerr << "Failed to remove file '" << identifier()
                 << "' when closing the pipe.\n";
       std::cerr << std::strerror(RemoveResult.getError().value()) << std::endl;
     }
   }
-
-  CheckedPOSIX([this] { return ::close(Handle); }, -1);
 }
 
 void Pipe::setBlocking()
@@ -131,6 +126,7 @@ void Pipe::setBlocking()
   if (isBlocking())
     return;
   fd::removeStatusFlag(Handle.get(), O_NONBLOCK);
+  Nonblock = false;
 }
 
 void Pipe::setNonblocking()
@@ -138,25 +134,26 @@ void Pipe::setNonblocking()
   if (isNonblocking())
     return;
   fd::addStatusFlag(Handle.get(), O_NONBLOCK);
+  Nonblock = true;
 }
 
 std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
 {
-
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  static constexpr std::size_t BUFFER_SIZE = 1024;
-
   std::string Return;
   Return.reserve(Bytes);
-  POD<char[BUFFER_SIZE]> Buffer;
 
-  while (Return.size() < Bytes)
+  std::size_t RemainingBytes = Bytes;
+
+  bool ContinueReading = true;
+  while (ContinueReading && RemainingBytes > 0 && RemainingBytes <= Bytes)
   {
-    auto ReadBytes = CheckedPOSIX(
-      [RawFD = FD.get(), &Buffer] {
-        Buffer.reset();
+    POD<char[BufferSize]> RawBuffer; // NOLINT(modernize-avoid-c-arrays)
 
-        return ::read(RawFD, &Buffer, BUFFER_SIZE);
+    auto ReadBytes = CheckedPOSIX(
+      [RawFD = FD.get(),
+       ReadSize = std::min(BufferSize, RemainingBytes),
+       &RawBuffer /* NOLINT(modernize-avoid-c-arrays) */] {
+        return ::read(RawFD, &RawBuffer, ReadSize);
       },
       -1);
     if (!ReadBytes)
@@ -180,74 +177,36 @@ std::string Pipe::read(fd& FD, std::size_t Bytes, bool* Success)
       throw std::system_error{std::make_error_code(EC)};
     }
 
-    std::cout << "Received chunk " << ReadBytes.get() << " bytes from "
-              << FD.get() << std::endl;
     if (ReadBytes.get() == 0)
     {
       std::cout << "Pipe " << FD.get() << " disconnected." << std::endl;
-      if (Success)
-        *Success = false;
+      ContinueReading = false;
       break;
     }
 
-    if (Return.size() + ReadBytes.get() <= Bytes)
-    {
-      std::cout << "Space remaining, current=" << Return.size()
-                << ", inserting " << ReadBytes.get() << " bytes..."
-                << std::endl;
-      Return.insert(Return.size(), *Buffer, ReadBytes.get());
-      std::cout << "Now data at " << Return.size() << ", continuing..."
-                << std::endl;
-    }
-    else
-    {
-      // Do not overflow the requested amount.
-      std::cout << "Input would overflow, appending only "
-                << Bytes - Return.size() << " bytes." << std::endl;
-      Return.insert(Return.size(), *Buffer, Bytes - Return.size());
-      break;
-    }
+    std::size_t BytesToAppendFromCurrentRead =
+      std::min(static_cast<std::size_t>(ReadBytes.get()), RemainingBytes);
+    Return.append(RawBuffer, BytesToAppendFromCurrentRead);
+
+    RemainingBytes -= BytesToAppendFromCurrentRead;
   }
 
-  std::cout << "Finished reading " << Return.size() << " bytes." << std::endl;
-
-  if (Success)
+  if (!ContinueReading && Return.empty() && Success)
+    *Success = false;
+  else if (Success)
     *Success = true;
   return Return;
 }
 
-std::string Pipe::read(std::size_t Bytes)
+std::size_t Pipe::write(fd& FD, std::string_view Buffer, bool* Success)
 {
-  if (!Open)
-    throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Closed."};
-  if (OpenedAs != Read)
-    throw std::system_error{
-      std::make_error_code(std::errc::operation_not_permitted),
-      "Not readable."};
-
-  bool Success;
-  std::string Data = read(Handle, Bytes, &Success);
-  if (!Success)
-    Open = false;
-
-  return Data;
-}
-
-void Pipe::write(fd& FD, std::string_view Data, bool* Success)
-{
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  static constexpr std::size_t BUFFER_SIZE = 1024;
-
-  const std::size_t DataSize = Data.size();
-
-  std::clog << "DEBUG: Writing data to pipe:\n\t" << Data << std::endl;
-  while (!Data.empty())
+  std::size_t BytesSent = 0;
+  while (!Buffer.empty())
   {
     auto SentBytes = CheckedPOSIX(
-      [RawFD = FD.get(), &Data] {
-        return ::write(RawFD, Data.data(), std::min(BUFFER_SIZE, Data.size()));
-      },
+      [RawFD = FD.get(),
+       WriteSize = std::min(BufferSize, Buffer.size()),
+       &Buffer] { return ::write(RawFD, Buffer.data(), WriteSize); },
       -1);
     if (!SentBytes)
     {
@@ -262,8 +221,6 @@ void Pipe::write(fd& FD, std::string_view Data, bool* Success)
       throw std::system_error{std::make_error_code(EC)};
     }
 
-    std::cout << "Sent " << SentBytes.get() << " bytes to " << FD.get()
-              << std::endl;
     if (SentBytes.get() == 0)
     {
       std::cout << "Pipe " << FD.get() << " disconnected." << std::endl;
@@ -272,31 +229,53 @@ void Pipe::write(fd& FD, std::string_view Data, bool* Success)
       break;
     }
 
-    if (static_cast<std::size_t>(SentBytes.get()) <= Data.size())
-      Data.remove_prefix(SentBytes.get());
-    else
-      Data.remove_prefix(Data.size());
+    BytesSent += SentBytes.get();
+    Buffer.remove_prefix(SentBytes.get());
   }
 
-  std::cout << "Finished writing " << DataSize << " bytes." << std::endl;
   if (Success)
     *Success = true;
+  return BytesSent;
 }
 
-void Pipe::write(std::string_view Data)
+std::string Pipe::readImpl(std::size_t Bytes, bool& Continue)
 {
-  if (!Open)
+  if (failed())
     throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Closed."};
+                            "Pipe failed."};
+  if (OpenedAs != Read)
+    throw std::system_error{
+      std::make_error_code(std::errc::operation_not_permitted),
+      "Not readable."};
+
+  bool Success;
+  std::string Data = Pipe::read(Handle, Bytes, &Success);
+  if (!Success)
+  {
+    setFailed();
+    Continue = false;
+  }
+
+  return Data;
+}
+
+std::size_t Pipe::writeImpl(std::string_view Buffer, bool& Continue)
+{
+  if (failed())
+    throw std::system_error{std::make_error_code(std::errc::io_error), "Pipe failed."};
   if (OpenedAs != Write)
     throw std::system_error{
       std::make_error_code(std::errc::operation_not_permitted),
-      "Not writable."};
+      "Not readable."};
 
   bool Success;
-  write(Handle, Data, &Success);
+  std::size_t Bytes = Pipe::write(Handle, Buffer, &Success);
   if (!Success)
-    Open = false;
+  {
+    setFailed();
+    Continue = false;
+  }
+  return Bytes;
 }
 
 } // namespace monomux

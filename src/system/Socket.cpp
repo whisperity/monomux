@@ -125,7 +125,7 @@ Socket& Socket::operator=(Socket&& RHS) noexcept
 
 Socket::~Socket() noexcept
 {
-  if (Owning && needsCleanup())
+  if (needsCleanup())
   {
     auto RemoveResult =
       CheckedPOSIX([this] { return ::unlink(identifier().c_str()); }, -1);
@@ -211,6 +211,8 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
   Return.reserve(Bytes);
 
   POD<char[BufferSize]> RawBuffer; // NOLINT(modernize-avoid-c-arrays)
+  if (Bytes > BufferSize)
+    Bytes = BufferSize;
 
   auto ReadBytes = CheckedPOSIX(
     [FD = Handle.get(), Bytes, &RawBuffer] { // NOLINT(modernize-avoid-c-arrays)

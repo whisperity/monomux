@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include "CommunicationChannel.hpp"
 #include "fd.hpp"
 
 #include <string>
@@ -26,10 +27,16 @@
 namespace monomux
 {
 
-/// This class is used to create OR open a pipe (a file on the disk), which
-/// allows either reading OR writing (but not both!) data. Data written to the
-/// pipe is buffered by the kernel and appears on the read end of the pipe.
-class Pipe /* TODO: : public CommunicationChannel */
+/// A pipe is a one-way communication channel between a reading and a writing
+/// end.
+///
+/// Data written to the pipe's write end is buffered by the kernel and
+/// can be read on the read end.
+///
+/// This class wraps a nameless pipe or a Unix named pipe (\e FIFO) appearing as
+/// a file in the filesystem, and allows reading or writing (but noth both!) to
+/// it.
+class Pipe : public CommunicationChannel
 {
 public:
   /// The mode with which the \p Pipe is opened.
@@ -41,41 +48,38 @@ public:
     Write = O_WRONLY
   };
 
-  /// Creates a new named pipe (\p FIFO)  which will be owned by the current
+  /// Creates a new named pipe (\e FIFO) which will be owned by the current
   /// instance, and cleaned up on exit.
   ///
   /// This call opens the \p Pipe in \p Write mode.
   ///
   /// If \p InheritInChild is true, the pipe will be flagged to be inherited
   /// by a potential child process.
+  ///
+  /// \see mkfifo(3)
   static Pipe create(std::string Path, bool InheritInChild = false);
 
-  /// Opens a connection to the named pipe (\p FIFO) existing at \p Path. The
+  /// Opens a connection to the named pipe (\e FIFO) existing at \p Path. The
   /// connection will be cleaned up during destruction, but no attempts will be
   /// made to destroy the named entity itself.
   ///
   /// If \p InheritInChild is true, the socket will be flagged to be inherited
   /// by a potential child process.
+  ///
+  /// \see open(2)
   static Pipe
   open(std::string Path, Mode OpenMode = Read, bool InheritInChild = false);
 
   /// Wraps the already existing file descriptor \p FD as a \p Pipe. The new
   /// instance will take ownership and close the resource at the end of its
   /// life.
-  static Pipe wrap(fd&& FD, Mode OpenMode = Read);
-
-  /// Closes the connection, and if the \p Pipe was created by this instance,
-  /// clears it up.
-  ~Pipe() noexcept;
-
-  Pipe(Pipe&&) noexcept;
-  Pipe& operator=(Pipe&&) noexcept;
-
-  /// Returns the raw file descriptor for the underlying resource.
-  raw_fd raw() const noexcept { return Handle.get(); }
-
-  /// Returns the associated path with the pipe, if it was a named pipe.
-  const std::string& getPath() const noexcept { return Path; }
+  ///
+  /// \param Identifier An identifier to assign to the \p Pipe. If empty, a
+  /// default value will be created.
+  ///
+  /// \note This method does \b NOT verify whether the wrapped file descriptor
+  /// is indeed a pipe, and assumes it is set up appropriately.
+  static Pipe wrap(fd&& FD, Mode OpenMode = Read, std::string Identifier = "");
 
   /// Sets the open pipe to be \e non-blocking. \p Read operations will
   /// immediately return without data, and \p Write will fail if the pipe is
@@ -89,10 +93,6 @@ public:
   bool isBlocking() const noexcept { return !Nonblock; }
   bool isNonblocking() const noexcept { return Nonblock; }
 
-  /// Directly read and consume at most \p Bytes of data from the pipe, if it
-  /// was opened in \p Read mode.
-  std::string read(std::size_t Bytes);
-
   /// Directly read and consume at most \p Bytes of data from the given file
   /// descriptor \p FD.
   ///
@@ -100,30 +100,28 @@ public:
   /// be set to \p false.
   static std::string read(fd& FD, std::size_t Bytes, bool* Success = nullptr);
 
-  /// Returns whether the instance believes that the underlying resource is
-  /// still open. This is an "a posteriori" method. Certain accesses WILL set
-  /// the flag to be not open anymore.
-  bool believeConnectionOpen() const noexcept { return Open; }
-
-  /// Write \p Data into the pipe, if it is was opened in \p Write mode.
-  void write(std::string_view Data);
-
   /// Write \p Data into the file descriptor \p FD.
   ///
   /// \param Success If not \p nullptr, and the write encounters an error, will
   /// be set to \p false.
-  static void write(fd& FD, std::string_view Data, bool* Success = nullptr);
+  ///
+  /// \return The number of bytes written.
+  static std::size_t
+  write(fd& FD, std::string_view Buffer, bool* Success = nullptr);
+
+  ~Pipe() noexcept override;
+  Pipe(Pipe&&) noexcept;
+  Pipe& operator=(Pipe&&) noexcept;
+
+protected:
+  Pipe(fd Handle, std::string Identifier, bool NeedsCleanup);
+
+  std::string readImpl(std::size_t Bytes, bool& Continue) override;
+  std::size_t writeImpl(std::string_view Buffer, bool& Continue) override;
 
 private:
-  Pipe() = default;
-
-  fd Handle;
   Mode OpenedAs;
-  std::string Path;
-  bool Owning;
-  bool CleanupPossible;
-  bool Open = true;
-  bool Nonblock = false;
+  unique_scalar<bool, false> Nonblock;
 };
 
 } // namespace monomux

@@ -60,7 +60,7 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
 {
   if (failed())
     throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Channel has faied."};
+                            "Channel has failed."};
 
   std::string Return;
   Return.reserve(Bytes);
@@ -116,6 +116,8 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
                         ReadChunk.end());
       ContinueReading = false;
     }
+
+    RemainingBytes -= BytesFillableFromCurrentRead;
   }
 
   return Return;
@@ -125,7 +127,7 @@ std::size_t CommunicationChannel::write(std::string_view Buffer)
 {
   if (failed())
     throw std::system_error{std::make_error_code(std::errc::io_error),
-                            "Channel has faied."};
+                            "Channel has failed."};
 
   std::size_t BytesSent = 0;
 
