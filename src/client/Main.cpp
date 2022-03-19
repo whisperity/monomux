@@ -17,10 +17,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Main.hpp"
-
 #include "Client.hpp"
-#include "ExitCode.hpp"
+#include "ControlClient.hpp"
 #include "Terminal.hpp"
+
+#include "ExitCode.hpp"
 #include "server/Server.hpp" // FIXME: Do not depend on this.
 #include "system/Environment.hpp"
 #include "system/Time.hpp"
@@ -52,6 +53,10 @@ std::vector<std::string> Options::toArgv() const
   }
   if (ForceSessionSelectMenu)
     Ret.emplace_back("--list");
+  if (DetachRequestLatest)
+    Ret.emplace_back("--detach");
+  if (DetachRequestAll)
+    Ret.emplace_back("--detach-all");
 
   if (Program.has_value())
   {
@@ -64,12 +69,14 @@ std::vector<std::string> Options::toArgv() const
   return Ret;
 }
 
+bool Options::isControlMode() const noexcept
+{
+  return DetachRequestLatest || DetachRequestAll;
+}
+
 std::optional<Client>
 connect(Options& Opts, bool Block, std::string* FailureReason)
 {
-  if (!Opts.SocketPath.has_value())
-    Opts.SocketPath.emplace(SocketDir::defaultSocketDir().toString());
-
   auto C = Client::create(*Opts.SocketPath, FailureReason);
   if (!Block)
     return C;
@@ -191,13 +198,6 @@ selectSession(const std::string& ClientID,
 
 int main(Options& Opts)
 {
-  std::string DefaultProgram = Opts.Program ? *Opts.Program : defaultShell();
-  if (DefaultProgram.empty())
-    std::cerr << "WARNING: Failed to figure out what shell is being used, and "
-                 "no good defaults are available.\nPlease set the SHELL "
-                 "environment variable."
-              << std::endl;
-
   // For the convenience of auto-starting a server if none exists, the creation
   // of the Client itself is placed into the global entry point.
   if (!Opts.Connection.has_value())
@@ -208,6 +208,40 @@ int main(Options& Opts)
   }
   Client& Client = *Opts.Connection;
 
+  // ----------------------- Handle control-mode requests ----------------------
+  if (Opts.isControlMode())
+  {
+    if (!Opts.SessionData)
+      Opts.SessionData = MonomuxSession::loadFromEnv();
+    if (!Opts.SessionData)
+    {
+      std::cerr << "ERROR: In-session options require the client to be "
+                   "executed within a session!"
+                << std::endl;
+      return EXIT_InvocationError;
+    }
+
+    ControlClient CC{Client, std::move(Opts.SessionData->SessionName)};
+    if (!Client.attached())
+    {
+      std::cerr << "ERROR: Failed to attach to session '" << CC.sessionName()
+                << "'!" << std::endl;
+      return EXIT_SystemError;
+    }
+
+    if (Opts.DetachRequestLatest)
+    {
+      CC.requestDetachLatestClient();
+    }
+    else if (Opts.DetachRequestAll)
+    {
+      CC.requestDetachAllClients();
+    }
+
+    return EXIT_Success;
+  }
+
+  // ----------------- Elevate the client to be fully connected ----------------
   {
     std::string FailureReason;
     static constexpr std::size_t MaxHandshakeTries = 16;
@@ -242,6 +276,13 @@ int main(Options& Opts)
         << std::endl;
       return EXIT_SystemError;
     }
+
+    std::string DefaultProgram = Opts.Program ? *Opts.Program : defaultShell();
+    if (DefaultProgram.empty())
+      std::cerr << "WARNING: Failed to figure out what shell is being used, "
+                   "and no good defaults are available.\nPlease set the SHELL "
+                   "environment variable."
+                << std::endl;
 
     SessionSelectionResult SessionAction =
       selectSession(Client.getControlSocket().identifier(),

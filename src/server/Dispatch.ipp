@@ -9,5 +9,6 @@ DISPATCH(DataSocketRequest, requestDataSocket)
 DISPATCH(SessionListRequest, requestSessionList)
 DISPATCH(MakeSessionRequest, requestMakeSession)
 DISPATCH(AttachRequest, requestAttach)
+DISPATCH(DetachRequest, requestDetach)
 
 #undef DISPATCH

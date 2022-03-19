@@ -16,8 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "client/Main.hpp"
 #include "ExitCode.hpp"
+
+#include "client/Main.hpp"
 #include "server/Main.hpp"
 #include "server/Server.hpp"
 #include "system/CheckedPOSIX.hpp"
@@ -36,15 +37,17 @@
 
 using namespace monomux;
 
-static const char* ShortOptions = "hs:n:l";
+static const char* ShortOptions = "hs:n:ldD";
 // clang-format off
 static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
-  {"help",   no_argument,       nullptr, 'h'},
-  {"server", no_argument,       nullptr, 0},
-  {"socket", required_argument, nullptr, 's'},
-  {"name",   required_argument, nullptr, 'n'},
-  {"list",   no_argument,       nullptr, 'l'},
-  {nullptr,  0,                 nullptr, 0}
+  {"help",       no_argument,       nullptr, 'h'},
+  {"server",     no_argument,       nullptr, 0},
+  {"socket",     required_argument, nullptr, 's'},
+  {"name",       required_argument, nullptr, 'n'},
+  {"list",       no_argument,       nullptr, 'l'},
+  {"detach",     no_argument,       nullptr, 'd'},
+  {"detach-all", no_argument,       nullptr, 'D'},
+  {nullptr,      0,                 nullptr, 0}
 };
 // clang-format on
 
@@ -56,6 +59,7 @@ static void printOptionHelp()
     monomux [SERVER OPTIONS...] --server
     monomux [CLIENT OPTIONS...] [PROGRAM]
     monomux [CLIENT OPTIONS...] -- PROGRAM [ARGS...]
+    monomux (-dD)
 
                  MonoMux -- Monophone Terminal Multiplexer
 
@@ -116,6 +120,13 @@ Client options:
     -s PATH, --socket PATH      - Path of the server socket to connect to.
 
 
+In-session options:
+    -d, --detach                - When executed from within a running session,
+                                  detach the current client.
+    -D, --detach-all            - When executed from within a running session,
+                                  detach all clients attached to that session.
+
+
 Server options:
     -s PATH, --socket PATH      - Path of the sever socket to create and await
                                   clients on.
@@ -164,7 +175,6 @@ int main(int ArgC, char* ArgV[])
           printOptionHelp();
           return EXIT_Success;
         case 's':
-          ServerOpts.SocketPath.emplace(optarg);
           ClientOpts.SocketPath.emplace(optarg);
           break;
         case 'n':
@@ -173,7 +183,22 @@ int main(int ArgC, char* ArgV[])
         case 'l':
           ClientOpts.ForceSessionSelectMenu = true;
           break;
+        case 'd':
+          ClientOpts.DetachRequestLatest = true;
+          break;
+        case 'D':
+          ClientOpts.DetachRequestAll = true;
+          break;
       }
+    }
+
+    if (ClientOpts.DetachRequestLatest && ClientOpts.DetachRequestAll)
+    {
+      std::cerr << ArgV[0]
+                << ": option '-D/--detach-all' and '-d/--detach' are mutually "
+                   "exclusive!"
+                << std::endl;
+      HadErrors = true;
     }
 
     if (!ServerOpts.ServerMode)
@@ -201,6 +226,29 @@ int main(int ArgC, char* ArgV[])
 
     if (HadErrors)
       return EXIT_InvocationError;
+  }
+
+  // --------------------- Set up some internal environment --------------------
+  {
+    if (ClientOpts.isControlMode() && !ClientOpts.SocketPath)
+    {
+      // Load a session from the current process's environment, to have a socket
+      // for the controller client ready, if needed.
+      std::optional<MonomuxSession> Sess = MonomuxSession::loadFromEnv();
+      if (Sess)
+      {
+        ClientOpts.SocketPath = Sess->Socket.toString();
+        ClientOpts.SessionData = std::move(Sess);
+      }
+    }
+
+    SocketPath SocketPath = ClientOpts.SocketPath.has_value()
+                              ? SocketPath::absolutise(*ClientOpts.SocketPath)
+                              : SocketPath::defaultSocketPath();
+    ClientOpts.SocketPath = SocketPath.toString();
+    ServerOpts.SocketPath = ClientOpts.SocketPath;
+
+    std::clog << "DEBUG: Using socket " << *ClientOpts.SocketPath << std::endl;
   }
 
   // --------------------- Dispatch to appropriate handler ---------------------

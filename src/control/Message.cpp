@@ -520,43 +520,44 @@ DECODE(Attach)
   return Ret;
 }
 
+ENCODE(Detach)
+{
+  std::ostringstream Buf;
+  Buf << "<DETACH><MODE>";
+  switch (Object.Mode)
+  {
+    case Latest:
+      Buf << "Latest";
+      break;
+    case All:
+      Buf << "All";
+      break;
+  }
+  Buf << "</MODE></DETACH>";
+  return Buf.str();
+}
+DECODE(Detach)
+{
+  Detach Ret;
+  HEADER_OR_NONE("<DETACH>");
+
+  CONSUME_OR_NONE("<MODE>");
+  EXTRACT_OR_NONE(Mode, "</MODE>");
+  if (Mode == "Latest")
+    Ret.Mode = Latest;
+  else if (Mode == "All")
+    Ret.Mode = All;
+  else
+    return std::nullopt;
+
+  FOOTER_OR_NONE("</DETACH>");
+  return Ret;
+}
+
 } // namespace request
 
 namespace response
 {
-
-ENCODE(Connection)
-{
-  std::ostringstream Buf;
-  Buf << "<CONNECTION>";
-  Buf << monomux::message::Boolean::encode(Object.Accepted);
-  if (!Object.Accepted)
-    Buf << "<REASON>" << Object.Reason << " </REASON>";
-  Buf << "</CONNECTION>";
-  return Buf.str();
-}
-DECODE(Connection)
-{
-  Connection Ret;
-  HEADER_OR_NONE("<CONNECTION>");
-
-  auto Success = monomux::message::Boolean::decode(View);
-  if (!Success)
-    return std::nullopt;
-  Ret.Accepted = *Success;
-
-  if (!Ret.Accepted)
-  {
-    CONSUME_OR_NONE("<REASON>");
-    EXTRACT_OR_NONE(Reason, "</REASON>");
-    Ret.Reason = Reason;
-    if (Ret.Reason.back() == ' ')
-      Ret.Reason.pop_back();
-  }
-
-  FOOTER_OR_NONE("</CONNECTION>");
-  return Ret;
-}
 
 ENCODE(ClientID)
 {
@@ -687,7 +688,95 @@ DECODE(Attach)
   return Ret;
 }
 
+ENCODE(Detach)
+{
+  (void)Object;
+  return "<DETACH />";
+}
+DECODE(Detach)
+{
+  if (Buffer == "<DETACH />")
+    return Detach{};
+  return std::nullopt;
+}
+
 } // namespace response
+
+namespace notification
+{
+
+ENCODE(Connection)
+{
+  std::ostringstream Buf;
+  Buf << "<CONNECTION>";
+  Buf << monomux::message::Boolean::encode(Object.Accepted);
+  if (!Object.Accepted)
+    Buf << "<REASON>" << Object.Reason << " </REASON>";
+  Buf << "</CONNECTION>";
+  return Buf.str();
+}
+DECODE(Connection)
+{
+  Connection Ret;
+  HEADER_OR_NONE("<CONNECTION>");
+
+  auto Success = monomux::message::Boolean::decode(View);
+  if (!Success)
+    return std::nullopt;
+  Ret.Accepted = *Success;
+
+  if (!Ret.Accepted)
+  {
+    CONSUME_OR_NONE("<REASON>");
+    EXTRACT_OR_NONE(Reason, "</REASON>");
+    Ret.Reason = Reason;
+    if (Ret.Reason.back() == ' ')
+      Ret.Reason.pop_back();
+  }
+
+  FOOTER_OR_NONE("</CONNECTION>");
+  return Ret;
+}
+
+ENCODE(Detached)
+{
+  std::ostringstream Buf;
+  Buf << "<DETACHED>";
+  switch (Object.Mode)
+  {
+    case Detach:
+      Buf << "Detach";
+      break;
+    case Exit:
+      Buf << "Exit";
+      break;
+    case ServerShutdown:
+      Buf << "Server";
+      break;
+  }
+  Buf << "</DETACHED>";
+  return Buf.str();
+}
+DECODE(Detached)
+{
+  Detached Ret;
+  HEADER_OR_NONE("<DETACHED>");
+
+  EXTRACT_OR_NONE(Mode, "<");
+  if (Mode == "Detach")
+    Ret.Mode = Detach;
+  else if (Mode == "Exit")
+    Ret.Mode = Exit;
+  else if (Mode == "Server")
+    Ret.Mode = ServerShutdown;
+  else
+    return std::nullopt;
+
+  FOOTER_OR_NONE("/DETACHED>");
+  return Ret;
+}
+
+} // namespace notification
 
 } // namespace message
 } // namespace monomux

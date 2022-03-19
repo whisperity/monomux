@@ -150,19 +150,25 @@ struct Attach
   std::string Name;
 };
 
+/// A request from a client to the server to detach some clients from an ongoing
+/// session.
+struct Detach
+{
+  MONOMUX_MESSAGE(DetachRequest, Detach);
+  enum DetachMode
+  {
+    /// Detach the latest client active in the session.
+    Latest,
+    /// Detach every client from the session.
+    All
+  };
+  DetachMode Mode;
+};
+
 } // namespace request
 
 namespace response
 {
-
-/// A status message sent by the server to the client during connection
-/// establishment.
-struct Connection
-{
-  MONOMUX_MESSAGE(ConnectionResponse, Connection);
-  monomux::message::Boolean Accepted;
-  std::string Reason;
-};
 
 /// The response to the \p request::ClientID, sent by the server.
 struct ClientID
@@ -200,13 +206,52 @@ struct MakeSession
   std::string Name;
 };
 
+/// The response to the \p request::Attach specifying whether the server
+/// accepted the request.
 struct Attach
 {
   MONOMUX_MESSAGE(AttachResponse, Attach);
   monomux::message::Boolean Success;
 };
 
+/// The response to the \p request::Detach indicating receipt.
+struct Detach
+{
+  MONOMUX_MESSAGE(DetachResponse, Detach);
+};
+
 } // namespace response
+
+namespace notification
+{
+
+/// A status message sent by the server to the client during connection
+/// establishment.
+struct Connection
+{
+  MONOMUX_MESSAGE(ConnectionNotification, Connection);
+  monomux::message::Boolean Accepted;
+  std::string Reason;
+};
+
+/// A notification sent by the server to the client(s) indicating that the
+/// client(s) were detached from a session.
+struct Detached
+{
+  MONOMUX_MESSAGE(DetachedNotification, Detached);
+  enum DetachMode
+  {
+    /// The client was gracefully detached upon a request.
+    Detach,
+    /// The session the client was attached do exited.
+    Exit,
+    /// The server shut down.
+    ServerShutdown
+  };
+  DetachMode Mode;
+};
+
+} // namespace notification
 
 } // namespace message
 } // namespace monomux

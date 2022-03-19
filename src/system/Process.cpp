@@ -41,7 +41,7 @@ static void allocCopyString(const std::string& Source,
     DestinationStringArray[Index], Source.c_str(), Source.size() + 1);
 }
 
-[[noreturn]] void Process::exec(const Process::SpawnOptions& Opts)
+[[noreturn]] void Process::exec(const SpawnOptions& Opts)
 {
   std::clog << "----- Process::exec() was called -----\n\n";
 

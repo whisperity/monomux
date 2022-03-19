@@ -18,7 +18,6 @@
  */
 #include "Server.hpp"
 
-#include "control/Message.hpp"
 #include "control/Messaging.hpp"
 #include "system/CheckedPOSIX.hpp"
 #include "system/POD.hpp"
@@ -147,6 +146,23 @@ void Server::loop()
 
 void Server::interrupt() const noexcept { TerminateListenLoop.store(true); }
 
+void Server::shutdown()
+{
+  while (!Clients.empty())
+  {
+    ClientData& Client = *Clients.begin()->second;
+    Client.sendDetachReason(
+      monomux::message::notification::Detached::ServerShutdown);
+    removeClient(Client);
+  }
+
+  while (!Sessions.empty())
+  {
+    SessionData& Session = *Sessions.begin()->second;
+    removeSession(Session);
+  }
+}
+
 ClientData* Server::getClient(std::size_t ID) noexcept
 {
   auto It = Clients.find(ID);
@@ -194,7 +210,6 @@ void Server::removeSession(SessionData& Session)
 {
   for (ClientData* C : Session.getAttachedClients())
     clientDetachedCallback(*C, Session);
-  // TODO: Tell clients that the session has gone.
 
   Sessions.erase(Session.name());
 }
@@ -266,7 +281,6 @@ void Server::controlCallback(ClientData& Client)
   if (Data.empty())
     return;
 
-  Client.activity();
   std::cout << Data << std::endl;
 
   std::cout << "Check for message kind... ";
@@ -400,10 +414,10 @@ void Server::clientAttachedCallback(ClientData& Client, SessionData& Session)
 
 void Server::clientDetachedCallback(ClientData& Client, SessionData& Session)
 {
-  std::clog << "DEBUG: Client " << Client.id() << " detached from "
-            << Session.name() << std::endl;
   if (Client.getAttachedSession() != &Session)
     return;
+  std::clog << "DEBUG: Client " << Client.id() << " detached from "
+            << Session.name() << std::endl;
   Client.detachSession();
   Session.removeClient(Client);
 }
@@ -457,6 +471,8 @@ void Server::reapDeadChildren()
       std::clog << "INFO: Child process #" << PID << " of session '"
                 << SessionForProc->second->name() << "' exited." << std::endl;
 
+      for (ClientData* AC : SessionForProc->second->getAttachedClients())
+        AC->sendDetachReason(monomux::message::notification::Detached::Exit);
       destroyCallback(*SessionForProc->second);
     }
 

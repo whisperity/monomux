@@ -20,6 +20,7 @@
 
 #include "control/Message.hpp"
 #include "control/Messaging.hpp"
+#include "system/Environment.hpp"
 #include "system/Process.hpp"
 
 using namespace monomux::message;
@@ -45,13 +46,13 @@ void Server::setUpDispatch()
 
 void Server::sendAcceptClient(ClientData& Client)
 {
-  sendMessage(Client.getControlSocket(), response::Connection{{true}, {}});
+  sendMessage(Client.getControlSocket(), notification::Connection{{true}, {}});
 }
 
 void Server::sendRejectClient(ClientData& Client, std::string Reason)
 {
   sendMessage(Client.getControlSocket(),
-              response::Connection{{false}, std::move(Reason)});
+              notification::Connection{{false}, std::move(Reason)});
 }
 
 #define HANDLER(NAME)                                                          \
@@ -135,8 +136,7 @@ HANDLER(requestMakeSession)
 {
   (void)Client;
   MSG(request::MakeSession);
-
-  monomux::message::response::MakeSession Resp;
+  response::MakeSession Resp;
   Resp.Name = Msg->Name;
   Resp.Success = false;
 
@@ -171,6 +171,16 @@ HANDLER(requestMakeSession)
   for (std::string& UnsetEnvVar : Msg->SpawnOpts.UnsetEnvironment)
     SOpts.Environment.try_emplace(std::move(UnsetEnvVar), std::nullopt);
 
+  {
+    MonomuxSession MS;
+    MS.SessionName = Resp.Name;
+    MS.Socket = SocketPath::absolutise(Sock.identifier());
+
+    for (std::pair<std::string, std::string> BuiltinEnvVar : MS.createEnvVars())
+      SOpts.Environment[std::move(BuiltinEnvVar.first)] =
+        std::move(BuiltinEnvVar.second);
+  }
+
   // TODO: How to detect process creation failing?
   Process P = Process::spawn(SOpts);
   S->setProcess(std::move(P));
@@ -185,7 +195,7 @@ HANDLER(requestMakeSession)
 HANDLER(requestAttach)
 {
   MSG(request::Attach);
-  monomux::message::response::Attach Resp;
+  response::Attach Resp;
   Resp.Success = false;
 
   SessionData* S = getSession(Msg->Name);
@@ -197,6 +207,38 @@ HANDLER(requestAttach)
 
   clientAttachedCallback(Client, *S);
   Resp.Success = true;
+  sendMessage(Client.getControlSocket(), Resp);
+}
+
+HANDLER(requestDetach)
+{
+  using namespace monomux::message::request;
+  MSG(request::Detach);
+  response::Detach Resp;
+
+  SessionData* S = Client.getAttachedSession();
+  if (!S)
+    return;
+
+  std::vector<ClientData*> ClientsToDetach;
+
+  switch (Msg->Mode)
+  {
+    case Detach::Latest:
+      if (ClientData* C = S->getLatestClient())
+        ClientsToDetach.emplace_back(C);
+      break;
+    case Detach::All:
+      ClientsToDetach = S->getAttachedClients();
+      break;
+  }
+
+  for (ClientData* C : ClientsToDetach)
+  {
+    C->sendDetachReason(notification::Detached::DetachMode::Detach);
+    clientDetachedCallback(*C, *S);
+  }
+
   sendMessage(Client.getControlSocket(), Resp);
 }
 

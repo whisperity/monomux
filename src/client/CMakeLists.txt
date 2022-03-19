@@ -1,5 +1,6 @@
 list(APPEND libmonomux_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/Client.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ControlClient.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Dispatch.ipp
   ${CMAKE_CURRENT_SOURCE_DIR}/SessionData.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Terminal.hpp
@@ -7,6 +8,7 @@ list(APPEND libmonomux_HEADERS
 set(libmonomux_HEADERS "${libmonomux_HEADERS}" PARENT_SCOPE)
 list(APPEND libmonomux_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Client.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ControlClient.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Dispatch.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Terminal.cpp
   )

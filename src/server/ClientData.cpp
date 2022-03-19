@@ -18,6 +18,8 @@
  */
 #include "ClientData.hpp"
 
+#include "control/Messaging.hpp"
+
 #include <cassert>
 
 namespace monomux
@@ -53,6 +55,13 @@ void ClientData::subjugateIntoDataSocket(ClientData& Other) noexcept
          "Other client already has a data connection!");
   DataConnection.swap(Other.ControlConnection);
   assert(!Other.ControlConnection && "Other client stayed alive");
+}
+
+void ClientData::sendDetachReason(
+  monomux::message::notification::Detached::DetachMode R)
+{
+  message::sendMessage(getControlSocket(),
+                       monomux::message::notification::Detached{R});
 }
 
 } // namespace server

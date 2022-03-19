@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include "control/Message.hpp"
 #include "system/Socket.hpp"
 
 #include <chrono>
@@ -74,12 +75,15 @@ public:
     AttachedSession = &Session;
   }
 
+  /// Sends the specified detachment reason to the client, if it is connected.
+  void sendDetachReason(monomux::message::notification::Detached::DetachMode R);
+
 private:
   std::size_t ID;
   std::optional<std::size_t> Nonce;
   /// The timestamp when the client connected.
   std::chrono::time_point<std::chrono::system_clock> Created;
-  /// The timestamp when the client was most recently trasmitted data.
+  /// The timestamp when the client was most recently trasmitting \b data.
   std::chrono::time_point<std::chrono::system_clock> LastActivity;
 
   /// The control connection transcieves control information and commands.

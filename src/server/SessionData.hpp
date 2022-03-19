@@ -77,6 +77,9 @@ public:
   {
     return AttachedClients;
   }
+  /// \returns the \p ClientData from all attached client which \p activity()
+  /// field is the newest (most recently active client).
+  ClientData* getLatestClient() const;
   void attachClient(ClientData& Client);
   void removeClient(ClientData& Client) noexcept;
 

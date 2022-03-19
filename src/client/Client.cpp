@@ -38,8 +38,8 @@ std::optional<Client> Client::create(std::string SocketPath,
   try
   {
     Socket S = Socket::connect(std::move(SocketPath));
-    std::optional<response::Connection> ConnStatus =
-      receiveMessage<response::Connection>(S);
+    std::optional<notification::Connection> ConnStatus =
+      receiveMessage<notification::Connection>(S);
     if (!ConnStatus)
       return std::nullopt;
     if (!ConnStatus->Accepted)
@@ -125,8 +125,8 @@ bool Client::handshake(std::string* FailureReason)
     std::make_unique<Socket>(Socket::connect(ControlSocket.identifier()));
   {
     // See if the server successfully accepted the second connection.
-    std::optional<response::Connection> ConnStatus =
-      receiveMessage<response::Connection>(*DS);
+    std::optional<notification::Connection> ConnStatus =
+      receiveMessage<notification::Connection>(*DS);
     if (!ConnStatus)
     {
       if (FailureReason)

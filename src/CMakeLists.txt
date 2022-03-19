@@ -7,7 +7,9 @@ include_directories(
 set(monomux_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   )
-set(monomux_HEADERS)
+set(monomux_HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/ExitCode.hpp
+  )
 set(libmonomux_SOURCES)
 set(libmonomux_HEADERS)
 

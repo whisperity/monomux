@@ -90,9 +90,6 @@ int main(Options& Opts)
   // CheckedPOSIXThrow([] { return ::daemon(0, 0); }, "Backgrounding ourselves
   // failed", -1);
 
-  if (!Opts.SocketPath.has_value())
-    Opts.SocketPath.emplace(SocketDir::defaultSocketDir().toString());
-
   Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));
 
@@ -111,6 +108,8 @@ int main(Options& Opts)
   std::cout << "INFO: Server listen exited" << std::endl;
 
   SignalHandling::get().disable();
+
+  S.shutdown();
 
   std::cout << "INFO: Server shut down..." << std::endl;
   return EXIT_Success;

@@ -44,9 +44,9 @@ template <typename Msg> static Msg codec(const Msg& M)
   return *Decode;
 }
 
-TEST(ControlMessageSerialisation, ConnectionResponse)
+TEST(ControlMessageSerialisation, ConnectionNotification)
 {
-  monomux::message::response::Connection Obj;
+  monomux::message::notification::Connection Obj;
   Obj.Accepted = true;
   EXPECT_EQ(encode(Obj), "<CONNECTION><TRUE /></CONNECTION>");
   EXPECT_EQ(codec(Obj).Accepted, true);
@@ -273,4 +273,41 @@ TEST(ControlMessageSerialisation, AttachResponse)
     auto Decode = codec(Obj);
     EXPECT_TRUE(Decode.Success);
   }
+}
+
+TEST(ControlMessageSerialisation, DetachRequest)
+{
+  using namespace monomux::message::request;
+
+  Detach Obj;
+  Obj.Mode = Detach::Latest;
+  EXPECT_EQ(encode(Obj), "<DETACH><MODE>Latest</MODE></DETACH>");
+  EXPECT_EQ(codec(Obj).Mode, Detach::Latest);
+
+  Obj.Mode = Detach::All;
+  EXPECT_EQ(encode(Obj), "<DETACH><MODE>All</MODE></DETACH>");
+  EXPECT_EQ(codec(Obj).Mode, Detach::All);
+}
+
+TEST(ControlMessageSerialisation, DetachResponse)
+{
+  EXPECT_EQ(encode(monomux::message::response::Detach{}), "<DETACH />");
+}
+
+TEST(ControlMessageSerialisation, DetachedNotification)
+{
+  using namespace monomux::message::notification;
+  Detached Obj;
+
+  Obj.Mode = Detached::Detach;
+  EXPECT_EQ(encode(Obj), "<DETACHED>Detach</DETACHED>");
+  EXPECT_EQ(codec(Obj).Mode, Detached::Detach);
+
+  Obj.Mode = Detached::Exit;
+  EXPECT_EQ(encode(Obj), "<DETACHED>Exit</DETACHED>");
+  EXPECT_EQ(codec(Obj).Mode, Detached::Exit);
+
+  Obj.Mode = Detached::ServerShutdown;
+  EXPECT_EQ(encode(Obj), "<DETACHED>Server</DETACHED>");
+  EXPECT_EQ(codec(Obj).Mode, Detached::ServerShutdown);
 }

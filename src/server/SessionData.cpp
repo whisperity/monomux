@@ -17,8 +17,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "SessionData.hpp"
+#include "ClientData.hpp"
+
 #include "system/Pipe.hpp"
 
+#include <algorithm>
 #include <iostream>
 
 namespace monomux
@@ -47,6 +50,24 @@ std::size_t SessionData::sendInput(std::string_view Data)
   if (!hasProcess() || !getProcess().hasPty())
     return 0;
   return Pipe::write(getProcess().getPty()->raw(), Data);
+}
+
+ClientData* SessionData::getLatestClient() const
+{
+  ClientData* R = nullptr;
+  std::optional<decltype(std::declval<ClientData>().lastActive())> Time;
+  for (ClientData* C : AttachedClients)
+  {
+    if (!C->getDataSocket())
+      continue;
+    auto CTime = C->lastActive();
+    if (!Time || *Time < CTime)
+    {
+      Time = CTime;
+      R = C;
+    }
+  }
+  return R;
 }
 
 void SessionData::attachClient(ClientData& Client)

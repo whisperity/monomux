@@ -19,6 +19,8 @@
 #pragma once
 #include "Client.hpp"
 
+#include "system/Environment.hpp"
+
 #include <optional>
 #include <string>
 #include <vector>
@@ -35,7 +37,14 @@ struct Options
   std::vector<std::string> toArgv() const;
 
   // (To initialise the bitfields...)
-  Options() : ClientMode(false), ForceSessionSelectMenu(false) {}
+  Options()
+    : ClientMode(false), ForceSessionSelectMenu(false),
+      DetachRequestLatest(false), DetachRequestAll(false)
+  {}
+
+  /// \returns if control-mode flags (transmitted to the server through a
+  /// non-terminal client) are enabled.
+  bool isControlMode() const noexcept;
 
   /// Whether the client mode was enabled.
   bool ClientMode : 1;
@@ -43,6 +52,14 @@ struct Options
   /// Whether the client should start with showing the session selection menu,
   /// and disregard normal startup decision heuristics.
   bool ForceSessionSelectMenu : 1;
+
+  /// Whether it was requested to detach the latest client from a session.
+  /// This is a control-mode flag.
+  bool DetachRequestLatest : 1;
+
+  /// Whether it was requested to detach all clients from a session.
+  /// This is a control-mode flag.
+  bool DetachRequestAll : 1;
 
   /// The path to the server socket where the client should connect to.
   std::optional<std::string> SocketPath;
@@ -61,6 +78,10 @@ struct Options
 
   /// Contains the master connection to the server, if such was established.
   std::optional<Client> Connection;
+
+  /// If the client has been invoked within a session and we were able to deduce
+  /// this, store the session data.
+  std::optional<MonomuxSession> SessionData;
 };
 
 /// Attempt to establish connection to a Monomux Server specified in \p Opts.

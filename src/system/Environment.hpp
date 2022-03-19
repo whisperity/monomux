@@ -17,7 +17,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace monomux
 {
@@ -31,11 +34,14 @@ std::string getEnv(const std::string& Key);
 /// \returns the default shell (command interpreter) for the current user.
 std::string defaultShell();
 
-struct SocketDir
+struct SocketPath
 {
   /// \returns the default directory where a server socket should be placed for
   /// the current user.
-  static SocketDir defaultSocketDir();
+  static SocketPath defaultSocketPath();
+
+  /// Transforms the specified \p Path into a split \p SocketPath object.
+  static SocketPath absolutise(const std::string& Path);
 
   /// \returns the \p Path and \p Filename concatenated appropriately.
   std::string toString() const;
@@ -46,6 +52,17 @@ struct SocketDir
   /// Whether the \p Path value (without the \p Filename) is likely specific to
   /// the current user.
   bool IsPathLikelyUserSpecific;
+};
+
+/// Allows crafting and retrieving information about a running Monomux session
+/// injected through the use of environment variables.
+struct MonomuxSession
+{
+  SocketPath Socket;
+  std::string SessionName;
+
+  std::vector<std::pair<std::string, std::string>> createEnvVars() const;
+  static std::optional<MonomuxSession> loadFromEnv();
 };
 
 } // namespace monomux

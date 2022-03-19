@@ -89,6 +89,10 @@ public:
   /// Atomcially request the server's \p listen() loop to die.
   void interrupt() const noexcept;
 
+  /// After the server's \p listen() loop has terminated, performs graceful
+  /// shutdown of connections and sessions.
+  void shutdown();
+
 private:
   /// Create a data structure that allows us to (in the optimal case) quickly
   /// resolve a file descriptor to its origin kind, e.g. whether the connection

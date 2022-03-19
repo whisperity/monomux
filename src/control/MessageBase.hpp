@@ -55,7 +55,7 @@ enum class MessageKind : std::uint16_t
 
   /// A status message from the server to the client about the details of the
   /// established connection.
-  ConnectionResponse,
+  ConnectionNotification,
 
   /// A request to the server to reply the client's ID to the client.
   ClientIDRequest,
@@ -86,6 +86,15 @@ enum class MessageKind : std::uint16_t
   /// A response to the \p AttachRequest containing whether the attaching
   /// succeeded.
   AttachResponse,
+
+  /// A request to the server to detach one or more clients from a session.
+  DetachRequest,
+  /// A response to the \p DetachRequest containing the result of the operation.
+  DetachResponse,
+
+  /// A notification sent by the server to a client indicating that the client
+  /// had been detached.
+  DetachedNotification,
 };
 
 /// Helper class that contains the parsed \p MessageKind of a \p Message, and
