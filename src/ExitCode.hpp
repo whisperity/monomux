@@ -32,6 +32,9 @@ enum ExitCode : int
 
   /// Values specified on the command-line of MonoMux are erroneous.
   EXIT_InvocationError = 2,
+
+  /// Nonspecific other failure.
+  EXIT_Failure = 3,
 };
 
 } // namespace monomux

@@ -369,7 +369,33 @@ int main(Options& Opts)
 
   Client.loop();
 
-  return EXIT_Success;
+  switch (Client.exitReason())
+  {
+    case Client::None:
+      std::cout << "[unknown reason]" << std::endl;
+      return EXIT_SystemError;
+    case Client::Failed:
+      std::cout << "[lost server]" << std::endl;
+      return EXIT_SystemError;
+    case Client::Terminated:
+      std::cout << "[terminated]" << std::endl;
+      return EXIT_Success;
+    case Client::Hangup:
+      std::cout << "[lost tty]" << std::endl;
+      return EXIT_Failure;
+    case Client::Detached:
+      std::cout << "[detached";
+      if (const SessionData* S = Client.attachedSession())
+        std::cout << " (from session '" << S->Name << "')";
+      std::cout << "]" << std::endl;
+      return EXIT_Success;
+    case Client::SessionExit:
+      std::cout << "[exited]" << std::endl;
+      return EXIT_Success;
+    case Client::ServerExit:
+      std::cout << "[server exited]" << std::endl;
+      return EXIT_Success;
+  }
 }
 
 } // namespace client

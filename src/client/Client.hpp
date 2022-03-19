@@ -54,6 +54,24 @@ namespace client
 class Client
 {
 public:
+  enum ExitReason
+  {
+    None = 0,
+    /// The client terminated because of internal logic failure. This is an
+    /// \b error condition.
+    Failed,
+    /// The client was terminated by the user via a kill signal.
+    Terminated,
+    /// The client was terminated because the controlling terminal hung up.
+    Hangup,
+    /// The client exited because the server disconnected it.
+    Detached,
+    /// The client exited because the attached session exited.
+    SessionExit,
+    /// The client exit because the server shut down.
+    ServerExit,
+  };
+
   /// The type of message handler functions.
   ///
   /// \param RawMessage A view into the buffer of the message, before any
@@ -120,6 +138,8 @@ public:
   /// actually communicating data with the server.
   void loop();
 
+  ExitReason exitReason() const noexcept { return Exit; }
+
   /// Sends a request to the connected server to tell what sessions are running
   /// on the server.
   ///
@@ -151,8 +171,26 @@ public:
   /// \see requestAttach()
   bool attached() const noexcept { return Attached; }
 
+  /// \returns information about the session the client is (if \p attached() is
+  /// \p true) or last was (if \p attached() is \p false) attached to. If the
+  /// client never attached to any session, returns \p nullptr.
+  const SessionData* attachedSession() const noexcept
+  {
+    return AttachedSession ? &*AttachedSession : nullptr;
+  }
+
   /// Sends \p Data to the server over the \e data connection.
   void sendData(std::string_view Data);
+
+  /// The callback that is fired when data is available on the \e control
+  /// connection of the client.
+  void controlCallback();
+
+  /// Handle data received on the \e data connection.
+  void dataCallback();
+
+  /// Handle data received as an \e input to the client.
+  void inputCallback();
 
 private:
   /// The control socket is used to communicate control commands with the
@@ -170,10 +208,18 @@ private:
   /// Whether the client successfully attached to a session on the server.
   unique_scalar<bool, false> Attached;
 
+  /// Information about the session the client attached to.
+  std::optional<SessionData> AttachedSession;
+
   /// The terminal the \p Client is attached to, if any.
   std::optional<Terminal> Term;
 
-  MovableAtomic<bool> TerminateLoop = false;
+  unique_scalar<ExitReason, None> Exit;
+  /// Terminate the handling \p loop() of the client and set the exit status to
+  /// \p E.
+  void exit(ExitReason E);
+
+  mutable MovableAtomic<bool> TerminateLoop = false;
   std::unique_ptr<EPoll> Poll;
   /// Initialises (or resets) the \p Poll event polling low-level structures.
   void setupPoll();
@@ -216,6 +262,9 @@ private:
   /// Return the stored \p Nonce of the current instance, resetting it.
   std::size_t consumeNonce() noexcept;
 
+  // FIXME(UB): When Client is *moved*, the this pointer stored in the dispatch
+  // table bindings result in a crash when the handlers call behind the bad
+  // this!!!
   /// Maps \p MessageKind to handler functions.
   std::map<std::uint16_t, std::function<HandlerFunction>> Dispatch;
 

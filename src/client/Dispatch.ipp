@@ -4,5 +4,6 @@
 #endif
 
 DISPATCH(ClientIDResponse, responseClientID)
+DISPATCH(DetachedNotification, receivedDetachNotification)
 
 #undef DISPATCH

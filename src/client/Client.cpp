@@ -220,38 +220,105 @@ void Client::loop()
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
       raw_fd EventFD = Poll->fdAt(I);
-
-      // FIXME: Use Pipes here.
-
       if (EventFD == DataSocket->raw())
       {
-        std::string Data = DataSocket->read(256);
-        ::write(Term->output(), Data.c_str(), Data.size());
+        dataCallback();
         continue;
       }
       if (EventFD == Term->input())
       {
-        POD<char[512]> Buf;
-        unsigned long Size = ::read(Term->input(), &Buf, sizeof(Buf));
-        if (!DataSocketEnabled)
-          continue;
-        sendData(std::string_view{&Buf[0], Size});
+        inputCallback();
         continue;
       }
       if (EventFD == ControlSocket.raw())
       {
-        std::clog << "DEBUG: Handler received on Control connection."
-                  << std::endl;
-        // FIXME: Not yet implemented.
+        controlCallback();
         continue;
       }
     }
   }
+
+  disableDataSocket();
+  inhibitControlResponsePoll();
+}
+
+void Client::dataCallback()
+{
+  std::string Data = DataSocket->read(256);
+  ::write(Term->output(), Data.c_str(), Data.size());
+}
+
+void Client::inputCallback()
+{
+  POD<char[512]> Buf;
+  unsigned long Size = ::read(Term->input(), &Buf, sizeof(Buf));
+  if (!DataSocketEnabled)
+    return;
+  sendData(std::string_view{&Buf[0], Size});
+}
+
+void Client::controlCallback()
+{
+  using namespace monomux::message;
+  std::string Data;
+  try
+  {
+    Data = readPascalString(ControlSocket);
+  }
+  catch (const std::system_error& Err)
+  {
+    std::cerr << "ERROR: When reading from control:" << Err.what() << std::endl;
+  }
+
+  if (ControlSocket.failed())
+  {
+    exit(Failed);
+    return;
+  }
+
+  if (Data.empty())
+    return;
+
+  std::cout << Data << std::endl;
+
+  std::cout << "Check for message kind... ";
+  Message MB = Message::unpack(Data);
+  auto Action =
+    Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
+  if (Action == Dispatch.end())
+  {
+    std::cerr << "Error: Unknown message type " << static_cast<int>(MB.Kind)
+              << " received." << std::endl;
+    return;
+  }
+  std::cout << static_cast<int>(MB.Kind) << std::endl;
+
+  std::cout << "Read data " << std::string_view{Data.data(), Data.size()}
+            << std::endl;
+  try
+  {
+    Action->second(MB.RawData);
+  }
+  catch (const std::system_error& Err)
+  {
+    std::cerr << "Error when handling message " << std::endl;
+    if (getControlSocket().failed())
+      exit(Failed);
+    return;
+  }
+}
+
+void Client::exit(ExitReason E)
+{
+  std::clog << "TRACE: Client exit " << E << std::endl;
+  Exit = E;
+  Poll.reset();
+  TerminateLoop.get().store(true);
 }
 
 void Client::setupPoll()
 {
-  static constexpr std::size_t EventQueue = 1 << 16;
+  static constexpr std::size_t EventQueue = 1 << 9;
   if (!Poll)
     Poll = std::make_unique<EPoll>(EventQueue);
   else

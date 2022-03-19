@@ -49,7 +49,6 @@ void Client::setUpDispatch()
 HANDLER(responseClientID)
 {
   std::clog << __PRETTY_FUNCTION__ << std::endl;
-
   MSG(response::ClientID);
 
   ClientID = Msg->Client.ID;
@@ -57,6 +56,26 @@ HANDLER(responseClientID)
 
   std::clog << "DEBUG: Client is " << ClientID << " (with nonce " << *Nonce
             << ')' << std::endl;
+}
+
+HANDLER(receivedDetachNotification)
+{
+  using namespace monomux::message::notification;
+  std::clog << __PRETTY_FUNCTION__ << std::endl;
+  MSG(notification::Detached);
+
+  switch (Msg->Mode)
+  {
+    case Detached::Detach:
+      exit(Detached);
+      break;
+    case Detached::Exit:
+      exit(SessionExit);
+      break;
+    case Detached::ServerShutdown:
+      exit(ServerExit);
+      break;
+  }
 }
 
 #undef HANDLER
