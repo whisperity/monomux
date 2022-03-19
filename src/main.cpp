@@ -36,13 +36,14 @@
 
 using namespace monomux;
 
-static const char* ShortOptions = "hs:n:";
+static const char* ShortOptions = "hs:n:l";
 // clang-format off
 static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
   {"help",   no_argument,       nullptr, 'h'},
   {"server", no_argument,       nullptr, 0},
   {"socket", required_argument, nullptr, 's'},
   {"name",   required_argument, nullptr, 'n'},
+  {"list",   no_argument,       nullptr, 'l'},
   {nullptr,  0,                 nullptr, 0}
 };
 // clang-format on
@@ -77,13 +78,13 @@ To put it bluntly, MonoMux is **NOT A TERMINAL EMULATOR**! Data from the
 underlying program is passed verbatim to the attached client(s).
 
 Options:
-    --server                      Start the Monomux server explicitly, without
+    --server                    - Start the Monomux server explicitly, without
                                   creating a client, or any sessions. (This
                                   option should seldom be given by users.)
 
 
 Client options:
-    PROGRAM [ARGS...]             If the session specified by '-n' does not
+    PROGRAM [ARGS...]           - If the session specified by '-n' does not
                                   exist, MonoMux will create a new session, in
                                   which the PROGRAM binary (with ARGS... given
                                   as its command-line arguments) will be
@@ -103,13 +104,20 @@ Client options:
 
                                       monomux -n session -- /bin/bash --no-rc
 
-    -n NAME, --name NAME          Name of the remote session to attach to, or
-                                  create. (Defaults to: "default")
-    -s PATH, --socket PATH        Path of the server socket to connect to.
+    -n NAME, --name NAME        - Name of the remote session to attach to, or
+                                  create. (Defaults to: "default".)
+                                  This option makes '--list' inoperative.
+    -l, --list                  - Always start the client with the session list,
+                                  even if only at most one session exists on the
+                                  server. (The default behaviour is to
+                                  automatically create a session or attach in
+                                  this case.)
+                                  This option makes '--name' inoperative.
+    -s PATH, --socket PATH      - Path of the server socket to connect to.
 
 
 Server options:
-    -s PATH, --socket PATH        Path of the sever socket to create and await
+    -s PATH, --socket PATH      - Path of the sever socket to create and await
                                   clients on.
 
 )EOF";
@@ -120,9 +128,6 @@ int main(int ArgC, char* ArgV[])
 {
   server::Options ServerOpts{};
   client::Options ClientOpts{};
-
-  // -------------------------- Set up default values --------------------------
-  ClientOpts.ClientMode = true; // Expect Client usage by default.
 
   // ------------------------ Parse command-line options -----------------------
   {
@@ -158,15 +163,21 @@ int main(int ArgC, char* ArgV[])
         case 'h':
           printOptionHelp();
           return EXIT_Success;
-        case 'n':
-          ClientOpts.SessionName.emplace(optarg);
-          break;
         case 's':
           ServerOpts.SocketPath.emplace(optarg);
           ClientOpts.SocketPath.emplace(optarg);
           break;
+        case 'n':
+          ClientOpts.SessionName.emplace(optarg);
+          break;
+        case 'l':
+          ClientOpts.ForceSessionSelectMenu = true;
+          break;
       }
     }
+
+    if (!ServerOpts.ServerMode)
+      ClientOpts.ClientMode = true;
 
     // Handle positional arguments not handled earlier.
     for (; ::optind < ArgC; ++::optind)
@@ -228,7 +239,7 @@ int main(int ArgC, char* ArgV[])
         [] { /* In the parent, continue. */
              return;
         },
-        [&ServerOpts, &ArgV] {
+        [&ServerOpts, &ArgV] /* NOLINT(modernize-avoid-c-arrays) */ {
           // Perform the server restart in the child, so it gets
           // disowned when we eventually exit, and we can remain the
           // client.

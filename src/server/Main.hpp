@@ -32,6 +32,9 @@ struct Options
   /// Format the options back into the CLI invocation they were parsed from.
   std::vector<std::string> toArgv() const;
 
+  // (To initialise the bitfields...)
+  Options() : ServerMode(false) {}
+
   /// Whether the server mode was enabled.
   bool ServerMode : 1;
 

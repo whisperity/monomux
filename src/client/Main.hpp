@@ -34,8 +34,15 @@ struct Options
   /// Format the options back into the CLI invocation they were parsed from.
   std::vector<std::string> toArgv() const;
 
+  // (To initialise the bitfields...)
+  Options() : ClientMode(false), ForceSessionSelectMenu(false) {}
+
   /// Whether the client mode was enabled.
   bool ClientMode : 1;
+
+  /// Whether the client should start with showing the session selection menu,
+  /// and disregard normal startup decision heuristics.
+  bool ForceSessionSelectMenu : 1;
 
   /// The path to the server socket where the client should connect to.
   std::optional<std::string> SocketPath;

@@ -50,6 +50,8 @@ std::vector<std::string> Options::toArgv() const
     Ret.emplace_back("--socket");
     Ret.emplace_back(*SocketPath);
   }
+  if (ForceSessionSelectMenu)
+    Ret.emplace_back("--list");
 
   if (Program.has_value())
   {
@@ -113,41 +115,46 @@ static SessionSelectionResult
 selectSession(const std::string& ClientID,
               const std::string& DefaultShell,
               const std::vector<SessionData>& Sessions,
-              const std::string& DefaultSessionName)
+              const std::string& DefaultSessionName,
+              bool AlwaysShowMenu)
 {
-  if (Sessions.empty())
+  if (!AlwaysShowMenu)
   {
-    std::clog << "DEBUG: List of sessions on the server is empty, requesting "
-                 "default one..."
-              << std::endl;
-    return {DefaultSessionName, SessionSelectionResult::Create};
+    if (Sessions.empty())
+    {
+      std::clog << "DEBUG: List of sessions on the server is empty, requesting "
+                   "default one..."
+                << std::endl;
+      return {DefaultSessionName, SessionSelectionResult::Create};
+    }
+
+    if (DefaultSessionName.empty() && Sessions.size() == 1)
+    {
+      std::clog << "DEBUG: No session '--name' specified, attaching to only "
+                   "existing session..."
+                << std::endl;
+      return {DefaultSessionName, SessionSelectionResult::Attach};
+    }
+
+    if (!DefaultSessionName.empty())
+    {
+      std::clog << "DEBUG: Session '--name " << DefaultSessionName
+                << "' specified, checking if it exists..." << std::endl;
+      for (const SessionData& S : Sessions)
+        if (S.Name == DefaultSessionName)
+        {
+          std::clog << "DEBUG: Session found, attaching!" << std::endl;
+          return {S.Name, SessionSelectionResult::Attach};
+        }
+
+      std::clog << "DEBUG: Session not found, requesting creation..."
+                << std::endl;
+      return {DefaultSessionName, SessionSelectionResult::Create};
+    }
+
+    assert(DefaultSessionName.empty() && Sessions.size() > 1);
   }
 
-  if (DefaultSessionName.empty() && Sessions.size() == 1)
-  {
-    std::clog << "DEBUG: No session '--name' specified, attaching to only "
-                 "existing session..."
-              << std::endl;
-    return {DefaultSessionName, SessionSelectionResult::Attach};
-  }
-
-  if (!DefaultSessionName.empty())
-  {
-    std::clog << "DEBUG: Session '--name " << DefaultSessionName
-              << "' specified, checking if it exists..." << std::endl;
-    for (const SessionData& S : Sessions)
-      if (S.Name == DefaultSessionName)
-      {
-        std::clog << "DEBUG: Session found, attaching!" << std::endl;
-        return {S.Name, SessionSelectionResult::Attach};
-      }
-
-    std::clog << "DEBUG: Session not found, requesting creation..."
-              << std::endl;
-    return {DefaultSessionName, SessionSelectionResult::Create};
-  }
-
-  assert(DefaultSessionName.empty() && Sessions.size() > 1);
   std::size_t NewSessionChoice = Sessions.size() + 1;
   std::size_t QuitChoice = NewSessionChoice + 1;
   std::size_t UserChoice = 0;
@@ -222,7 +229,8 @@ int main(Options& Opts)
     selectSession(Client.getControlSocket().identifier(),
                   Shell,
                   *Sessions,
-                  Opts.SessionName ? *Opts.SessionName : "");
+                  Opts.SessionName ? *Opts.SessionName : "",
+                  Opts.ForceSessionSelectMenu);
   if (SessionAction.Mode == SessionSelectionResult::None)
     return EXIT_Success;
   if (SessionAction.Mode == SessionSelectionResult::Create)
