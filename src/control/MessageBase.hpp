@@ -48,43 +48,44 @@ enum class MessageKind : std::uint16_t
 {
   /// Indicates a broken message that failed to read as a proper entity.
   Invalid = 0,
+
   /// Indicates a subobject of a \p Message that cannot be understood
   /// individually.
-  Base = static_cast<std::uint16_t>(-1),
+  Base,
 
-  // Handskahe procedure messages.
+  /// A status message from the server to the client about the details of the
+  /// established connection.
+  ConnectionResponse,
 
   /// A request to the server to reply the client's ID to the client.
-  ClientIDRequest = 0x0001,
+  ClientIDRequest,
   /// A response for the \p ClientIDRequest, containing the client's ID.
-  ClientIDResponse = 0x0002,
+  ClientIDResponse,
 
   /// A request to the server to associate the connection with another client,
   /// marking it as the data connection/socket.
-  DataSocketRequest = 0x0003,
+  DataSocketRequest,
   /// A response for the \p DataSocketRequest, indicating whether the
   /// request was accepted.
-  DataSocketResponse = 0x0004,
-
-  // Session management messages.
+  DataSocketResponse,
 
   /// A request to the server to reply with data about the running sessions on
   /// the server.
-  SessionListRequest = 0x0101,
+  SessionListRequest,
   /// A response to the \p SessionListRequest, containing \p Session data.
-  SessionListResponse = 0x0102,
+  SessionListResponse,
 
   /// A request to the server to create a brand new new session.
-  MakeSessionRequest = 0x0103,
+  MakeSessionRequest,
   /// A reponse to the \p MakeSessionRequest containing the results of the new
   /// session.
-  MakeSessionResponse = 0x0104,
+  MakeSessionResponse,
 
   /// A request to the server to have the sending client attached to a session.
-  AttachRequest = 0x0105,
+  AttachRequest,
   /// A response to the \p AttachRequest containing whether the attaching
   /// succeeded.
-  AttachResponse = 0x0106,
+  AttachResponse,
 };
 
 /// Helper class that contains the parsed \p MessageKind of a \p Message, and

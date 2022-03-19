@@ -19,11 +19,24 @@
 #include "fd.hpp"
 
 #include "CheckedPOSIX.hpp"
+#include "POD.hpp"
 
+#include <sys/resource.h>
 #include <unistd.h>
 
 namespace monomux
 {
+
+std::size_t fd::maxNumFDs()
+{
+  POD<struct ::rlimit> Limits;
+  CheckedPOSIXThrow([&Limits] { return ::getrlimit(RLIMIT_NOFILE, &Limits); },
+                    "getrlimit()",
+                    -1);
+  if (Limits->rlim_cur == RLIM_INFINITY)
+    return -1;
+  return Limits->rlim_cur;
+}
 
 fd::raw_fd fd::fileno(std::FILE* File)
 {

@@ -525,6 +525,39 @@ DECODE(Attach)
 namespace response
 {
 
+ENCODE(Connection)
+{
+  std::ostringstream Buf;
+  Buf << "<CONNECTION>";
+  Buf << monomux::message::Boolean::encode(Object.Accepted);
+  if (!Object.Accepted)
+    Buf << "<REASON>" << Object.Reason << " </REASON>";
+  Buf << "</CONNECTION>";
+  return Buf.str();
+}
+DECODE(Connection)
+{
+  Connection Ret;
+  HEADER_OR_NONE("<CONNECTION>");
+
+  auto Success = monomux::message::Boolean::decode(View);
+  if (!Success)
+    return std::nullopt;
+  Ret.Accepted = *Success;
+
+  if (!Ret.Accepted)
+  {
+    CONSUME_OR_NONE("<REASON>");
+    EXTRACT_OR_NONE(Reason, "</REASON>");
+    Ret.Reason = Reason;
+    if (Ret.Reason.back() == ' ')
+      Ret.Reason.pop_back();
+  }
+
+  FOOTER_OR_NONE("</CONNECTION>");
+  return Ret;
+}
+
 ENCODE(ClientID)
 {
   std::ostringstream Buf;

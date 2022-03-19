@@ -64,27 +64,30 @@ std::vector<std::string> Options::toArgv() const
   return Ret;
 }
 
-std::optional<Client> connect(Options& Opts, bool Block)
+std::optional<Client>
+connect(Options& Opts, bool Block, std::string* FailureReason)
 {
   if (!Opts.SocketPath.has_value())
     Opts.SocketPath.emplace(SocketDir::defaultSocketDir().toString());
 
-  auto C = Client::create(*Opts.SocketPath);
+  auto C = Client::create(*Opts.SocketPath, FailureReason);
   if (!Block)
     return C;
 
-  unsigned short HandshakeCounter = 1;
+  static constexpr std::size_t MaxConnectTries = 16;
+  unsigned short ConnectCounter = 0;
   while (!C)
   {
-    ++HandshakeCounter;
-    C = Client::create(*Opts.SocketPath);
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    if (HandshakeCounter == 5)
+    ++ConnectCounter;
+    if (ConnectCounter == MaxConnectTries)
     {
-      std::cerr << "Connection failed after enough retries." << std::endl;
+      if (FailureReason)
+        *FailureReason = "Connection failed after enough retries.";
       return std::nullopt;
     }
+
+    C = Client::create(*Opts.SocketPath, FailureReason);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
   return C;
@@ -205,11 +208,27 @@ int main(Options& Opts)
   }
   Client& Client = *Opts.Connection;
 
-  while (!Client.handshake())
   {
-    std::clog << "DEBUG: Trying to authenticate with server again..."
-              << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::string FailureReason;
+    static constexpr std::size_t MaxHandshakeTries = 16;
+    unsigned short HandshakeCounter = 0;
+    while (!Client.handshake(&FailureReason))
+    {
+      ++HandshakeCounter;
+      if (HandshakeCounter == MaxHandshakeTries)
+      {
+        std::cerr
+          << "ERROR: Failed to establish full connection after enough retries."
+          << std::endl;
+        return EXIT_SystemError;
+      }
+
+      std::clog << "WARNING: Establishing full connection failed:\n\t"
+                << FailureReason << std::endl;
+      std::clog << "DEBUG: Trying to authenticate with server again..."
+                << std::endl;
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
   }
 
   // --------------------- Deduce what session to attach to --------------------

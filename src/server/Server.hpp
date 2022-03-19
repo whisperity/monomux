@@ -141,6 +141,10 @@ private:
   std::unique_ptr<EPoll> Poll;
 
   void reapDeadChildren();
+  /// Sends a connection accpetance message to the client.
+  void sendAcceptClient(ClientData& Client);
+  /// Sends a rejection message to the client.
+  void sendRejectClient(ClientData& Client, std::string Reason);
 
 public:
   /// Retrieve data about the client registered as \p ID.

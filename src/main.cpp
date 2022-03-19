@@ -203,14 +203,6 @@ int main(int ArgC, char* ArgV[])
       return EXIT_InvocationError;
   }
 
-  std::clog << "Server args: ";
-  for (const std::string& Arg : ServerOpts.toArgv())
-    std::clog << Arg << ' ';
-  std::clog << std::endl << "Client args: ";
-  for (const std::string& Arg : ClientOpts.toArgv())
-    std::clog << Arg << ' ';
-  std::clog << std::endl;
-
   // --------------------- Dispatch to appropriate handler ---------------------
   if (ServerOpts.ServerMode)
     return server::main(ServerOpts);
@@ -221,8 +213,10 @@ int main(int ArgC, char* ArgV[])
   // there will be no server running. For convenience, we can initialise a
   // server right here.
   {
-    std::optional<client::Client> ToServer = client::connect(ClientOpts, false);
-    if (!ToServer)
+    std::string FailureReason;
+    std::optional<client::Client> ToServer =
+      client::connect(ClientOpts, false, &FailureReason);
+    if (!ToServer && false)
     {
       // TODO: Work out how this would work with signals and the TTY of the
       // client.
@@ -246,7 +240,14 @@ int main(int ArgC, char* ArgV[])
           server::exec(ServerOpts, ArgV[0]);
         });
 
-      ToServer = client::connect(ClientOpts, true);
+      ToServer = client::connect(ClientOpts, true, &FailureReason);
+    }
+
+    if (!ToServer)
+    {
+      std::cerr << "ERROR: Connecting to the MonoMux server failed:\n\t"
+                << FailureReason << std::endl;
+      return EXIT_SystemError;
     }
 
     ClientOpts.Connection = std::move(ToServer);

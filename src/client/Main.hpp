@@ -67,7 +67,10 @@ struct Options
 ///
 /// \param Block Whether to continue retrying the connection and block until
 /// success.
-std::optional<Client> connect(Options& Opts, bool Block);
+/// \param FailureReason If given, after an unsuccessful connection, a
+/// human-readable reason for the failure will be written to.
+std::optional<Client>
+connect(Options& Opts, bool Block, std::string* FailureReason);
 
 /// Executes the Monomux Client logic.
 ///

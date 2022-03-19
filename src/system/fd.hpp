@@ -83,6 +83,10 @@ private:
   raw_fd Handle;
 
 public:
+  /// \returns the number of file descriptors that the current process may have
+  /// open, as set by \p ulimit.
+  static std::size_t maxNumFDs();
+
   /// Returns the file descriptor for the standard C I/O object.
   static raw_fd fileno(std::FILE* File);
 

@@ -61,7 +61,12 @@ public:
   using HandlerFunction = void(std::string_view RawMessage);
 
   /// Creates a new connection client to the server at the specified socket.
-  static std::optional<Client> create(std::string SocketPath);
+  ///
+  /// \param RejectReason If specified, and the server gracefully rejected the
+  /// connection, the reason for the rejection (as reported by the server) will
+  /// be written to.
+  static std::optional<Client> create(std::string SocketPath,
+                                      std::string* RejectReason);
 
   /// Initialise a \p Client over the already established \p ControlSocket.
   Client(Socket&& ControlSocket);
@@ -105,8 +110,11 @@ public:
   /// both control and data communication with the server, but does not start
   /// the handling logic (see \p loop()).
   ///
+  /// \param FailureReason If set and the handshake procedure fails, a
+  /// human-readable reason for it will be written.
+  ///
   /// \return Whether the handshake process succeeded.
-  bool handshake();
+  bool handshake(std::string* FailureReason);
 
   /// Starts the main loop of the client, taking control of the terminal and
   /// actually communicating data with the server.

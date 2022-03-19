@@ -44,6 +44,30 @@ template <typename Msg> static Msg codec(const Msg& M)
   return *Decode;
 }
 
+TEST(ControlMessageSerialisation, ConnectionResponse)
+{
+  monomux::message::response::Connection Obj;
+  Obj.Accepted = true;
+  EXPECT_EQ(encode(Obj), "<CONNECTION><TRUE /></CONNECTION>");
+  EXPECT_EQ(codec(Obj).Accepted, true);
+
+  Obj.Accepted = false;
+  EXPECT_EQ(encode(Obj),
+            "<CONNECTION><FALSE /><REASON> </REASON></CONNECTION>");
+  EXPECT_EQ(codec(Obj).Accepted, false);
+  EXPECT_EQ(codec(Obj).Reason, "");
+
+  Obj.Reason = "Bad intent";
+  EXPECT_EQ(encode(Obj),
+            "<CONNECTION><FALSE /><REASON>Bad intent </REASON></CONNECTION>");
+  EXPECT_EQ(codec(Obj).Accepted, false);
+  EXPECT_EQ(codec(Obj).Reason, "Bad intent");
+
+  Obj.Accepted = true;
+  EXPECT_EQ(encode(Obj), "<CONNECTION><TRUE /></CONNECTION>");
+  EXPECT_EQ(codec(Obj).Accepted, true);
+}
+
 TEST(ControlMessageSerialisation, ClientIDRequest)
 {
   EXPECT_EQ(encode(monomux::message::request::ClientID{}), "<CLIENT-ID />");

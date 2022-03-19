@@ -155,6 +155,15 @@ struct Attach
 namespace response
 {
 
+/// A status message sent by the server to the client during connection
+/// establishment.
+struct Connection
+{
+  MONOMUX_MESSAGE(ConnectionResponse, Connection);
+  monomux::message::Boolean Accepted;
+  std::string Reason;
+};
+
 /// The response to the \p request::ClientID, sent by the server.
 struct ClientID
 {

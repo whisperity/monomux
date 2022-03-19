@@ -214,10 +214,28 @@ void Server::acceptCallback(ClientData& Client)
   std::cout << "Client connected as " << Client.id() << std::endl;
 
   raw_fd FD = Client.getControlSocket().raw();
+
+  // (8 is a good guesstimate because FDLookup usually counts from 5 or 6, not
+  // from 0.)
+  static constexpr std::size_t FDKeepSpare = 8;
+  if (FDLookup.size() >= fd::maxNumFDs() - FDKeepSpare)
+  {
+    // As a full client connection would require *TWO* file descriptors (control
+    // and data socket) and we would need to keep 1 open so we can always
+    // accept() a connection, reject the client if there aren't any space left.
+    std::cerr << "TRACE: Client connected, but there are less than "
+                 "satisfactory free file descriptors left. Rejecting..."
+              << std::endl;
+    sendRejectClient(Client, "Not enough file descriptors left on server.");
+    removeClient(Client);
+    return;
+  }
+
   fd::setNonBlockingCloseOnExec(FD);
   Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
-
   FDLookup[FD] = ClientControlConnection{&Client};
+
+  sendAcceptClient(Client);
 }
 
 void Server::controlCallback(ClientData& Client)

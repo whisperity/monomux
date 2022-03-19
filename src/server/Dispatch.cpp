@@ -43,6 +43,17 @@ void Server::setUpDispatch()
 #undef KIND
 }
 
+void Server::sendAcceptClient(ClientData& Client)
+{
+  sendMessage(Client.getControlSocket(), response::Connection{{true}, {}});
+}
+
+void Server::sendRejectClient(ClientData& Client, std::string Reason)
+{
+  sendMessage(Client.getControlSocket(),
+              response::Connection{{false}, std::move(Reason)});
+}
+
 #define HANDLER(NAME)                                                          \
   void Server::NAME(ClientData& Client, std::string_view Message)
 

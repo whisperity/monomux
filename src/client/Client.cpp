@@ -30,17 +30,31 @@ namespace monomux
 namespace client
 {
 
-std::optional<Client> Client::create(std::string SocketPath)
+std::optional<Client> Client::create(std::string SocketPath,
+                                     std::string* RejectReason)
 {
+  using namespace monomux::message;
+
   try
   {
-    Client Conn{Socket::connect(SocketPath)};
+    Socket S = Socket::connect(std::move(SocketPath));
+    std::optional<response::Connection> ConnStatus =
+      receiveMessage<response::Connection>(S);
+    if (!ConnStatus)
+      return std::nullopt;
+    if (!ConnStatus->Accepted)
+    {
+      if (RejectReason)
+        *RejectReason = std::move(ConnStatus->Reason);
+      return std::nullopt;
+    }
+
+    Client Conn{std::move(S)};
     return Conn;
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "When creating ServerConnection with '" << SocketPath
-              << "': " << Err.what() << std::endl;
+    throw;
   }
   return std::nullopt;
 }
@@ -77,7 +91,7 @@ void Client::setDataSocket(Socket&& DataSocket)
       this->DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
 }
 
-bool Client::handshake()
+bool Client::handshake(std::string* FailureReason)
 {
   using namespace monomux::message;
 
@@ -90,19 +104,17 @@ bool Client::handshake()
     Message MB = Message::unpack(Data);
     if (MB.Kind != MessageKind::ClientIDResponse)
     {
-      std::cerr
-        << "ERROR: Invalid response from Server when trying to establish "
-           "connection."
-        << std::endl;
+      if (FailureReason)
+        *FailureReason = "ERROR: Invalid response from Server when trying to "
+                         "establish connection.";
       return false;
     }
     responseClientID(MB.RawData);
     if (ClientID == static_cast<std::size_t>(-1) && !Nonce.has_value())
     {
-      std::cerr
-        << "ERROR: Invalid response from Server when trying to establish "
-           "connection."
-        << std::endl;
+      if (FailureReason)
+        *FailureReason = "ERROR: Invalid response from Server when trying to "
+                         "establish connection.";
       return false;
     }
   }
@@ -111,6 +123,24 @@ bool Client::handshake()
   // connection to the same location, but for the data socket.
   auto DS =
     std::make_unique<Socket>(Socket::connect(ControlSocket.identifier()));
+  {
+    // See if the server successfully accepted the second connection.
+    std::optional<response::Connection> ConnStatus =
+      receiveMessage<response::Connection>(*DS);
+    if (!ConnStatus)
+    {
+      if (FailureReason)
+        *FailureReason = "ERROR: Invalid response from Server when trying to "
+                         "establish Data connection.";
+      return false;
+    }
+    if (!ConnStatus->Accepted)
+    {
+      if (FailureReason)
+        *FailureReason = std::move(ConnStatus->Reason);
+      return false;
+    }
+  }
   // (At this point, the server believes a brand new client has connected, and
   // is awaiting that client's handshake request. Instead, use our identity to
   // tell the server that this connection is in fact the same client, but it's
@@ -125,22 +155,44 @@ bool Client::handshake()
       receiveMessage<response::DataSocket>(*DS);
     if (!Response.has_value())
     {
-      std::cerr << "ERROR: Invalid response from Server when trying to "
-                   "establish Data connection."
-                << std::endl;
+      if (FailureReason)
+        *FailureReason = "ERROR: Invalid response from Server when trying to "
+                         "establish Data connection.";
       return false;
     }
     if (!Response->Success)
     {
-      std::cerr << "ERROR: Server rejected establishment of Data connection..."
-                << std::endl;
+      if (FailureReason)
+        *FailureReason =
+          "ERROR: Server rejected establishment of Data connection...";
       return false;
     }
+  }
+  DataSocket = std::move(DS);
 
-    DataSocket = std::move(DS);
+  // After a successful data connection establishment, the Nonce value was
+  // consumed, so we need to request a new one.
+  {
+    sendMessage(ControlSocket, request::ClientID{});
 
-    // TODO: Request a new nonce here and store it, as the original one got
-    // consumed.
+    // We decode the response message to be able to fire the handler manually.
+    std::string Data = readPascalString(ControlSocket);
+    Message MB = Message::unpack(Data);
+    if (MB.Kind != MessageKind::ClientIDResponse)
+    {
+      if (FailureReason)
+        *FailureReason = "ERROR: Invalid response from Server when trying to "
+                         "sign off connection.";
+      return false;
+    }
+    responseClientID(MB.RawData);
+    if (ClientID == static_cast<std::size_t>(-1) && !Nonce.has_value())
+    {
+      if (FailureReason)
+        *FailureReason = "ERROR: Invalid response from Server when trying to "
+                         "sign off connection.";
+      return false;
+    }
   }
 
   setupPoll();
