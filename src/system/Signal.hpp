@@ -143,6 +143,10 @@ public:
   /// restored.
   void disable();
 
+  /// Reset the signal handling configuration for the current process to its
+  /// default state.
+  void reset();
+
   /// Sets \p SigNum to be ignored. Signals of this kind will not trigger a
   /// handling if received.
   ///
@@ -154,6 +158,9 @@ public:
   /// Otherwise, the default signal handling behaviour (as if by calling
   /// \p disable()) will be restored.
   void unignore(Signal SigNum);
+
+  /// Removes all signals from the ignore list.
+  void unignore();
 
   /// Registers a callback to fire when \p SigNum is received.
   /// The callback is added at the \b end of the signal queue.
@@ -171,6 +178,9 @@ public:
 
   /// Delete the object registered as \p Name, if it is registered.
   void deleteObject(const std::string& Name) noexcept;
+
+  /// Delete all objects that are registered.
+  void deleteObjects() noexcept;
 
   /// Retrieves the object registered with \p Name, if exists.
   ///

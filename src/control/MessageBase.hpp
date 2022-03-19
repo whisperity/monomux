@@ -79,6 +79,12 @@ enum class MessageKind : std::uint16_t
   /// A reponse to the \p MakeSessionRequest containing the results of the new
   /// session.
   MakeSessionResponse = 0x0104,
+
+  /// A request to the server to have the sending client attached to a session.
+  AttachRequest = 0x0105,
+  /// A response to the \p AttachRequest containing whether the attaching
+  /// succeeded.
+  AttachResponse = 0x0106,
 };
 
 /// Helper class that contains the parsed \p MessageKind of a \p Message, and

@@ -36,7 +36,7 @@ Socket::Socket(fd Handle, std::string Identifier, bool NeedsCleanup)
 
 Socket Socket::create(std::string Path, bool InheritInChild)
 {
-  flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
+  fd::flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
     [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
     "socket()",
@@ -65,7 +65,7 @@ Socket Socket::create(std::string Path, bool InheritInChild)
 
 Socket Socket::connect(std::string Path, bool InheritInChild)
 {
-  flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
+  fd::flag_t ExtraFlags = InheritInChild ? 0 : SOCK_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
     [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
     "socket()",
@@ -239,6 +239,7 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
 
     std::cerr << "Socket " << Handle.get() << " - read error." << std::endl;
     Continue = false;
+    setFailed();
     throw std::system_error{std::make_error_code(EC)};
   }
 
@@ -271,6 +272,7 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
     }
 
     std::cerr << "Socket " << Handle.get() << " - write error." << std::endl;
+    setFailed();
     Continue = false;
     throw std::system_error{std::make_error_code(EC)};
   }
@@ -279,6 +281,7 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
   if (SentBytes.get() == 0)
   {
     std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;
+    setFailed();
     Continue = false;
   }
 

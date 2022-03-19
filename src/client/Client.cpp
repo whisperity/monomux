@@ -50,6 +50,12 @@ Client::Client(Socket&& ControlSock) : ControlSocket(std::move(ControlSock))
   setUpDispatch();
 }
 
+void Client::registerMessageHandler(std::uint16_t Kind,
+                                    std::function<HandlerFunction> Handler)
+{
+  Dispatch[Kind] = std::move(Handler);
+}
+
 void Client::setTerminal(Terminal&& T)
 {
   if (Term)
@@ -153,7 +159,10 @@ void Client::loop()
     throw std::system_error{std::make_error_code(std::errc::not_connected),
                             "Client event handler not set up."};
 
-  while (TerminateLoop.get().load() == false)
+  enableControlResponsePoll();
+  enableDataSocket();
+
+  while (!TerminateLoop.get().load())
   {
     const std::size_t NumTriggeredFDs = Poll->wait();
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
@@ -172,6 +181,8 @@ void Client::loop()
       {
         POD<char[512]> Buf;
         unsigned long Size = ::read(Term->input(), &Buf, sizeof(Buf));
+        if (!DataSocketEnabled)
+          continue;
         sendData(std::string_view{&Buf[0], Size});
         continue;
       }
@@ -193,10 +204,22 @@ void Client::setupPoll()
     Poll = std::make_unique<EPoll>(EventQueue);
   else
     Poll->clear();
+}
 
-  enableControlResponsePoll();
-  if (DataSocket)
-    Poll->listen(DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
+void Client::enableDataSocket()
+{
+  if (!Poll || !DataSocket)
+    return;
+  Poll->listen(DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
+  DataSocketEnabled = true;
+}
+
+void Client::disableDataSocket()
+{
+  if (!Poll || !DataSocket)
+    return;
+  Poll->stop(DataSocket->raw());
+  DataSocketEnabled = false;
 }
 
 void Client::enableControlResponsePoll()
@@ -263,7 +286,8 @@ std::optional<std::vector<SessionData>> Client::requestSessionList()
   return R;
 }
 
-bool Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
+std::optional<std::string>
+Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
 {
   using namespace monomux::message;
   auto X = scopedInhibitControlResponsePoll();
@@ -282,8 +306,31 @@ bool Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
   }
   sendMessage(ControlSocket, Msg);
 
-  // TODO: Wait for a response!
-  return true;
+  std::optional<response::MakeSession> Resp =
+    receiveMessage<response::MakeSession>(ControlSocket);
+  if (!Resp || !Resp->Success)
+    return std::nullopt;
+
+  return std::move(Resp->Name);
+}
+
+bool Client::requestAttach(std::string SessionName)
+{
+  using namespace monomux::message;
+  auto X = scopedInhibitControlResponsePoll();
+
+  request::Attach Msg;
+  Msg.Name = std::move(SessionName);
+  sendMessage(ControlSocket, Msg);
+
+  std::optional<response::Attach> Resp =
+    receiveMessage<response::Attach>(ControlSocket);
+  if (!Resp)
+    Attached = false;
+  else
+    Attached = Resp->Success;
+
+  return Attached;
 }
 
 void Client::sendData(std::string_view Data)

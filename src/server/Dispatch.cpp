@@ -37,7 +37,7 @@ void Server::setUpDispatch()
             this,                                                              \
             std::placeholders::_1,                                             \
             std::placeholders::_2)
-#define DISPATCH(K, FUNCTION) Dispatch.try_emplace(KIND(K), MEMBER(FUNCTION));
+#define DISPATCH(K, FUNCTION) registerMessageHandler(KIND(K), MEMBER(FUNCTION));
 #include "Dispatch.ipp"
 #undef MEMBER
 #undef KIND
@@ -125,11 +125,15 @@ HANDLER(requestMakeSession)
   (void)Client;
   MSG(request::MakeSession);
 
+  monomux::message::response::MakeSession Resp;
+  Resp.Name = Msg->Name;
+  Resp.Success = false;
+
   if (!Msg->Name.empty() && getSession(Msg->Name))
   {
     std::clog << "INFO: Spawning session of name '" << Msg->Name
               << "' failed: Already exists." << std::endl;
-    // TODO: Respond!
+    sendMessage(Client.getControlSocket(), Resp);
     return;
   }
   if (Msg->Name.empty())
@@ -142,7 +146,7 @@ HANDLER(requestMakeSession)
   }
 
   std::clog << "DEBUG: Creating session '" << Msg->Name << "'..." << std::endl;
-  std::string NameCopy = Msg->Name;
+  Resp.Name = Msg->Name;
   auto S = std::make_unique<SessionData>(std::move(Msg->Name));
 
   Process::SpawnOptions SOpts;
@@ -156,13 +160,33 @@ HANDLER(requestMakeSession)
   for (std::string& UnsetEnvVar : Msg->SpawnOpts.UnsetEnvironment)
     SOpts.Environment.try_emplace(std::move(UnsetEnvVar), std::nullopt);
 
+  // TODO: How to detect process creation failing?
   Process P = Process::spawn(SOpts);
   S->setProcess(std::move(P));
 
-  auto InsertResult = Sessions.try_emplace(std::move(NameCopy), std::move(S));
+  auto InsertResult = Sessions.try_emplace(Resp.Name, std::move(S));
   createCallback(*InsertResult.first->second);
 
-  // TODO: Response?
+  Resp.Success = true;
+  sendMessage(Client.getControlSocket(), Resp);
+}
+
+HANDLER(requestAttach)
+{
+  MSG(request::Attach);
+  monomux::message::response::Attach Resp;
+  Resp.Success = false;
+
+  SessionData* S = getSession(Msg->Name);
+  if (!S)
+  {
+    sendMessage(Client.getControlSocket(), Resp);
+    return;
+  }
+
+  clientAttachedCallback(Client, *S);
+  Resp.Success = true;
+  sendMessage(Client.getControlSocket(), Resp);
 }
 
 #undef HANDLER

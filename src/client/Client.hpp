@@ -21,6 +21,7 @@
 #include "Terminal.hpp"
 
 #include "adt/MovableAtomic.hpp"
+#include "adt/unique_scalar.hpp"
 #include "system/EPoll.hpp"
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
@@ -45,14 +46,30 @@ namespace client
 /// In networking terminology, this is effectively a client, but we reserve
 /// that word for the "Monomux Client" which deals with attaching to a
 /// process.
+///
+/// \note Some functionality of the client instance (e.g. sending signals over
+/// to the attached session) requires proper signal handling, which the
+/// \p Client does \b NOT implement internally! It is up to the program
+/// embedding the client to construct and set up appropriate handlers!
 class Client
 {
 public:
+  /// The type of message handler functions.
+  ///
+  /// \param RawMessage A view into the buffer of the message, before any
+  /// structural parsing had been applied.
+  using HandlerFunction = void(std::string_view RawMessage);
+
   /// Creates a new connection client to the server at the specified socket.
   static std::optional<Client> create(std::string SocketPath);
 
   /// Initialise a \p Client over the already established \p ControlSocket.
   Client(Socket&& ControlSocket);
+
+  /// Override the default handling logic for the specified message \p Kind to
+  /// fire the user-given \p Handler \b instead \b of the built-in default.
+  void registerMessageHandler(std::uint16_t Kind,
+                              std::function<HandlerFunction> Handler);
 
   Socket& getControlSocket() noexcept { return ControlSocket; }
   const Socket& getControlSocket() const noexcept { return ControlSocket; }
@@ -84,11 +101,15 @@ public:
 
   /// Perform a handshake mechanism over the control socket.
   ///
+  /// A successful handshake initialises the client to be fully \e capable of
+  /// both control and data communication with the server, but does not start
+  /// the handling logic (see \p loop()).
+  ///
   /// \return Whether the handshake process succeeded.
   bool handshake();
 
   /// Starts the main loop of the client, taking control of the terminal and
-  /// communicating with the server.
+  /// actually communicating data with the server.
   void loop();
 
   /// Sends a request to the connected server to tell what sessions are running
@@ -105,9 +126,22 @@ public:
   /// and the server may overrule the request.
   /// \param Opts Details of the process to spawn on the server's end.
   ///
-  /// \returns Whether the creation of the session was successful, as reported
-  /// by the server.
-  bool requestMakeSession(std::string Name, Process::SpawnOptions Opts);
+  /// \returns The actual name of the created session, if creation was
+  /// successful.
+  std::optional<std::string> requestMakeSession(std::string Name,
+                                                Process::SpawnOptions Opts);
+
+  /// Sends a request to the server to attach the client to the session
+  /// identified by \p SessionName.
+  ///
+  /// \return whether the attachment succeeded.
+  bool requestAttach(std::string SessionName);
+
+  /// \returns whether the client successfully attached to a session on the
+  /// server.
+  ///
+  /// \see requestAttach()
+  bool attached() const noexcept { return Attached; }
 
   /// Sends \p Data to the server over the \e data connection.
   void sendData(std::string_view Data);
@@ -121,12 +155,27 @@ private:
   /// (This is initialised in a lazy fashion during operation.)
   std::unique_ptr<Socket> DataSocket;
 
+  /// Whether continuous \e handling of data on the \p DataSocket (if connected)
+  /// via \p Poll is enabled.
+  unique_scalar<bool, false> DataSocketEnabled;
+
+  /// Whether the client successfully attached to a session on the server.
+  unique_scalar<bool, false> Attached;
+
   /// The terminal the \p Client is attached to, if any.
   std::optional<Terminal> Term;
 
   MovableAtomic<bool> TerminateLoop = false;
   std::unique_ptr<EPoll> Poll;
+  /// Initialises (or resets) the \p Poll event polling low-level structures.
   void setupPoll();
+  /// If channel polling is initialised, adds \p DataSocket to the list of
+  /// channels to poll and handle incoming data.
+  void enableDataSocket();
+  /// If channel polling is initialised, removes \p DataSocket from the list of
+  /// channels to poll. When disabled, data sent by the server is left
+  /// unhandled.
+  void disableDataSocket();
   /// If channel polling is initialised, adds \p ControlSocket to the list of
   /// channels to poll and handle incoming messages.
   void enableControlResponsePoll();
@@ -159,9 +208,8 @@ private:
   /// Return the stored \p Nonce of the current instance, resetting it.
   std::size_t consumeNonce() noexcept;
 
-private:
   /// Maps \p MessageKind to handler functions.
-  std::map<std::uint16_t, std::function<void(std::string_view)>> Dispatch;
+  std::map<std::uint16_t, std::function<HandlerFunction>> Dispatch;
 
   void setUpDispatch();
 

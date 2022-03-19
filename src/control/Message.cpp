@@ -21,6 +21,7 @@
 #include "system/unreachable.hpp"
 
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <tuple>
 
@@ -114,8 +115,16 @@ Message Message::unpack(std::string_view Str) noexcept
 
 std::string readPascalString(CommunicationChannel& Channel)
 {
+  static constexpr std::size_t MaxMeaningfulMessageSize = 1 << 14;
+
   std::string SizeStr = Channel.read(sizeof(std::size_t));
   std::size_t Size = Message::binaryStringToSize(SizeStr);
+  if (Size > MaxMeaningfulMessageSize)
+  {
+    std::clog << "NEARMISS: When reading PascalString, got a size prefix of "
+              << Size << ", which is bollocks. Ignoring!" << std::endl;
+    return {};
+  }
   std::string DataStr = Channel.read(Size);
   return DataStr;
 }
@@ -388,6 +397,19 @@ DECODE_BASE(SessionData)
   return Ret;
 }
 
+ENCODE_BASE(Boolean) { return Object.Value ? "<TRUE />" : "<FALSE />"; }
+DECODE_BASE(Boolean)
+{
+  Boolean Ret;
+  HEADER_OR_NONE("<");
+
+  PEEK_AND_CONSUME("TRUE") { Ret.Value = true; }
+  PEEK_AND_CONSUME("FALSE") { Ret.Value = false; }
+
+  BASE_FOOTER_OR_NONE(" />");
+  return Ret;
+}
+
 #undef BASE_FOOTER_OR_NONE
 #define FOOTER_OR_NONE(LITERAL)                                                \
   if (View != (LITERAL))                                                       \
@@ -477,6 +499,27 @@ DECODE(MakeSession)
   return Ret;
 }
 
+ENCODE(Attach)
+{
+  std::ostringstream Buf;
+  Buf << "<ATTACH>";
+  Buf << "<NAME>" << Object.Name << "</NAME>";
+  Buf << "</ATTACH>";
+  return Buf.str();
+}
+DECODE(Attach)
+{
+  Attach Ret;
+  HEADER_OR_NONE("<ATTACH>");
+
+  CONSUME_OR_NONE("<NAME>");
+  EXTRACT_OR_NONE(Name, "</NAME>");
+  Ret.Name = Name;
+
+  FOOTER_OR_NONE("</ATTACH>");
+  return Ret;
+}
+
 } // namespace request
 
 namespace response
@@ -508,7 +551,7 @@ ENCODE(DataSocket)
 {
   std::ostringstream Ret;
   Ret << "<DATASOCKET>";
-  Ret << (Object.Success ? "<ACCEPT />" : "<DENY />");
+  Ret << monomux::message::Boolean::encode(Object.Success);
   Ret << "</DATASOCKET>";
 
   using namespace std::string_literals;
@@ -521,14 +564,12 @@ DECODE(DataSocket)
   DataSocket Ret;
   HEADER_OR_NONE("<DATASOCKET>");
 
-  EXTRACT_OR_NONE(Contents, "</DATASOCKET>");
-  if (Contents == "<ACCEPT />")
-    Ret.Success = true;
-  else if (Contents == "<DENY />")
-    Ret.Success = false;
-  else
+  auto Success = monomux::message::Boolean::decode(View);
+  if (!Success)
     return std::nullopt;
+  Ret.Success = *Success;
 
+  CONSUME_OR_NONE("</DATASOCKET>");
   // Do not use FOOTER_OR_NONE! We ignore the "radio silence" message. :)
   return Ret;
 }
@@ -564,14 +605,54 @@ DECODE(SessionList)
   return Ret;
 }
 
-// ENCODE(MakeSession)
-// {
-//
-// }
-// DECODE(MakeSession)
-// {
-//
-// }
+ENCODE(MakeSession)
+{
+  std::ostringstream Buf;
+  Buf << "<MAKE-SESSION>";
+  Buf << monomux::message::Boolean::encode(Object.Success);
+  Buf << "<NAME>" << Object.Name << "</NAME>";
+  Buf << "</MAKE-SESSION>";
+  return Buf.str();
+}
+DECODE(MakeSession)
+{
+  MakeSession Ret;
+  HEADER_OR_NONE("<MAKE-SESSION>");
+
+  auto Success = monomux::message::Boolean::decode(View);
+  if (!Success)
+    return std::nullopt;
+  Ret.Success = *Success;
+
+  CONSUME_OR_NONE("<NAME>");
+  EXTRACT_OR_NONE(Name, "</NAME>");
+  Ret.Name = Name;
+
+  FOOTER_OR_NONE("</MAKE-SESSION>");
+  return Ret;
+}
+
+ENCODE(Attach)
+{
+  std::ostringstream Buf;
+  Buf << "<ATTACH>";
+  Buf << monomux::message::Boolean::encode(Object.Success);
+  Buf << "</ATTACH>";
+  return Buf.str();
+}
+DECODE(Attach)
+{
+  Attach Ret;
+  HEADER_OR_NONE("<ATTACH>");
+
+  auto Success = monomux::message::Boolean::decode(View);
+  if (!Success)
+    return std::nullopt;
+  Ret.Success = *Success;
+
+  FOOTER_OR_NONE("</ATTACH>");
+  return Ret;
+}
 
 } // namespace response
 

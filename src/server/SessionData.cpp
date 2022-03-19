@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "SessionData.hpp"
+#include "system/Pipe.hpp"
 
 #include <iostream>
 
@@ -32,6 +33,22 @@ void SessionData::setProcess(Process&& Process) noexcept
   MainProcess.emplace(std::move(Process));
 }
 
+std::string SessionData::readOutput(std::size_t Size)
+{
+  if (!hasProcess() || !getProcess().hasPty())
+    return {};
+  bool Success;
+  std::string Data = Pipe::read(getProcess().getPty()->raw(), Size, &Success);
+  return Success ? Data : "";
+}
+
+std::size_t SessionData::sendInput(std::string_view Data)
+{
+  if (!hasProcess() || !getProcess().hasPty())
+    return 0;
+  return Pipe::write(getProcess().getPty()->raw(), Data);
+}
+
 void SessionData::attachClient(ClientData& Client)
 {
   AttachedClients.emplace_back(&Client);
@@ -40,13 +57,11 @@ void SessionData::attachClient(ClientData& Client)
 void SessionData::removeClient(ClientData& Client) noexcept
 {
   for (auto It = AttachedClients.begin(); It != AttachedClients.end(); ++It)
-  {
     if (*It == &Client)
     {
       It = AttachedClients.erase(It);
       break;
     }
-  }
 }
 
 } // namespace server

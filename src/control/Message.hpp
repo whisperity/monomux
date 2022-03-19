@@ -80,6 +80,21 @@ struct SessionData
   std::time_t Created;
 };
 
+/// A base class for responding boolean values consistently.
+struct Boolean
+{
+  MONOMUX_MESSAGE_BASE(Boolean);
+
+  operator bool() const { return Value; }
+  Boolean& operator=(bool V)
+  {
+    Value = V;
+    return *this;
+  }
+
+  bool Value;
+};
+
 namespace request
 {
 
@@ -126,6 +141,15 @@ struct MakeSession
   ProcessSpawnOptions SpawnOpts;
 };
 
+/// A request from the client to the server to attach the client to the
+/// specified session.
+struct Attach
+{
+  MONOMUX_MESSAGE(AttachRequest, Attach);
+  /// The name of the session to attach to.
+  std::string Name;
+};
+
 } // namespace request
 
 namespace response
@@ -146,7 +170,7 @@ struct ClientID
 struct DataSocket
 {
   MONOMUX_MESSAGE(DataSocketResponse, DataSocket);
-  bool Success;
+  monomux::message::Boolean Success;
 };
 
 /// The response to the \p request::SessionList, sent by the server.
@@ -160,6 +184,17 @@ struct SessionList
 struct MakeSession
 {
   MONOMUX_MESSAGE(MakeSessionResponse, MakeSession);
+  monomux::message::Boolean Success;
+
+  /// The name of the created session. This \b MAY \b NOT be the same as the
+  /// \e requested \p Name.
+  std::string Name;
+};
+
+struct Attach
+{
+  MONOMUX_MESSAGE(AttachResponse, Attach);
+  monomux::message::Boolean Success;
 };
 
 } // namespace response

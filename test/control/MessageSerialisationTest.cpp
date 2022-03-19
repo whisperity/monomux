@@ -82,7 +82,7 @@ TEST(ControlMessageSerialisation, DataSocketRespons)
   {
     monomux::message::response::DataSocket Obj;
     Obj.Success = true;
-    EXPECT_TRUE(encode(Obj).find("<DATASOCKET><ACCEPT /></DATASOCKET>") == 0);
+    EXPECT_TRUE(encode(Obj).find("<DATASOCKET><TRUE /></DATASOCKET>") == 0);
 
     auto Decode = codec(Obj);
     EXPECT_EQ(Obj.Success, Decode.Success);
@@ -91,7 +91,7 @@ TEST(ControlMessageSerialisation, DataSocketRespons)
   {
     monomux::message::response::DataSocket Obj;
     Obj.Success = false;
-    EXPECT_TRUE(encode(Obj).find("<DATASOCKET><DENY /></DATASOCKET>") == 0);
+    EXPECT_TRUE(encode(Obj).find("<DATASOCKET><FALSE /></DATASOCKET>") == 0);
 
     auto Decode2 = codec(Obj);
     EXPECT_EQ(Obj.Success, Decode2.Success);
@@ -179,5 +179,74 @@ TEST(ControlMessageSerialisation, MakeSessionRequest)
     EXPECT_EQ(Decode.SpawnOpts.SetEnvironment.at(0).second, "8");
     EXPECT_EQ(Decode.SpawnOpts.UnsetEnvironment.size(), 1);
     EXPECT_EQ(Decode.SpawnOpts.UnsetEnvironment.at(0), "TERM");
+  }
+}
+
+TEST(ControlMessageSerialisation, MakeSessionResponse)
+{
+  monomux::message::response::MakeSession Obj;
+  Obj.Name = "Foo";
+  Obj.Success = false;
+
+  EXPECT_EQ(encode(Obj),
+            "<MAKE-SESSION><FALSE /><NAME>Foo</NAME></MAKE-SESSION>");
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_FALSE(Decode.Success);
+    EXPECT_EQ(Decode.Name, "Foo");
+  }
+
+  Obj.Name = "Bar";
+  Obj.Success = true;
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_TRUE(Decode.Success);
+    EXPECT_EQ(Decode.Name, "Bar");
+  }
+}
+
+TEST(ControlMessageSerialisation, AttachRequest)
+{
+  monomux::message::request::Attach Obj;
+  Obj.Name = "Foo";
+
+  EXPECT_EQ(encode(Obj), "<ATTACH><NAME>Foo</NAME></ATTACH>");
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(Decode.Name, "Foo");
+  }
+
+  Obj.Name = "Bar";
+
+  EXPECT_EQ(encode(Obj), "<ATTACH><NAME>Bar</NAME></ATTACH>");
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(Decode.Name, "Bar");
+  }
+}
+
+TEST(ControlMessageSerialisation, AttachResponse)
+{
+  monomux::message::response::Attach Obj;
+  Obj.Success = false;
+
+  EXPECT_EQ(encode(Obj), "<ATTACH><FALSE /></ATTACH>");
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_FALSE(Decode.Success);
+  }
+
+  Obj.Success = true;
+
+  EXPECT_EQ(encode(Obj), "<ATTACH><TRUE /></ATTACH>");
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_TRUE(Decode.Success);
   }
 }

@@ -41,7 +41,7 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
   CheckedPOSIXThrow(
     [&Path] { return ::mkfifo(Path.c_str(), UserACL); }, "mkfifo()", -1);
 
-  flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
+  fd::flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
     [&Path, ExtraFlags] { return ::open(Path.c_str(), O_WRONLY | ExtraFlags); },
     "open('" + Path + "')",
@@ -55,7 +55,7 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
 
 Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
 {
-  flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
+  fd::flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
   fd Handle = CheckedPOSIXThrow(
     [&Path, OpenMode, ExtraFlags] {
       return ::open(Path.c_str(), OpenMode | ExtraFlags);

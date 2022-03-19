@@ -20,6 +20,7 @@
 
 #include "CheckedPOSIX.hpp"
 #include "Pty.hpp"
+#include "Signal.hpp"
 #include "unreachable.hpp"
 
 #include <cstring>
@@ -87,7 +88,7 @@ Process Process::spawn(const SpawnOptions& Opts)
   if (Opts.CreatePTY)
     PTY.emplace(Pty{});
 
-  handle ForkResult =
+  raw_handle ForkResult =
     CheckedPOSIXThrow([] { return ::fork(); }, "fork() failed in spawn()", -1);
   if (ForkResult != 0)
   {
@@ -105,6 +106,7 @@ Process Process::spawn(const SpawnOptions& Opts)
   }
 
   // We are in the child.
+  SignalHandling::get().reset();
   CheckedPOSIXThrow([] { return ::setsid(); }, "setsid()", -1);
   if (PTY)
     PTY->setupChildrenSide();
@@ -115,7 +117,7 @@ Process Process::spawn(const SpawnOptions& Opts)
 
 bool Process::reapIfDead()
 {
-  if (Handle == InvalidPID)
+  if (Handle == Invalid)
     return true;
 
   auto ChangedPID =

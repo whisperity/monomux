@@ -50,13 +50,36 @@ namespace server
 /// an "official" Monomux Client. However, the callbacks are exposed to users
 /// who might want to embed Monomux as a library and self-setup some
 /// connections.
+///
+/// The server exposes several \e callback functions which can be used to
+/// manipulate the internal data structures appropriately.
+/// Handling of incoming messages can be overridden by installing one's own
+/// dispatch routines.
+///
+/// \note Some functionality of the server process (e.g. spawning and reaping
+/// subprocesses) requires proper signal handling, which the \p Server does
+/// \b NOT implement internally! It is up to the program embedding the server to
+/// construct and set up appropriate handlers!
 class Server
 {
 public:
+  /// The type of message handler functions.
+  ///
+  /// \param Client The server-side client data structure for the entity that
+  /// sent the message.
+  /// \param RawMessage A view into the buffer of the message, before any
+  /// structural parsing had been applied.
+  using HandlerFunction = void(ClientData& Client, std::string_view RawMessage);
+
   /// Create a new server that will listen on the associated socket.
   Server(Socket&& Sock);
 
   ~Server();
+
+  /// Override the default handling logic for the specified message \p Kind to
+  /// fire the user-given \p Handler \b instead \b of the built-in default.
+  void registerMessageHandler(std::uint16_t Kind,
+                              std::function<HandlerFunction> Handler);
 
   /// Start actively listening and handling connections.
   ///
@@ -89,7 +112,7 @@ private:
 
   Socket Sock;
 
-  static constexpr std::size_t FDLookupSize = 256;
+  static constexpr std::size_t FDLookupSize = 128;
   /// A quick lookup that associates a file descriptor to the data for the
   /// entity behind the file descriptor.
   SmallIndexMap<LookupVariant,
@@ -112,7 +135,7 @@ private:
 
   static constexpr std::size_t DeadChildrenVecSize = 8;
   /// A list of process handles that were signalle
-  mutable std::array<Process::handle, DeadChildrenVecSize> DeadChildren;
+  mutable std::array<Process::raw_handle, DeadChildrenVecSize> DeadChildren;
 
   mutable std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
   std::unique_ptr<EPoll> Poll;
@@ -157,7 +180,7 @@ public:
   /// had died. This function is meaningful to be called from a signal handler.
   /// The server's \p loop() will take care of destroying the session in its
   /// normal iteration.
-  void registerDeadChild(Process::handle PID) const noexcept;
+  void registerDeadChild(Process::raw_handle PID) const noexcept;
 
   /// The callback function that is fired when a new \p Client connected.
   void acceptCallback(ClientData& Client);
@@ -194,8 +217,7 @@ public:
 
 private:
   /// Maps \p MessageKind to handler functions.
-  std::map<std::uint16_t, std::function<void(ClientData&, std::string_view)>>
-    Dispatch;
+  std::map<std::uint16_t, std::function<HandlerFunction>> Dispatch;
 
   void setUpDispatch();
 

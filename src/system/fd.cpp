@@ -25,7 +25,7 @@
 namespace monomux
 {
 
-raw_fd fd::fileno(std::FILE* File)
+fd::raw_fd fd::fileno(std::FILE* File)
 {
   return CheckedPOSIXThrow([File] { return ::fileno(File); }, "fileno()", -1);
 }

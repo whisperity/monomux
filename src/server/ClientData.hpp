@@ -45,6 +45,17 @@ public:
   /// it. The value is stored for until used.
   std::size_t makeNewNonce() noexcept;
 
+  std::chrono::time_point<std::chrono::system_clock>
+  whenCreated() const noexcept
+  {
+    return Created;
+  }
+  std::chrono::time_point<std::chrono::system_clock> lastActive() const noexcept
+  {
+    return LastActivity;
+  }
+  void activity() noexcept { LastActivity = std::chrono::system_clock::now(); }
+
   Socket& getControlSocket() noexcept { return *ControlConnection; }
   Socket* getDataSocket() noexcept { return DataConnection.get(); }
 
@@ -68,6 +79,8 @@ private:
   std::optional<std::size_t> Nonce;
   /// The timestamp when the client connected.
   std::chrono::time_point<std::chrono::system_clock> Created;
+  /// The timestamp when the client was most recently trasmitted data.
+  std::chrono::time_point<std::chrono::system_clock> LastActivity;
 
   /// The control connection transcieves control information and commands.
   std::unique_ptr<Socket> ControlConnection;

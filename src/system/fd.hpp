@@ -24,22 +24,20 @@
 namespace monomux
 {
 
-/// The type used by system calls dealing with flags.
-using flag_t = decltype(O_RDONLY);
-/// The file descriptor type on the system.
-using raw_fd = decltype(::open("", 0));
-
-inline constexpr raw_fd InvalidFD = -1;
-
 /// This is a smart file descriptor wrapper which will call \p close() on the
 /// underyling resource at the end of its life.
 class fd // NOLINT(readability-identifier-naming)
 {
-  raw_fd Handle;
-
 public:
+  /// The type used by system calls dealing with flags.
+  using flag_t = decltype(O_RDONLY);
+  /// The file descriptor type on the system.
+  using raw_fd = decltype(::open("", 0));
+
+  static constexpr raw_fd Invalid = -1;
+
   /// Creates an empty file descriptor that does not wrap anything.
-  fd() noexcept : Handle(InvalidFD) {}
+  fd() noexcept : Handle(Invalid) {}
 
   /// Wrap the raw platform resource handle into the RAII object.
   fd(raw_fd Handle) noexcept : Handle(Handle)
@@ -64,7 +62,7 @@ public:
     close(release());
   }
 
-  bool has() const noexcept { return Handle != InvalidFD; }
+  bool has() const noexcept { return Handle != Invalid; }
 
   /// Convert to the system primitive type.
   operator raw_fd() const noexcept { return Handle; }
@@ -77,9 +75,12 @@ public:
   [[nodiscard]] raw_fd release() noexcept
   {
     raw_fd R = Handle;
-    Handle = InvalidFD;
+    Handle = Invalid;
     return R;
   }
+
+private:
+  raw_fd Handle;
 
 public:
   /// Returns the file descriptor for the standard C I/O object.
@@ -107,5 +108,7 @@ public:
   /// be inherited by child processes in a \p fork() - \p exec() situation.
   static void setNonBlockingCloseOnExec(raw_fd FD) noexcept;
 };
+
+using raw_fd = fd::raw_fd;
 
 } // namespace monomux

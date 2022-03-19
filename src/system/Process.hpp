@@ -30,7 +30,6 @@
 namespace monomux
 {
 
-inline constexpr ::pid_t InvalidPID = -1;
 
 /// Responsible for creating, executing, and handling processes on the
 /// system.
@@ -38,7 +37,9 @@ class Process
 {
 public:
   /// Type alias for the raw process handle type on the platform.
-  using handle = ::pid_t;
+  using raw_handle = ::pid_t;
+
+  static constexpr raw_handle Invalid = -1;
 
   struct SpawnOptions
   {
@@ -49,8 +50,7 @@ public:
     bool CreatePTY = false;
   };
 
-public:
-  handle raw() const noexcept { return Handle; }
+  raw_handle raw() const noexcept { return Handle; }
   bool hasPty() const noexcept { return PTY.has_value(); }
   Pty* getPty() noexcept { return hasPty() ? &*PTY : nullptr; }
 
@@ -61,20 +61,22 @@ public:
   bool reapIfDead();
 
 private:
-  handle Handle;
+  raw_handle Handle;
   /// The \p Pty assocaited with the process, if \p SpawnOptions::CreatePTY was
   /// true.
   std::optional<Pty> PTY;
 
 public:
   /// Replaces the current process (as if by calling the \p exec() family) in
-  /// the system with the started one.
+  /// the system with the started one. This is a low-level operation that
+  /// performs no additional meaningful setup of process state.
   ///
   /// \warning This command does \b NOT \p fork()!
   [[noreturn]] static void exec(const SpawnOptions& Opts);
 
   /// Spawns a new process based on the specified \p Opts. This process calls
-  /// \p fork() internally, and then does an \p exec().
+  /// \p fork() internally, and then does an \p exec(). The spawned subprocess
+  /// will be meaningfully set up to be a clearly spawned process.
   ///
   /// The spawned process will be the child of the current process. The call
   /// returns the PID of the child, and execution resumes normally in the

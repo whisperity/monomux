@@ -46,6 +46,11 @@ public:
   {
     return Created;
   }
+  std::chrono::time_point<std::chrono::system_clock> lastActive() const noexcept
+  {
+    return LastActivity;
+  }
+  void activity() noexcept { LastActivity = std::chrono::system_clock::now(); }
 
   bool hasProcess() const noexcept { return MainProcess.has_value(); }
   void setProcess(Process&& Process) noexcept;
@@ -60,6 +65,14 @@ public:
     return *MainProcess;
   }
 
+  /// Reads at most \p Size bytes from the output of the program running in the
+  /// session, if any.
+  std::string readOutput(std::size_t Size);
+
+  /// Sends the \p Data as input to the program running in the session, if any.
+  /// \returns the number of bytes written.
+  std::size_t sendInput(std::string_view Data);
+
   const std::vector<ClientData*>& getAttachedClients() const noexcept
   {
     return AttachedClients;
@@ -72,6 +85,9 @@ private:
   std::string Name;
   /// The timestamp when the session was spawned.
   std::chrono::time_point<std::chrono::system_clock> Created;
+  /// The timestamp when the underlying program was most recently trasmitted
+  /// data.
+  std::chrono::time_point<std::chrono::system_clock> LastActivity;
 
   /// The process (if any) executing in the session.
   ///

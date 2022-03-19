@@ -95,9 +95,7 @@ namespace
 
 struct SessionSelectionResult
 {
-  static std::string Empty;
-
-  const std::string& SessionName;
+  std::string SessionName;
 
   enum SessionMode
   {
@@ -107,13 +105,12 @@ struct SessionSelectionResult
   };
   SessionMode Mode;
 };
-std::string SessionSelectionResult::Empty;
 
 } // namespace
 
 static SessionSelectionResult
 selectSession(const std::string& ClientID,
-              const std::string& DefaultShell,
+              const std::string& DefaultProgram,
               const std::vector<SessionData>& Sessions,
               const std::string& DefaultSessionName,
               bool AlwaysShowMenu)
@@ -138,7 +135,7 @@ selectSession(const std::string& ClientID,
 
     if (!DefaultSessionName.empty())
     {
-      std::clog << "DEBUG: Session '--name " << DefaultSessionName
+      std::clog << "DEBUG: Session name '" << DefaultSessionName
                 << "' specified, checking if it exists..." << std::endl;
       for (const SessionData& S : Sessions)
         if (S.Name == DefaultSessionName)
@@ -169,7 +166,7 @@ selectSession(const std::string& ClientID,
                 << formatTime(SD.Created) << ")\n";
     }
     std::cout << "    " << NewSessionChoice << ". Create a new session ("
-              << DefaultShell << ")\n";
+              << DefaultProgram << ")\n";
     std::cout << "    " << QuitChoice << ". Quit\n";
     std::cout << "\nChoose 1-" << QuitChoice << ": ";
 
@@ -183,16 +180,16 @@ selectSession(const std::string& ClientID,
   }
 
   if (UserChoice == NewSessionChoice)
-    return {SessionSelectionResult::Empty, SessionSelectionResult::Create};
+    return {DefaultSessionName, SessionSelectionResult::Create};
   if (UserChoice == QuitChoice)
-    return {SessionSelectionResult::Empty, SessionSelectionResult::None};
+    return {"", SessionSelectionResult::None};
   return {Sessions.at(UserChoice - 1).Name, SessionSelectionResult::Attach};
 }
 
 int main(Options& Opts)
 {
-  std::string Shell = defaultShell();
-  if (Shell.empty())
+  std::string DefaultProgram = Opts.Program ? *Opts.Program : defaultShell();
+  if (DefaultProgram.empty())
     std::cerr << "WARNING: Failed to figure out what shell is being used, and "
                  "no good defaults are available.\nPlease set the SHELL "
                  "environment variable."
@@ -216,47 +213,64 @@ int main(Options& Opts)
   }
 
   // --------------------- Deduce what session to attach to --------------------
-  std::optional<std::vector<SessionData>> Sessions =
-    Client.requestSessionList();
-  if (!Sessions.has_value())
   {
-    std::cerr << "ERROR: Receiving the list of sessions from the server failed!"
-              << std::endl;
-    return EXIT_SystemError;
-  }
-
-  SessionSelectionResult SessionAction =
-    selectSession(Client.getControlSocket().identifier(),
-                  Shell,
-                  *Sessions,
-                  Opts.SessionName ? *Opts.SessionName : "",
-                  Opts.ForceSessionSelectMenu);
-  if (SessionAction.Mode == SessionSelectionResult::None)
-    return EXIT_Success;
-  if (SessionAction.Mode == SessionSelectionResult::Create)
-  {
-    Process::SpawnOptions Spawn;
-    Spawn.Program = Opts.Program ? std::move(*Opts.Program) : std::move(Shell);
-    if (Spawn.Program.empty())
+    std::optional<std::vector<SessionData>> Sessions =
+      Client.requestSessionList();
+    if (!Sessions.has_value())
     {
-      std::cerr << "ERROR: When creating new session, no program set."
-                << std::endl;
-      return EXIT_InvocationError;
+      std::cerr
+        << "ERROR: Receiving the list of sessions from the server failed!"
+        << std::endl;
+      return EXIT_SystemError;
     }
-    Spawn.Arguments = std::move(Opts.ProgramArgs);
-    Spawn.Environment["MONOMUX_UNSET"] = std::nullopt;
-    Spawn.Environment["MONOMUX_SET"] = "TEST";
 
-    /* FIXME: Response? */ Client.requestMakeSession(SessionAction.SessionName,
-                                                     std::move(Spawn));
+    SessionSelectionResult SessionAction =
+      selectSession(Client.getControlSocket().identifier(),
+                    DefaultProgram,
+                    *Sessions,
+                    Opts.SessionName ? *Opts.SessionName : "",
+                    Opts.ForceSessionSelectMenu);
+    if (SessionAction.Mode == SessionSelectionResult::None)
+      return EXIT_Success;
+    if (SessionAction.Mode == SessionSelectionResult::Create)
+    {
+      Process::SpawnOptions Spawn;
+      Spawn.Program = std::move(DefaultProgram);
+      if (Spawn.Program.empty())
+      {
+        std::cerr << "ERROR: When creating a new session, no program set."
+                  << std::endl;
+        return EXIT_InvocationError;
+      }
+      Spawn.Arguments = std::move(Opts.ProgramArgs);
+      Spawn.Environment["MONOMUX_UNSET"] = std::nullopt;
+      Spawn.Environment["MONOMUX_SET"] = "TEST";
 
-    SessionAction.Mode = SessionSelectionResult::Attach;
-    // Intended "fallthrough".
-  }
-  if (SessionAction.Mode == SessionSelectionResult::Attach)
-  {
-    std::clog << "NYI: Attach handling." << std::endl;
-    // return -1;
+      std::optional<std::string> Response =
+        Client.requestMakeSession(SessionAction.SessionName, std::move(Spawn));
+      if (!Response.has_value() || Response->empty())
+      {
+        std::cerr << "ERROR: When creating a new session, the creation failed."
+                  << std::endl;
+        return EXIT_SystemError;
+      }
+      SessionAction.SessionName = *Response;
+      SessionAction.Mode = SessionSelectionResult::Attach;
+      // Intended "fallthrough".
+    }
+    if (SessionAction.Mode == SessionSelectionResult::Attach)
+    {
+      std::clog << "DEBUG: Attaching to '" << SessionAction.SessionName
+                << "'..." << std::endl;
+      bool Attached =
+        Client.requestAttach(std::move(SessionAction.SessionName));
+      if (!Attached)
+      {
+        std::cerr << "ERROR: Server reported failure when attaching."
+                  << std::endl;
+        return EXIT_SystemError;
+      }
+    }
   }
 
   // This below is unclean code.

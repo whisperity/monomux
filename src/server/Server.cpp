@@ -22,7 +22,6 @@
 #include "control/Messaging.hpp"
 #include "system/CheckedPOSIX.hpp"
 #include "system/POD.hpp"
-#include "system/Pipe.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -38,10 +37,16 @@ namespace server
 Server::Server(Socket&& Sock) : Sock(std::move(Sock))
 {
   setUpDispatch();
-  DeadChildren.fill(InvalidPID);
+  DeadChildren.fill(Process::Invalid);
 }
 
 Server::~Server() = default;
+
+void Server::registerMessageHandler(std::uint16_t Kind,
+                                    std::function<HandlerFunction> Handler)
+{
+  Dispatch[Kind] = std::move(Handler);
+}
 
 void Server::loop()
 {
@@ -180,18 +185,24 @@ SessionData* Server::makeSession(SessionData Session)
 void Server::removeClient(ClientData& Client)
 {
   std::size_t CID = Client.id();
+  if (SessionData* S = Client.getAttachedSession())
+    clientDetachedCallback(Client, *S);
   Clients.erase(CID);
 }
 
 void Server::removeSession(SessionData& Session)
 {
+  for (ClientData* C : Session.getAttachedClients())
+    clientDetachedCallback(*C, Session);
+  // TODO: Tell clients that the session has gone.
+
   Sessions.erase(Session.name());
 }
 
-void Server::registerDeadChild(Process::handle PID) const noexcept
+void Server::registerDeadChild(Process::raw_handle PID) const noexcept
 {
   for (std::size_t I = 0; I < DeadChildrenVecSize; ++I)
-    if (DeadChildren.at(I) == InvalidPID)
+    if (DeadChildren.at(I) == Process::Invalid)
     {
       DeadChildren.at(I) = PID;
       return;
@@ -223,8 +234,8 @@ void Server::controlCallback(ClientData& Client)
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when reading data from " << ClientSock.raw() << ": "
-              << Err.what() << std::endl;
+    std::cerr << "Error when reading control from Client " << Client.id()
+              << ": " << Err.what() << std::endl;
   }
 
   if (ClientSock.failed())
@@ -237,6 +248,7 @@ void Server::controlCallback(ClientData& Client)
   if (Data.empty())
     return;
 
+  Client.activity();
   std::cout << Data << std::endl;
 
   std::cout << "Check for message kind... ";
@@ -253,7 +265,18 @@ void Server::controlCallback(ClientData& Client)
 
   std::cout << "Read data " << std::string_view{Data.data(), Data.size()}
             << std::endl;
-  Action->second(Client, MB.RawData);
+  try
+  {
+    Action->second(Client, MB.RawData);
+  }
+  catch (const std::system_error& Err)
+  {
+    std::cerr << "Error when handling message of client " << Client.id()
+              << std::endl;
+    if (ClientSock.failed())
+      exitCallback(Client);
+    return;
+  }
 }
 
 void Server::dataCallback(ClientData& Client)
@@ -277,14 +300,10 @@ void Server::dataCallback(ClientData& Client)
     return;
   }
   std::cout << "DEBUG: Client data received:\n\t" << Data << std::endl;
+  Client.activity();
 
-  // FIXME: Implement attachment logic.
-  for (auto& S : Sessions)
-  {
-    std::clog << "Send data to Session " << S.second->name() << std::endl;
-    if (S.second->hasProcess() && S.second->getProcess().hasPty())
-      Pipe::write(S.second->getProcess().getPty()->raw(), Data);
-  }
+  if (SessionData* S = Client.getAttachedSession())
+    S->sendInput(Data);
 }
 
 void Server::exitCallback(ClientData& Client)
@@ -328,7 +347,7 @@ void Server::dataCallback(SessionData& Session)
 
   try
   {
-    Data = Pipe::read(Session.getProcess().getPty()->raw(), BUFFER_SIZE);
+    Data = Session.readOutput(BUFFER_SIZE);
   }
   catch (const std::system_error& Err)
   {
@@ -339,18 +358,37 @@ void Server::dataCallback(SessionData& Session)
   }
   std::cout << "DEBUG: Session data received:\n\t" << Data << std::endl;
 
-  // FIXME: Implement attachment logic.
-  for (auto& C : Clients)
-  {
-    std::clog << "Send data to Client #" << C.second->id() << std::endl;
-    if (Socket* DS = C.second->getDataSocket())
-      DS->write(Data);
-  }
+  Session.activity();
+  for (ClientData* C : Session.getAttachedClients())
+    if (Socket* DS = C->getDataSocket())
+      try
+      {
+        DS->write(Data);
+      }
+      catch (const std::system_error& Err)
+      {
+        std::cerr << "Error when writing data to client " << C->id() << ": "
+                  << Err.what() << std::endl;
+      }
 }
 
-void Server::clientAttachedCallback(ClientData& Client, SessionData& Session) {}
+void Server::clientAttachedCallback(ClientData& Client, SessionData& Session)
+{
+  std::clog << "DEBUG: Client " << Client.id() << " attached to "
+            << Session.name() << std::endl;
+  Client.attachToSession(Session);
+  Session.attachClient(Client);
+}
 
-void Server::clientDetachedCallback(ClientData& Client, SessionData& Session) {}
+void Server::clientDetachedCallback(ClientData& Client, SessionData& Session)
+{
+  std::clog << "DEBUG: Client " << Client.id() << " detached from "
+            << Session.name() << std::endl;
+  if (Client.getAttachedSession() != &Session)
+    return;
+  Client.detachSession();
+  Session.removeClient(Client);
+}
 
 void Server::destroyCallback(SessionData& Session)
 {
@@ -383,9 +421,9 @@ void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
 
 void Server::reapDeadChildren()
 {
-  for (Process::handle& PID : DeadChildren)
+  for (Process::raw_handle& PID : DeadChildren)
   {
-    if (PID == InvalidPID)
+    if (PID == Process::Invalid)
       continue;
 
     auto SessionForProc =
@@ -404,7 +442,7 @@ void Server::reapDeadChildren()
       destroyCallback(*SessionForProc->second);
     }
 
-    PID = InvalidPID;
+    PID = Process::Invalid;
   }
 }
 

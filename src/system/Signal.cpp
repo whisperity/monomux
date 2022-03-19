@@ -32,8 +32,6 @@ void SignalHandling::handler(Signal SigNum,
                              ::siginfo_t* Info,
                              void* /*Context*/)
 {
-  std::cout << SigNum << " received." << std::endl;
-
   if (static_cast<std::size_t>(SigNum) > SignalCount)
     unreachable("Unhandleable too large signal number received");
 
@@ -43,9 +41,10 @@ void SignalHandling::handler(Signal SigNum,
 
   for (std::size_t I = 0; I < CallbackCount; ++I)
   {
-    std::function<SignalCallback>& Cb = Context->Callbacks.at(SigNum).at(I);
-    if (Cb)
-      Cb(SigNum, Info, Context);
+    std::function<SignalCallback>* volatile Cb =
+      &Context->Callbacks.at(SigNum).at(I);
+    if (Cb && *Cb)
+      (*Cb)(SigNum, Info, Context);
   }
 }
 
@@ -55,7 +54,6 @@ SignalHandling& SignalHandling::get()
 {
   if (!Singleton)
     Singleton = std::make_unique<SignalHandling>();
-
   return *Singleton;
 }
 
@@ -76,7 +74,6 @@ static void handleSignal(SignalHandling::Signal S,
                          SignalHandling::KernelSignalHandler* Handler)
 {
   POD<struct ::sigaction> SigAct;
-  // TODO: Maybe extra flag support for SIGCHLD?
   SigAct->sa_flags = SA_SIGINFO;
   SigAct->sa_sigaction = Handler;
 
@@ -141,6 +138,14 @@ void SignalHandling::disable()
   }
 }
 
+void SignalHandling::reset()
+{
+  clearCallbacks();
+  deleteObjects();
+  unignore();
+  disable();
+}
+
 void SignalHandling::ignore(Signal SigNum)
 {
   if (static_cast<std::size_t>(SigNum) > SignalCount)
@@ -169,6 +174,12 @@ void SignalHandling::unignore(Signal SigNum)
     defaultSignal(SigNum);
 
   MaskedSignals.at(SigNum) = false;
+}
+
+void SignalHandling::unignore()
+{
+  for (std::size_t S = 0; S < SignalCount; ++S)
+    unignore(S);
 }
 
 void SignalHandling::registerCallback(Signal SigNum,
@@ -253,6 +264,17 @@ void SignalHandling::deleteObject(const std::string& Name) noexcept
       Objects.at(I).reset();
       return;
     }
+  }
+}
+
+void SignalHandling::deleteObjects() noexcept
+{
+  for (std::size_t I = 0; I < ObjectCount; ++I)
+  {
+    if (ObjectNames.at(I).empty())
+      continue;
+    ObjectNames.at(I).clear();
+    Objects.at(I).reset();
   }
 }
 

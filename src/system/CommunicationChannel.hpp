@@ -42,7 +42,7 @@ public:
 
   /// \returns whether an operation failed and indicated that the underlying
   /// resource had broken.
-  bool failed() const noexcept { return Failed; }
+  bool failed() const noexcept { return !Handle.has() || Failed; }
 
   /// Read at maximum \p Bytes bytes of data from the communication channel.
   ///
@@ -72,7 +72,7 @@ public:
   virtual ~CommunicationChannel() noexcept = default;
 
 protected:
-  static constexpr std::size_t BufferSize = 128;
+  static constexpr std::size_t BufferSize = 1 << 14;
 
   CommunicationChannel(fd Handle, std::string Identifier, bool NeedsCleanup);
   CommunicationChannel(CommunicationChannel&&) noexcept;

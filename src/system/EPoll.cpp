@@ -78,7 +78,7 @@ EPoll::Listener::Listener(EPoll& Master,
 {
   POD<struct ::epoll_event> Control;
   Control->data.fd = FD;
-  Control->events = EPOLLHUP | EPOLLRDHUP | EPOLLET;
+  Control->events = EPOLLHUP | EPOLLRDHUP;
   if (Incoming)
     Control->events |= EPOLLIN;
   if (Outgoing)
@@ -95,7 +95,7 @@ EPoll::Listener::Listener(EPoll& Master,
 
 EPoll::Listener::~Listener()
 {
-  if (FDToListenFor == InvalidFD)
+  if (FDToListenFor == fd::Invalid)
     return;
 
   POD<struct ::epoll_event> Control;

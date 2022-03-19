@@ -33,7 +33,7 @@ void Client::setUpDispatch()
 #define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
 #define MEMBER(NAME)                                                           \
   std::bind(std::mem_fn(&Client::NAME), this, std::placeholders::_1)
-#define DISPATCH(K, FUNCTION) Dispatch.try_emplace(KIND(K), MEMBER(FUNCTION));
+#define DISPATCH(K, FUNCTION) registerMessageHandler(KIND(K), MEMBER(FUNCTION));
 #include "Dispatch.ipp"
 #undef MEMBER
 #undef KIND

@@ -60,6 +60,7 @@ std::vector<std::string> Options::toArgv() const
   unreachable("[[noreturn]]");
 }
 
+/// Handler for request to terinate the server.
 static void serverShutdown(SignalHandling::Signal /* SigNum */,
                            ::siginfo_t* /* Info */,
                            const SignalHandling* Handling)
@@ -71,11 +72,12 @@ static void serverShutdown(SignalHandling::Signal /* SigNum */,
   (*Srv)->interrupt();
 }
 
+/// Handler for \p SIGCHLD when a process spawned by the server quits.
 static void childExited(SignalHandling::Signal /* SigNum */,
                         ::siginfo_t* Info,
                         const SignalHandling* Handling)
 {
-  Process::handle CPID = Info->si_pid;
+  Process::raw_handle CPID = Info->si_pid;
   const volatile auto* Srv =
     std::any_cast<Server*>(Handling->getObject("Server"));
   if (!Srv)
@@ -85,7 +87,6 @@ static void childExited(SignalHandling::Signal /* SigNum */,
 
 int main(Options& Opts)
 {
-  // Server::consumeProcessMarkedAsServer();
   // CheckedPOSIXThrow([] { return ::daemon(0, 0); }, "Backgrounding ourselves
   // failed", -1);
 
@@ -101,6 +102,7 @@ int main(Options& Opts)
     Sig.registerCallback(SIGINT, &serverShutdown);
     Sig.registerCallback(SIGTERM, &serverShutdown);
     Sig.registerCallback(SIGCHLD, &childExited);
+    Sig.ignore(SIGPIPE);
     Sig.enable();
   }
 
