@@ -20,6 +20,7 @@
 #include "ClientData.hpp"
 #include "SessionData.hpp"
 
+#include "adt/MovableAtomic.hpp"
 #include "adt/SmallIndexMap.hpp"
 #include "adt/TaggedPointer.hpp"
 #include "system/EPoll.hpp"
@@ -144,7 +145,7 @@ private:
   /// A list of process handles that were signalle
   mutable std::array<Process::raw_handle, DeadChildrenVecSize> DeadChildren;
 
-  mutable std::atomic_bool TerminateListenLoop = ATOMIC_VAR_INIT(false);
+  mutable MovableAtomic<bool> TerminateLoop;
   std::unique_ptr<EPoll> Poll;
 
   void reapDeadChildren();

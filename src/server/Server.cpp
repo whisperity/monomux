@@ -60,7 +60,7 @@ void Server::loop()
   Poll = std::make_unique<EPoll>(EventQueue);
   Poll->listen(Sock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
 
-  while (!TerminateListenLoop.load())
+  while (!TerminateLoop.get().load())
   {
     reapDeadChildren();
 
@@ -144,15 +144,23 @@ void Server::loop()
   }
 }
 
-void Server::interrupt() const noexcept { TerminateListenLoop.store(true); }
+void Server::interrupt() const noexcept { TerminateLoop.get().store(true); }
 
 void Server::shutdown()
 {
   while (!Clients.empty())
   {
     ClientData& Client = *Clients.begin()->second;
-    Client.sendDetachReason(
-      monomux::message::notification::Detached::ServerShutdown);
+    try
+    {
+      Client.sendDetachReason(
+        monomux::message::notification::Detached::ServerShutdown);
+    }
+    catch (const std::system_error&)
+    {
+      // Ignore the error. It could be that the client got auto-detacehd when
+      // their associated session ended.
+    }
     removeClient(Client);
   }
 
@@ -212,6 +220,9 @@ void Server::removeSession(SessionData& Session)
     clientDetachedCallback(*C, Session);
 
   Sessions.erase(Session.name());
+
+  if (Sessions.empty())
+    TerminateLoop.get().store(true);
 }
 
 void Server::registerDeadChild(Process::raw_handle PID) const noexcept

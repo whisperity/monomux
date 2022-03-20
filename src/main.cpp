@@ -37,7 +37,7 @@
 
 using namespace monomux;
 
-static const char* ShortOptions = "hs:n:ldD";
+static const char* ShortOptions = "hs:n:ldDN";
 // clang-format off
 static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
   {"help",       no_argument,       nullptr, 'h'},
@@ -128,6 +128,8 @@ In-session options:
 Server options:
     -s PATH, --socket PATH      - Path of the sever socket to create and await
                                   clients on.
+    -N                          - Do not daemonise (put the running server into
+                                  the background) automatically.
 
 )EOF";
   std::cout << std::endl;
@@ -186,6 +188,9 @@ int main(int ArgC, char* ArgV[])
           break;
         case 'D':
           ClientOpts.DetachRequestAll = true;
+          break;
+        case 'N':
+          ServerOpts.Background = false;
           break;
       }
     }
