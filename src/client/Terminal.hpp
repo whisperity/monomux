@@ -17,26 +17,72 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+
+#include "adt/unique_scalar.hpp"
+#include "system/POD.hpp"
 #include "system/fd.hpp"
+
+#include <termios.h>
 
 namespace monomux
 {
 namespace client
 {
 
+class Client;
+
 class Terminal
 {
-  raw_fd In;
-  raw_fd Out;
-
 public:
-  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-  Terminal(raw_fd InputStream, raw_fd OutputStream)
-    : In(InputStream), Out(OutputStream)
-  {}
+  Terminal(raw_fd InputStream, raw_fd OutputStream);
+
+  /// Engages control over the current input and ouput terminal and sets it
+  /// into the mode necesary for remote communication.
+  void engage();
+
+  bool engaged() const noexcept { return Engaged; }
+
+  /// Disengage control over the current input and output terminal, resetting
+  /// the default state.
+  void disengage();
+
+  /// Sets the current \p Terminal to be the terminal associated with \p Client.
+  /// Data typed into the \p input() of this terminal will be considered input
+  /// by the client, and data received by the client will be printed to
+  /// \p output().
+  void setupClient(Client& Client);
+
+  Client* getClient() noexcept { return AssociatedClient; }
+  const Client* getClient() const noexcept { return AssociatedClient; }
+
+  /// Releases the associated client and turns off its callbacks from firing
+  /// the handlers of the \p Terminal.
+  ///
+  /// \see setupClient
+  void releaseClient();
 
   raw_fd input() const noexcept { return In; }
   raw_fd output() const noexcept { return Out; }
+
+private:
+  unique_scalar<raw_fd, fd::Invalid> In;
+  unique_scalar<raw_fd, fd::Invalid> Out;
+  unique_scalar<Client*, nullptr> AssociatedClient;
+  unique_scalar<bool, false> Engaged;
+  POD<struct ::termios> OriginalTerminalSettings;
+
+#ifndef NDEBUG
+  /// The handler callbacks in the client receive a \p Terminal instance's
+  /// pointer bound. If the object is moved from, the moved-from will reset
+  /// this value to \p false, with which we can track the access of an invalid
+  /// object with sanitisers.
+  unique_scalar<bool, false> MovedFromCheck;
+#endif
+
+  /// Callback function fired when the client reports available input.
+  static void clientInput(Terminal* Term, Client& Client);
+  /// Callback function fired when the client reports available output.
+  static void clientOutput(Terminal* Term, Client& Client);
 };
 
 } // namespace client

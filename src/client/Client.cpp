@@ -70,25 +70,30 @@ void Client::registerMessageHandler(std::uint16_t Kind,
   Dispatch[Kind] = std::move(Handler);
 }
 
-void Client::setTerminal(Terminal&& T)
-{
-  if (Term)
-    Poll->stop(Term->input());
-
-  Term.emplace(std::move(T));
-  Poll->listen(Term->input(), /* Incoming =*/true, /* Outgoing =*/false);
-}
-
 void Client::setDataSocket(Socket&& DataSocket)
 {
-  if (Poll)
-    Poll->stop(this->DataSocket->raw());
+  bool PreviousDataSocketWasEnabled = DataSocketEnabled;
+  if (PreviousDataSocketWasEnabled)
+    disableDataSocket();
 
   this->DataSocket = std::make_unique<Socket>(std::move(DataSocket));
 
-  if (Poll)
-    Poll->listen(
-      this->DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
+  if (PreviousDataSocketWasEnabled)
+    enableDataSocket();
+}
+
+void Client::setInputFile(raw_fd FD)
+{
+  bool PreviousInputFileWasEnabled = InputFileEnabled;
+  if (PreviousInputFileWasEnabled)
+    disableInputFile();
+
+  InputFile = FD;
+  if (FD == fd::Invalid)
+    return;
+
+  if (PreviousInputFileWasEnabled)
+    enableInputFile();
 }
 
 bool Client::handshake(std::string* FailureReason)
@@ -195,24 +200,30 @@ bool Client::handshake(std::string* FailureReason)
     }
   }
 
-  setupPoll();
   return true;
 }
 
 void Client::loop()
 {
+  if (InputFile == fd::Invalid)
+    throw std::system_error{std::make_error_code(std::errc::not_connected),
+                            "Client input is not connceted."};
   if (!DataSocket)
     throw std::system_error{std::make_error_code(std::errc::not_connected),
-                            "Client not connected to Server."};
-  if (!Term)
+                            "Client is not connected to Server."};
+  if (!DataHandler)
     throw std::system_error{std::make_error_code(std::errc::not_connected),
-                            "Client not connected to PTY."};
-  if (!Poll)
+                            "Client receive callback is not registered."};
+  if (!InputHandler)
     throw std::system_error{std::make_error_code(std::errc::not_connected),
-                            "Client event handler not set up."};
+                            "Client input callback is not registered."};
 
-  enableControlResponsePoll();
+  static constexpr std::size_t EventQueue = 1 << 9;
+  Poll = std::make_unique<EPoll>(EventQueue);
+
+  enableControlResponse();
   enableDataSocket();
+  enableInputFile();
 
   while (!TerminateLoop.get().load())
   {
@@ -220,14 +231,14 @@ void Client::loop()
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
       raw_fd EventFD = Poll->fdAt(I);
-      if (EventFD == DataSocket->raw())
+      if (EventFD == DataSocket->raw() && DataHandler)
       {
-        dataCallback();
+        DataHandler(*this);
         continue;
       }
-      if (EventFD == Term->input())
+      if (InputFile != fd::Invalid && EventFD == InputFile && InputHandler)
       {
-        inputCallback();
+        InputHandler(*this);
         continue;
       }
       if (EventFD == ControlSocket.raw())
@@ -238,23 +249,9 @@ void Client::loop()
     }
   }
 
+  disableInputFile();
   disableDataSocket();
-  inhibitControlResponsePoll();
-}
-
-void Client::dataCallback()
-{
-  std::string Data = DataSocket->read(256);
-  ::write(Term->output(), Data.c_str(), Data.size());
-}
-
-void Client::inputCallback()
-{
-  POD<char[512]> Buf;
-  unsigned long Size = ::read(Term->input(), &Buf, sizeof(Buf));
-  if (!DataSocketEnabled)
-    return;
-  sendData(std::string_view{&Buf[0], Size});
+  disableControlResponse();
 }
 
 void Client::controlCallback()
@@ -308,66 +305,22 @@ void Client::controlCallback()
   }
 }
 
+void Client::setDataCallback(std::function<RawCallbackFn> Callback)
+{
+  DataHandler = std::move(Callback);
+}
+
+void Client::setInputCallback(std::function<RawCallbackFn> Callback)
+{
+  InputHandler = std::move(Callback);
+}
+
 void Client::exit(ExitReason E)
 {
   std::clog << "TRACE: Client exit " << E << std::endl;
   Exit = E;
   Poll.reset();
   TerminateLoop.get().store(true);
-}
-
-void Client::setupPoll()
-{
-  static constexpr std::size_t EventQueue = 1 << 9;
-  if (!Poll)
-    Poll = std::make_unique<EPoll>(EventQueue);
-  else
-    Poll->clear();
-}
-
-void Client::enableDataSocket()
-{
-  if (!Poll || !DataSocket)
-    return;
-  Poll->listen(DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
-  DataSocketEnabled = true;
-}
-
-void Client::disableDataSocket()
-{
-  if (!Poll || !DataSocket)
-    return;
-  Poll->stop(DataSocket->raw());
-  DataSocketEnabled = false;
-}
-
-void Client::enableControlResponsePoll()
-{
-  if (!Poll)
-    return;
-  Poll->listen(ControlSocket.raw(), /* Incoming =*/true, /* Outgoing =*/false);
-}
-
-void Client::inhibitControlResponsePoll()
-{
-  if (!Poll)
-    return;
-  Poll->stop(ControlSocket.raw());
-}
-
-Client::ControlPollInhibitor::ControlPollInhibitor(Client& C) : C(C)
-{
-  C.inhibitControlResponsePoll();
-}
-
-Client::ControlPollInhibitor::~ControlPollInhibitor()
-{
-  C.enableControlResponsePoll();
-}
-
-Client::ControlPollInhibitor Client::scopedInhibitControlResponsePoll()
-{
-  return ControlPollInhibitor{*this};
 }
 
 std::size_t Client::consumeNonce() noexcept
@@ -382,7 +335,7 @@ std::optional<std::vector<SessionData>> Client::requestSessionList()
 {
   std::clog << __PRETTY_FUNCTION__ << std::endl;
   using namespace monomux::message;
-  auto X = scopedInhibitControlResponsePoll();
+  auto X = inhibitControlResponse();
 
   sendMessage(ControlSocket, request::SessionList{});
 
@@ -409,7 +362,7 @@ std::optional<std::string>
 Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
 {
   using namespace monomux::message;
-  auto X = scopedInhibitControlResponsePoll();
+  auto X = inhibitControlResponse();
 
   request::MakeSession Msg;
   Msg.Name = std::move(Name);
@@ -436,7 +389,7 @@ Client::requestMakeSession(std::string Name, Process::SpawnOptions Opts)
 bool Client::requestAttach(std::string SessionName)
 {
   using namespace monomux::message;
-  auto X = scopedInhibitControlResponsePoll();
+  auto X = inhibitControlResponse();
 
   request::Attach Msg;
   Msg.Name = std::move(SessionName);
@@ -472,6 +425,70 @@ void Client::sendData(std::string_view Data)
     return;
   }
   DataSocket->write(Data);
+}
+
+void Client::enableControlResponse()
+{
+  if (!Poll)
+    return;
+  Poll->listen(ControlSocket.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+}
+
+void Client::disableControlResponse()
+{
+  if (!Poll)
+    return;
+  Poll->stop(ControlSocket.raw());
+}
+
+void Client::enableDataSocket()
+{
+  if (!Poll || !DataSocket)
+    return;
+  Poll->listen(DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
+  DataSocketEnabled = true;
+}
+
+void Client::disableDataSocket()
+{
+  if (!Poll || !DataSocket)
+    return;
+  Poll->stop(DataSocket->raw());
+  DataSocketEnabled = false;
+}
+
+void Client::enableInputFile()
+{
+  if (!Poll || InputFile == fd::Invalid)
+    return;
+  Poll->listen(InputFile, /* Incoming =*/true, /* Outgoing =*/false);
+  InputFileEnabled = true;
+}
+
+void Client::disableInputFile()
+{
+  if (!Poll || InputFile == fd::Invalid)
+    return;
+  Poll->stop(InputFile);
+  InputFileEnabled = false;
+}
+
+Client::ControlInhibitor Client::inhibitControlResponse()
+{
+  return ControlInhibitor{
+    &Client::disableControlResponse, &Client::enableControlResponse, this};
+}
+
+Client::DataInhibitor Client::inhibitDataSocket()
+{
+  return DataInhibitor{
+    &Client::disableDataSocket, &Client::enableDataSocket, this};
+}
+
+Client::InputInhibitor Client::inhibitInputFile()
+{
+  return InputInhibitor{
+    &Client::disableInputFile, &Client::enableInputFile, this};
 }
 
 } // namespace client

@@ -196,10 +196,14 @@ public:
   /// The callback function that is fired when a new \p Client connected.
   void acceptCallback(ClientData& Client);
   /// The callback function that is fired for transmission on a \p Client's
-  /// control connection.
+  /// control connection. This method deals with parsing a \p Message
+  /// from the control connection, and fire a message-specific handler.
+  ///
+  /// \see registerMessageHandler().
   void controlCallback(ClientData& Client);
   /// The clalback function that is fired for transmission on a \p Client's
-  /// data connection.
+  /// data connection. It sends the data received to the session the client
+  /// attached to.
   void dataCallback(ClientData& Client);
   /// The callback function that is fired when a \p Client has disconnected.
   void exitCallback(ClientData& Client);
@@ -207,7 +211,8 @@ public:
   /// The callback function that is fired when a new \p Session was created.
   void createCallback(SessionData& Session);
   /// The callback function that is fired when the server-side of a \p Session
-  /// receives data.
+  /// receives data. It sends the data received from the session to all attached
+  /// clients.
   void dataCallback(SessionData& Session);
   /// The callback function that is fired when a \p Client attaches to a
   /// \p Session.

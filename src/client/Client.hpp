@@ -18,8 +18,8 @@
  */
 #pragma once
 #include "SessionData.hpp"
-#include "Terminal.hpp"
 
+#include "adt/MemberFnScopeGuard.hpp"
 #include "adt/MovableAtomic.hpp"
 #include "adt/unique_scalar.hpp"
 #include "system/EPoll.hpp"
@@ -41,11 +41,8 @@ namespace client
 
 /// This class represents a connection to a running \p Server - or rather,
 /// a wrapper over the communication channel that allows talking to the
-/// server.
-///
-/// In networking terminology, this is effectively a client, but we reserve
-/// that word for the "Monomux Client" which deals with attaching to a
-/// process.
+/// server. The client is responsible for reporting data sent from the server,
+/// and can send user input to the server.
 ///
 /// \note Some functionality of the client instance (e.g. sending signals over
 /// to the attached session) requires proper signal handling, which the
@@ -98,15 +95,6 @@ public:
   Socket& getControlSocket() noexcept { return ControlSocket; }
   const Socket& getControlSocket() const noexcept { return ControlSocket; }
 
-  Terminal* getTerminal() noexcept { return Term ? &*Term : nullptr; }
-  const Terminal* getTerminal() const noexcept
-  {
-    return Term ? &*Term : nullptr;
-  }
-
-  /// Sets the \p Client to be attached to the streams of the \p T terminal.
-  void setTerminal(Terminal&& T);
-
   Socket* getDataSocket() noexcept
   {
     return DataSocket ? DataSocket.get() : nullptr;
@@ -122,6 +110,15 @@ public:
   /// be communicated with in advance to associate the connection with the
   /// client.
   void setDataSocket(Socket&& DataSocket);
+
+  raw_fd getInputFile() const noexcept { return InputFile; }
+
+  /// Sets the file descriptor which the client will consider its "input
+  /// stream" and fires the \p InputCallback for.
+  ///
+  /// \param FD A file descriptor to watch for, or \p fd::Invalid to
+  /// disassociate.
+  void setInputFile(raw_fd FD);
 
   /// Perform a handshake mechanism over the control socket.
   ///
@@ -184,14 +181,21 @@ public:
   void sendData(std::string_view Data);
 
   /// The callback that is fired when data is available on the \e control
-  /// connection of the client.
+  /// connection of the client. This method deals with parsing a \p Message
+  /// from the control connection, and fire a message-specific handler.
+  ///
+  /// \see registerMessageHandler().
   void controlCallback();
 
-  /// Handle data received on the \e data connection.
-  void dataCallback();
+  using RawCallbackFn = void(Client& Client);
+  /// Sets the handler that is fired when data is received from the server.
+  /// The data is \b NOT read before the callback fires.
+  void setDataCallback(std::function<RawCallbackFn> Callback);
 
-  /// Handle data received as an \e input to the client.
-  void inputCallback();
+  /// Sets the handler that is fired when data is received from the input of
+  /// the client.
+  /// The input is \b NOT read before the callback fires.
+  void setInputCallback(std::function<RawCallbackFn> Callback);
 
 private:
   /// The control socket is used to communicate control commands with the
@@ -212,8 +216,16 @@ private:
   /// Information about the session the client attached to.
   std::optional<SessionData> AttachedSession;
 
-  /// The terminal the \p Client is attached to, if any.
-  std::optional<Terminal> Term;
+  std::function<RawCallbackFn> DataHandler;
+  std::function<RawCallbackFn> InputHandler;
+
+  /// Weak file handle for the stream that is considered the user-facing input
+  /// of the client.
+  unique_scalar<raw_fd, fd::Invalid> InputFile;
+
+  /// Whether continuous \e handling of inputs on the \p InputFile (if set) via
+  /// \p Poll is enabled.
+  unique_scalar<bool, false> InputFileEnabled;
 
   unique_scalar<ExitReason, None> Exit;
   /// Terminate the handling \p loop() of the client and set the exit status to
@@ -222,36 +234,6 @@ private:
 
   mutable MovableAtomic<bool> TerminateLoop = false;
   std::unique_ptr<EPoll> Poll;
-  /// Initialises (or resets) the \p Poll event polling low-level structures.
-  void setupPoll();
-  /// If channel polling is initialised, adds \p DataSocket to the list of
-  /// channels to poll and handle incoming data.
-  void enableDataSocket();
-  /// If channel polling is initialised, removes \p DataSocket from the list of
-  /// channels to poll. When disabled, data sent by the server is left
-  /// unhandled.
-  void disableDataSocket();
-  /// If channel polling is initialised, adds \p ControlSocket to the list of
-  /// channels to poll and handle incoming messages.
-  void enableControlResponsePoll();
-  /// If channel polling is initialised, removes \p ControlSocket from the list
-  /// of channels to poll. When inhibited, messages sent by the server are
-  /// expected to be handled synchronously by the request sending function,
-  /// instead of being handled "automatically" by a dispatch handler.
-  void inhibitControlResponsePoll();
-
-  friend class ControlPollInhibitor;
-  /// Inhibits the poll handler from handling responses on the \e control
-  /// connection in the current scope.
-  class ControlPollInhibitor
-  {
-    Client& C;
-
-  public:
-    ControlPollInhibitor(Client& C);
-    ~ControlPollInhibitor();
-  };
-  ControlPollInhibitor scopedInhibitControlResponsePoll();
 
   /// A unique identifier of the current \p Client, as returned by the server.
   std::size_t ClientID = -1;
@@ -271,6 +253,55 @@ private:
 #define DISPATCH(KIND, FUNCTION_NAME)                                          \
   static void FUNCTION_NAME(Client& Client, std::string_view Message);
 #include "Dispatch.ipp"
+
+
+  /// A pointer to a member function of this class which requires passing the
+  /// \p this explicitly.
+  using VoidMemFn = void (Client::*)();
+
+#define INHIBITOR_CLASS(NAME)                                                  \
+  friend class NAME##Inhibitor;                                                \
+  MONOMUX_MEMBER_FN_SCOPE_GAURD(NAME##Inhibitor, VoidMemFn, Client);
+
+  INHIBITOR_CLASS(Control);
+  INHIBITOR_CLASS(Data);
+  INHIBITOR_CLASS(Input);
+#undef INHIBITOR_CLASS
+
+public:
+  /// If channel polling is initialised, adds \p ControlSocket to the list of
+  /// channels to poll and handle incoming messages.
+  void enableControlResponse();
+  /// If channel polling is initialised, removes \p ControlSocket from the list
+  /// of channels to poll. When inhibited, messages sent by the server are
+  /// expected to be handled synchronously by the request sending function,
+  /// instead of being handled "automatically" by a dispatch handler.
+  void disableControlResponse();
+  /// A scope-guard version that calls \p disableControlResponse() and
+  /// \p enableControlResponse() when entering and leaving scope.
+  ControlInhibitor inhibitControlResponse();
+
+  /// If channel polling is initialised, adds \p DataSocket to the list of
+  /// channels to poll and handle incoming data.
+  void enableDataSocket();
+  /// If channel polling is initialised, removes \p DataSocket from the list of
+  /// channels to poll. When disabled, data sent by the server is left
+  /// unhandled.
+  void disableDataSocket();
+  /// A scope-guard version that calls \p disableDataSocket() and
+  /// \p enableDataSocket() when entering and leaving scope.
+  DataInhibitor inhibitDataSocket();
+
+  /// If channel polling is initialised, adds the input device to the list of
+  /// channels to poll and handle incoming data from.
+  void enableInputFile();
+  /// If channel polling is initialised, removes the input device from the list
+  /// of channels to poll. When inhibited, input that appears on the input
+  /// device will not trigger the \p InputCallback.
+  void disableInputFile();
+  /// A scope-guard version that calls \p disableInputFile() and
+  /// \p enableInputFile() when entering and leaving scope.
+  InputInhibitor inhibitInputFile();
 };
 
 } // namespace client
