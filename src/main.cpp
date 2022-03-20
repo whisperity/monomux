@@ -53,9 +53,7 @@ static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
 
 static void printOptionHelp()
 {
-  using std::cout, std::endl;
-
-  cout << R"EOF(Usage:
+  std::cout << R"EOF(Usage:
     monomux [SERVER OPTIONS...] --server
     monomux [CLIENT OPTIONS...] [PROGRAM]
     monomux [CLIENT OPTIONS...] -- PROGRAM [ARGS...]
@@ -132,7 +130,7 @@ Server options:
                                   clients on.
 
 )EOF";
-  cout << endl;
+  std::cout << std::endl;
 }
 
 int main(int ArgC, char* ArgV[])

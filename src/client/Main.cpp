@@ -337,37 +337,37 @@ int main(Options& Opts)
 
   // This below is unclean code.
 
-  setvbuf(stdin, NULL, _IONBF, 0);
-  setvbuf(stdout, NULL, _IONBF, 0);
-
-  termios Mode;
-  raw_fd TTY = ::open("/dev/tty", O_RDWR);
-  if (tcgetattr(TTY, &Mode) < 0)
-    return EXIT_FAILURE;
-  termios NewMode = Mode;
-  NewMode.c_lflag &= ~(ICANON | ECHO);
-
-  // TODO: Do we need all these flags, really?
-  NewMode.c_iflag &= ~IXON;
-  NewMode.c_iflag &= ~IXOFF;
-  NewMode.c_iflag &= ~ICRNL;
-  NewMode.c_iflag &= ~INLCR;
-  NewMode.c_iflag &= ~IGNCR;
-  NewMode.c_iflag &= ~IMAXBEL;
-  NewMode.c_iflag &= ~ISTRIP;
-
-  NewMode.c_oflag &= ~OPOST;
-  NewMode.c_oflag &= ~ONLCR;
-  NewMode.c_oflag &= ~OCRNL;
-  NewMode.c_oflag &= ~ONLRET;
-
-  if (tcsetattr(TTY, TCSANOW, &NewMode) < 0)
-    return EXIT_SystemError;
-
-  {
-    Terminal Term{fd::fileno(stdin), fd::fileno(stdout)};
-    Client.setTerminal(std::move(Term));
-  }
+  // setvbuf(stdin, NULL, _IONBF, 0);
+  // setvbuf(stdout, NULL, _IONBF, 0);
+  //
+  // termios Mode;
+  // raw_fd TTY = ::open("/dev/tty", O_RDWR);
+  // if (tcgetattr(TTY, &Mode) < 0)
+  //   return EXIT_FAILURE;
+  // termios NewMode = Mode;
+  // NewMode.c_lflag &= ~(ICANON | ECHO);
+  //
+  // // TODO: Do we need all these flags, really?
+  // NewMode.c_iflag &= ~IXON;
+  // NewMode.c_iflag &= ~IXOFF;
+  // NewMode.c_iflag &= ~ICRNL;
+  // NewMode.c_iflag &= ~INLCR;
+  // NewMode.c_iflag &= ~IGNCR;
+  // NewMode.c_iflag &= ~IMAXBEL;
+  // NewMode.c_iflag &= ~ISTRIP;
+  //
+  // NewMode.c_oflag &= ~OPOST;
+  // NewMode.c_oflag &= ~ONLCR;
+  // NewMode.c_oflag &= ~OCRNL;
+  // NewMode.c_oflag &= ~ONLRET;
+  //
+  // if (tcsetattr(TTY, TCSANOW, &NewMode) < 0)
+  //   return EXIT_SystemError;
+  //
+  // {
+  //   Terminal Term{fd::fileno(stdin), fd::fileno(stdout)};
+  //   Client.setTerminal(std::move(Term));
+  // }
 
   // ----------------------------- Be a real client ----------------------------
   Client.loop();
