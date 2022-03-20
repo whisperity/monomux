@@ -39,13 +39,9 @@ void SignalHandling::handler(Signal SigNum,
   if (!Context)
     return;
 
-  for (std::size_t I = 0; I < CallbackCount; ++I)
-  {
-    std::function<SignalCallback>* volatile Cb =
-      &Context->Callbacks.at(SigNum).at(I);
-    if (Cb && *Cb)
-      (*Cb)(SigNum, Info, Context);
-  }
+  std::function<SignalCallback>* volatile Cb = &Context->Callbacks.at(SigNum);
+  if (Cb && *Cb)
+    (*Cb)(SigNum, Info, Context);
 }
 
 std::unique_ptr<SignalHandling> SignalHandling::Singleton;
@@ -62,8 +58,7 @@ SignalHandling::SignalHandling()
   static_assert(std::is_same_v<decltype(handler), KernelSignalHandler>,
                 "Signal handler type invalid.");
 
-  for (std::size_t S = 0; S < SignalCount; ++S)
-    Callbacks.at(S).fill(std::function<SignalCallback>{});
+  Callbacks.fill(std::function<SignalCallback>{});
   ObjectNames.fill(std::string{});
   Objects.fill(std::any{});
   RegisteredSignals.fill(false);
@@ -106,9 +101,8 @@ void SignalHandling::enable()
 {
   for (std::size_t S = 0; S < SignalCount; ++S)
   {
-    if (!Callbacks.at(S).at(0))
-      // If the first element for the signal's callback is empty, no handling
-      // is needed.
+    if (!Callbacks.at(S))
+      // If the callback for the signal is empty, no handling is needed.
       continue;
     if (RegisteredSignals.at(S))
       // This signal is (assumed to be) already registered in the kernel.
@@ -192,40 +186,25 @@ void SignalHandling::registerCallback(Signal SigNum,
     throw std::invalid_argument{"Signal " + std::to_string(SigNum) +
                                 " cannot be handled!"};
 
-  for (std::size_t I = 0; I < CallbackCount; ++I)
-  {
-    if (!Callbacks.at(SigNum).at(I))
-    {
-      Callbacks.at(SigNum).at(I) = std::move(Callback);
-      return;
-    }
-  }
-
-  throw std::out_of_range{"Signal " + std::to_string(SigNum) +
-                          " callback vector is full (max size: " +
-                          std::to_string(CallbackCount) + ")!"};
+  Callbacks.at(SigNum) = std::move(Callback);
 }
 
-void SignalHandling::clearCallbacks(Signal SigNum)
+void SignalHandling::clearCallback(Signal SigNum)
 {
   if (static_cast<std::size_t>(SigNum) > SignalCount)
     throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
 
-  for (std::size_t I = 0; I < CallbackCount; ++I)
-  {
-    std::function<SignalCallback> Empty{};
-    Callbacks.at(SigNum).at(I).swap(Empty);
-  }
+  std::function<SignalCallback> Empty{};
+  Callbacks.at(SigNum).swap(Empty);
 }
 
 void SignalHandling::clearCallbacks() noexcept
 {
   for (std::size_t S = 0; S < SignalCount; ++S)
-    for (std::size_t I = 0; I < CallbackCount; ++I)
-    {
-      std::function<SignalCallback> Empty{};
-      Callbacks.at(S).at(I).swap(Empty);
-    }
+  {
+    std::function<SignalCallback> Empty{};
+    Callbacks.at(S).swap(Empty);
+  }
 }
 
 void SignalHandling::registerObject(std::string Name, std::any Object)

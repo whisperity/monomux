@@ -46,15 +46,18 @@ class SignalHandling
 public:
   using Signal = int;
 
-  /// The number of signals available on the current platform.
-  static constexpr std::size_t SignalCount = NSIG;
-
-  /// The number of callbacks that could be registered \e per \e signal.
-  static constexpr std::size_t CallbackCount = 4;
+  /// The number of normal (non-realtime) signals available with the current
+  /// implementation.
+  ///
+  /// \note This does \b NOT include realtime signals. This is a design decision
+  /// to keep the data structures smaller, as the project does not care about
+  /// realtime signals.
+  static constexpr std::size_t SignalCount = __SIGRTMIN;
+  // The true SIGRTMIN is an extern libc call which would make it not constepr.
 
   /// The number of objects that might be registered into the configuration
   /// for use in signal handlers.
-  static constexpr std::size_t ObjectCount = 16;
+  static constexpr std::size_t ObjectCount = 4;
 
   /// The type of the user-implemented signal handlers that can be registered
   /// as a callback.
@@ -96,10 +99,8 @@ private:
   /// The global object for the signal handler.
   static std::unique_ptr<SignalHandling> Singleton;
 
-  /// A lookup table of callbacks to fire per signal.
-  std::array<std::array<std::function<SignalCallback>, CallbackCount>,
-             SignalCount>
-    Callbacks;
+  /// A lookup table of callbacks for signals.
+  std::array<std::function<SignalCallback>, SignalCount> Callbacks;
 
   /// A lookup table of object names.
   std::array<std::string, ObjectCount> ObjectNames;
@@ -163,11 +164,12 @@ public:
   void unignore();
 
   /// Registers a callback to fire when \p SigNum is received.
-  /// The callback is added at the \b end of the signal queue.
   void registerCallback(Signal SigNum, std::function<SignalCallback> Callback);
 
-  /// Remove all callbacks from the callback list for \p SigNum.
-  void clearCallbacks(Signal SigNum);
+  /// Remove the callback of \p SigNum.
+  /// If signal handling had been \p enabled() for the signal beforehand, no
+  /// handler will fire.
+  void clearCallback(Signal SigNum);
 
   /// Remove all callbacks.
   void clearCallbacks() noexcept;
