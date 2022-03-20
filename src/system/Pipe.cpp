@@ -166,8 +166,6 @@ std::string Pipe::read(raw_fd FD, std::size_t Bytes, bool* Success)
           EC == std::errc::resource_unavailable_try_again /* EAGAIN */)
       {
         // No more data left in the stream.
-        std::cout << "read(): " << std::strerror(static_cast<int>(EC))
-                  << std::endl;
         break;
       }
 

@@ -37,10 +37,7 @@ struct Options
   std::vector<std::string> toArgv() const;
 
   // (To initialise the bitfields...)
-  Options()
-    : ClientMode(false), ForceSessionSelectMenu(false),
-      DetachRequestLatest(false), DetachRequestAll(false)
-  {}
+  Options();
 
   /// \returns if control-mode flags (transmitted to the server through a
   /// non-terminal client) are enabled.

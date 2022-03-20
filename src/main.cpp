@@ -260,17 +260,16 @@ int main(int ArgC, char* ArgV[])
   // server right here.
   {
     std::string FailureReason;
-    std::optional<client::Client> ToServer =
-      client::connect(ClientOpts, false, &FailureReason);
-    if (!ToServer && false)
+    std::optional<client::Client> ToServer;
+    try
     {
-      // TODO: Work out how this would work with signals and the TTY of the
-      // client.
-      std::cerr << "ERROR: No running Monomux server found. Please start one "
-                   "manually with `monomux --server` for now!"
-                << std::endl;
-      return EXIT_FAILURE;
+      ToServer = client::connect(ClientOpts, false, &FailureReason);
+    }
+    catch (...)
+    {}
 
+    if (!ToServer)
+    {
       std::clog << "DEBUG: No running server found, creating one..."
                 << std::endl;
 
@@ -286,7 +285,15 @@ int main(int ArgC, char* ArgV[])
           server::exec(ServerOpts, ArgV[0]);
         });
 
-      ToServer = client::connect(ClientOpts, true, &FailureReason);
+      // Give some time for the server to spawn...
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+
+      try
+      {
+        ToServer = client::connect(ClientOpts, true, &FailureReason);
+      }
+      catch (...)
+      {}
     }
 
     if (!ToServer)

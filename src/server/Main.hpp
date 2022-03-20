@@ -33,10 +33,13 @@ struct Options
   std::vector<std::string> toArgv() const;
 
   // (To initialise the bitfields...)
-  Options() : ServerMode(false) {}
+  Options();
 
   /// Whether the server mode was enabled.
   bool ServerMode : 1;
+
+  /// Whether the server should run as a background process.
+  bool Background : 1;
 
   /// The path of the server socket to start listening on.
   std::optional<std::string> SocketPath;

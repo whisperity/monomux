@@ -62,6 +62,7 @@ void Server::sendRejectClient(ClientData& Client, std::string Reason)
 
 HANDLER(requestClientID)
 {
+  (void)Server;
   MSG(request::ClientID);
   std::cout << "SERVER: Client #" << Client.id() << ": Request Client ID"
             << std::endl;

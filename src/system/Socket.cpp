@@ -231,8 +231,6 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
         EC == std::errc::resource_unavailable_try_again /* EAGAIN */)
     {
       // No more data left in the stream.
-      std::cout << "read(): " << std::strerror(static_cast<int>(EC))
-                << std::endl;
       Continue = false;
       return {};
     }

@@ -33,6 +33,8 @@ namespace monomux
 namespace server
 {
 
+Options::Options() : ServerMode(false), Background(true) {}
+
 std::vector<std::string> Options::toArgv() const
 {
   std::vector<std::string> Ret;
@@ -87,8 +89,9 @@ static void childExited(SignalHandling::Signal /* SigNum */,
 
 int main(Options& Opts)
 {
-  // CheckedPOSIXThrow([] { return ::daemon(0, 0); }, "Backgrounding ourselves
-  // failed", -1);
+  if (Opts.Background)
+    CheckedPOSIXThrow(
+      [] { return ::daemon(0, 0); }, "Backgrounding ourselves failed", -1);
 
   Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));

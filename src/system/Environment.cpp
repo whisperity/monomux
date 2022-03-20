@@ -106,37 +106,44 @@ SocketPath SocketPath::defaultSocketPath()
 SocketPath SocketPath::absolutise(const std::string& Path)
 {
   POD<char[PATH_MAX]> Result; // NOLINT(modernize-avoid-c-arrays)
-  auto R = CheckedPOSIX(
-    // NOLINTNEXTLINE(modernize-avoid-c-arrays)
-    [&Path, &Result] { return ::realpath(Path.c_str(), Result); },
-    nullptr);
-  if (!R)
+  if (Path.front() == '/')
+    // If the path begins with a '/', assume it is absolute.
+    std::strncpy(Result, Path.c_str(), PATH_MAX);
+  else
   {
-    std::error_code EC = R.getError();
-    if (EC == std::errc::no_such_file_or_directory /* ENOENT */)
+    auto R = CheckedPOSIX(
+      // NOLINTNEXTLINE(modernize-avoid-c-arrays)
+      [&Path, &Result] { return ::realpath(Path.c_str(), Result); },
+      nullptr);
+    if (!R)
     {
-      // (For files that do not exist, realpath will fail. So we do the absolute
-      // path conversion ourselves.)
-      Result.reset();
-      R.get() = CheckedPOSIXThrow(
-        // NOLINTNEXTLINE(modernize-avoid-c-arrays)
-        [&Result] { return ::realpath(".", Result); },
-        "realpath(\".\")",
-        nullptr);
+      std::error_code EC = R.getError();
+      if (EC == std::errc::no_such_file_or_directory /* ENOENT */)
+      {
+        // (For files that do not exist, realpath will fail. So we do the
+        // absolute path conversion ourselves.)
+        Result.reset();
+        R.get() = CheckedPOSIXThrow(
+          // NOLINTNEXTLINE(modernize-avoid-c-arrays)
+          [&Result] { return ::realpath(".", Result); },
+          "realpath(\".\")",
+          nullptr);
 
-      std::size_t ReadlinkCurDirPathSize = std::strlen(Result);
-      if (ReadlinkCurDirPathSize + 1 + Path.size() > PATH_MAX)
-        throw std::system_error{
-          std::make_error_code(std::errc::filename_too_long), "strncat path"};
+        std::size_t ReadlinkCurDirPathSize = std::strlen(Result);
+        if (ReadlinkCurDirPathSize + 1 + Path.size() > PATH_MAX)
+          throw std::system_error{
+            std::make_error_code(std::errc::filename_too_long), "strncat path"};
 
-      Result[ReadlinkCurDirPathSize] = '/';
-      Result[ReadlinkCurDirPathSize + 1] = 0;
-      std::strncat(Result + ReadlinkCurDirPathSize, Path.c_str(), Path.size());
+        Result[ReadlinkCurDirPathSize] = '/';
+        Result[ReadlinkCurDirPathSize + 1] = 0;
+        std::strncat(
+          Result + ReadlinkCurDirPathSize, Path.c_str(), Path.size());
+      }
+      else
+        throw std::system_error{EC, "realpath()"};
     }
-    else
-      throw std::system_error{EC, "realpath()"};
+    assert(R.get() == &Result[0]);
   }
-  assert(R.get() == &Result[0]);
 
   POD<char[PATH_MAX]> Dir; // NOLINT(modernize-avoid-c-arrays)
   std::strncpy(Dir, Result, PATH_MAX);

@@ -37,6 +37,11 @@ namespace monomux
 namespace client
 {
 
+Options::Options()
+  : ClientMode(false), ForceSessionSelectMenu(false),
+    DetachRequestLatest(false), DetachRequestAll(false)
+{}
+
 std::vector<std::string> Options::toArgv() const
 {
   std::vector<std::string> Ret;
