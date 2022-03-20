@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include "adt/MovableAtomic.hpp"
 #include "adt/unique_scalar.hpp"
 #include "system/POD.hpp"
 #include "system/fd.hpp"
@@ -34,6 +35,13 @@ class Client;
 class Terminal
 {
 public:
+  /// A record containing the size information of the controlled terminal.
+  struct Size
+  {
+    unsigned short Rows;
+    unsigned short Columns;
+  };
+
   Terminal(raw_fd InputStream, raw_fd OutputStream);
 
   /// Engages control over the current input and ouput terminal and sets it
@@ -64,12 +72,19 @@ public:
   raw_fd input() const noexcept { return In; }
   raw_fd output() const noexcept { return Out; }
 
+  Size getSize() const;
+  void notifySizeChanged() const noexcept;
+
 private:
   unique_scalar<raw_fd, fd::Invalid> In;
   unique_scalar<raw_fd, fd::Invalid> Out;
   unique_scalar<Client*, nullptr> AssociatedClient;
   unique_scalar<bool, false> Engaged;
   POD<struct ::termios> OriginalTerminalSettings;
+
+  /// Whether a signal interrupt indicated that the window size of the client
+  /// had changed.
+  mutable MovableAtomic<bool> WindowSizeChanged;
 
 #ifndef NDEBUG
   /// The handler callbacks in the client receive a \p Terminal instance's
@@ -83,6 +98,9 @@ private:
   static void clientInput(Terminal* Term, Client& Client);
   /// Callback function fired when the client reports available output.
   static void clientOutput(Terminal* Term, Client& Client);
+  /// Callback function fired when the client is ready to process events of the
+  /// environment.
+  static void clientEventReady(Terminal* Term, Client& Client);
 };
 
 } // namespace client

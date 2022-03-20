@@ -25,6 +25,9 @@
 #include <cassert>
 #include <functional>
 
+#include <sys/ioctl.h>
+#include <termios.h>
+
 namespace monomux
 {
 namespace client
@@ -117,6 +120,21 @@ void Terminal::clientOutput(Terminal* Term, Client& Client)
   Pipe::write(Term->output(), Output);
 }
 
+void Terminal::clientEventReady(Terminal* Term, Client& Client)
+{
+#ifndef NDEBUG
+  assert(Term->MovedFromCheck &&
+         "Terminal object registered as callback was moved.");
+#endif
+
+  if (Term->WindowSizeChanged.get().load())
+  {
+    Size S = Term->getSize();
+    Client.notifyWindowSize(S.Rows, S.Columns);
+    Term->WindowSizeChanged.get().store(false);
+  }
+}
+
 void Terminal::setupClient(Client& Client)
 {
   if (AssociatedClient)
@@ -124,9 +142,14 @@ void Terminal::setupClient(Client& Client)
 
   Client.setInputFile(input());
   Client.setInputCallback(
+    // NOLINTNEXTLINE(modernize-avoid-bind)
     std::bind(&Terminal::clientInput, this, std::placeholders::_1));
   Client.setDataCallback(
+    // NOLINTNEXTLINE(modernize-avoid-bind)
     std::bind(&Terminal::clientOutput, this, std::placeholders::_1));
+  Client.setExternalEventProcessor(
+    // NOLINTNEXTLINE(modernize-avoid-bind)
+    std::bind(&Terminal::clientEventReady, this, std::placeholders::_1));
 
   AssociatedClient = &Client;
 }
@@ -138,9 +161,27 @@ void Terminal::releaseClient()
 
   (*AssociatedClient).setDataCallback({});
   (*AssociatedClient).setInputCallback({});
+  (*AssociatedClient).setExternalEventProcessor({});
   (*AssociatedClient).setInputFile(fd::Invalid);
 
   AssociatedClient = nullptr;
+}
+
+Terminal::Size Terminal::getSize() const
+{
+  POD<struct ::winsize> Raw;
+  CheckedPOSIXThrow([this, &Raw] { return ::ioctl(In, TIOCGWINSZ, &Raw); },
+                    "ioctl(0, TIOCGWINSZ /* get window size */);",
+                    -1);
+  Size S;
+  S.Rows = Raw->ws_row;
+  S.Columns = Raw->ws_col;
+  return S;
+}
+
+void Terminal::notifySizeChanged() const noexcept
+{
+  WindowSizeChanged.get().store(true);
 }
 
 } // namespace client

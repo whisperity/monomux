@@ -554,6 +554,24 @@ DECODE(Detach)
   return Ret;
 }
 
+ENCODE(Signal)
+{
+  std::ostringstream Buf;
+  Buf << "<SIGNAL>" << Object.SigNum << "</SIGNAL>";
+  return Buf.str();
+}
+DECODE(Signal)
+{
+  Signal Ret;
+  HEADER_OR_NONE("<SIGNAL>");
+
+  EXTRACT_OR_NONE(Signal, "<");
+  Ret.SigNum = std::stoi(std::string{Signal});
+
+  FOOTER_OR_NONE("/SIGNAL>");
+  return Ret;
+}
+
 } // namespace request
 
 namespace response
@@ -783,6 +801,32 @@ DECODE(Detached)
     return std::nullopt;
 
   FOOTER_OR_NONE("/DETACHED>");
+  return Ret;
+}
+
+ENCODE(Redraw)
+{
+  std::ostringstream Buf;
+  Buf << "<WINDOW-SIZE-CHANGE>";
+  Buf << "<ROWS>" << Object.Rows << "</ROWS>";
+  Buf << "<COLS>" << Object.Columns << "</COLS>";
+  Buf << "</WINDOW-SIZE-CHANGE>";
+  return Buf.str();
+}
+DECODE(Redraw)
+{
+  Redraw Ret;
+  HEADER_OR_NONE("<WINDOW-SIZE-CHANGE>");
+
+  CONSUME_OR_NONE("<ROWS>");
+  EXTRACT_OR_NONE(Rows, "</ROWS>");
+  Ret.Rows = std::stoull(std::string{Rows});
+
+  CONSUME_OR_NONE("<COLS>");
+  EXTRACT_OR_NONE(Cols, "</COLS>");
+  Ret.Columns = std::stoull(std::string{Cols});
+
+  FOOTER_OR_NONE("</WINDOW-SIZE-CHANGE>");
   return Ret;
 }
 

@@ -316,3 +316,24 @@ TEST(ControlMessageSerialisation, DetachedNotification)
   EXPECT_EQ(encode(Obj), "<DETACHED>Server</DETACHED>");
   EXPECT_EQ(codec(Obj).Mode, Detached::ServerShutdown);
 }
+
+TEST(ControlMessageSerialisation, SignalRequest)
+{
+  monomux::message::request::Signal Obj;
+  Obj.SigNum = 1;
+  EXPECT_EQ(encode(Obj), "<SIGNAL>1</SIGNAL>");
+  EXPECT_EQ(codec(Obj).SigNum, 1);
+}
+
+TEST(ControlMessageSerialisation, RedrawNotification)
+{
+  monomux::message::notification::Redraw Obj;
+  Obj.Columns = 80; // NOLINT(readability-magic-numbers)
+  Obj.Rows = 24;    // NOLINT(readability-magic-numbers)
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(Decode.Rows, Obj.Rows);
+    EXPECT_EQ(Decode.Columns, Obj.Columns);
+  }
+}

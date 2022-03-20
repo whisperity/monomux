@@ -34,6 +34,8 @@
 # CMake build.
 [bB]uild/
 [bB]uild-*
+[rR]elease/
+[rR]elease-*
 
 # Clangd
 compile_commands.json

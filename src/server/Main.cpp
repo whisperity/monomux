@@ -33,7 +33,9 @@ namespace monomux
 namespace server
 {
 
-Options::Options() : ServerMode(false), Background(true) {}
+Options::Options()
+  : ServerMode(false), Background(true), ExitOnLastSessionTerminate(true)
+{}
 
 std::vector<std::string> Options::toArgv() const
 {
@@ -46,6 +48,10 @@ std::vector<std::string> Options::toArgv() const
     Ret.emplace_back("--socket");
     Ret.emplace_back(*SocketPath);
   }
+  if (!Background)
+    Ret.emplace_back("--no-daemon");
+  if (!ExitOnLastSessionTerminate)
+    Ret.emplace_back("--keepalive");
 
   return Ret;
 }
@@ -95,6 +101,7 @@ int main(Options& Opts)
 
   Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));
+  S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
 
   {
     SignalHandling& Sig = SignalHandling::get();

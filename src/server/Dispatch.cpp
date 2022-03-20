@@ -242,6 +242,23 @@ HANDLER(requestDetach)
   sendMessage(Client.getControlSocket(), Resp);
 }
 
+HANDLER(signalSession)
+{
+  std::cerr << "WARNING: <signal> requests not yet implemented!" << std::endl;
+}
+
+HANDLER(redrawNotified)
+{
+  (void)Server;
+  MSG(notification::Redraw);
+
+  SessionData* S = Client.getAttachedSession();
+  if (!S)
+    return;
+  if (S->hasProcess() && S->getProcess().hasPty())
+    S->getProcess().getPty()->setSize(Msg->Rows, Msg->Columns);
+}
+
 #undef HANDLER
 
 } // namespace server

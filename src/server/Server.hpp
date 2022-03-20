@@ -85,6 +85,10 @@ public:
   void registerMessageHandler(std::uint16_t Kind,
                               std::function<HandlerFunction> Handler);
 
+  /// Sets whether the server should automatically close a \p loop() if the last
+  /// session running under it terminated.
+  void setExitIfNoMoreSessions(bool ExitIfNoMoreSessions);
+
   /// Start actively listening and handling connections.
   ///
   /// \note This is a blocking call!
@@ -146,6 +150,7 @@ private:
   mutable std::array<Process::raw_handle, DeadChildrenVecSize> DeadChildren;
 
   mutable MovableAtomic<bool> TerminateLoop;
+  bool ExitIfNoMoreSessions;
   std::unique_ptr<EPoll> Poll;
 
   void reapDeadChildren();

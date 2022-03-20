@@ -22,15 +22,13 @@
 #include "Terminal.hpp"
 
 #include "ExitCode.hpp"
-#include "server/Server.hpp" // FIXME: Do not depend on this.
 #include "system/Environment.hpp"
+#include "system/Signal.hpp"
 #include "system/Time.hpp"
 
 #include <chrono>
 #include <iostream>
 #include <thread>
-
-#include <termios.h>
 
 namespace monomux
 {
@@ -103,6 +101,19 @@ connect(Options& Opts, bool Block, std::string* FailureReason)
   }
 
   return C;
+}
+
+/// Handler for \p SIGWINCH (window size change) events produces by the terminal
+/// the program is running in.
+static void windowSizeChange(SignalHandling::Signal /* SigNum */,
+                             ::siginfo_t* /* Info */,
+                             const SignalHandling* Handling)
+{
+  const volatile auto* Term =
+    std::any_cast<Terminal*>(Handling->getObject("Terminal"));
+  if (!Term)
+    return;
+  (*Term)->notifySizeChanged();
 }
 
 namespace
@@ -310,8 +321,9 @@ int main(Options& Opts)
         return EXIT_InvocationError;
       }
       Spawn.Arguments = std::move(Opts.ProgramArgs);
-      Spawn.Environment["MONOMUX_UNSET"] = std::nullopt;
-      Spawn.Environment["MONOMUX_SET"] = "TEST";
+      // TODO: Clean up the environment variables of the to-be-spawned process,
+      // e.g. do not inherit the TERM of the server, but rather the TERM of the
+      // client.
 
       std::optional<std::string> Response =
         Client.requestMakeSession(SessionAction.SessionName, std::move(Spawn));
@@ -322,6 +334,7 @@ int main(Options& Opts)
         return EXIT_SystemError;
       }
       SessionAction.SessionName = *Response;
+
       SessionAction.Mode = SessionSelectionResult::Attach;
       // Intended "fallthrough".
     }
@@ -345,7 +358,23 @@ int main(Options& Opts)
   Term.setupClient(Client);
   Term.engage();
 
+  {
+    // Send the initial window size to the server so the attached session prompt
+    // is appropriately (re)drawn.
+    Terminal::Size S = Term.getSize();
+    Client.notifyWindowSize(S.Rows, S.Columns);
+  }
+
+  {
+    SignalHandling& Sig = SignalHandling::get();
+    Sig.registerObject("Terminal", &Term);
+    Sig.registerCallback(SIGWINCH, &windowSizeChange);
+    Sig.enable();
+  }
+
   Client.loop();
+
+  SignalHandling::get().disable();
 
   Term.disengage();
   Term.releaseClient();
@@ -377,6 +406,8 @@ int main(Options& Opts)
       std::cout << "[server exited]" << std::endl;
       return EXIT_Success;
   }
+
+  return EXIT_Success;
 }
 
 } // namespace client

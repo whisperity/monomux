@@ -59,7 +59,8 @@ std::optional<Client> Client::create(std::string SocketPath,
   return std::nullopt;
 }
 
-Client::Client(Socket&& ControlSock) : ControlSocket(std::move(ControlSock))
+Client::Client(Socket&& ControlSock)
+  : ControlSocket(std::move(ControlSock)), Exit(None)
 {
   setUpDispatch();
 }
@@ -227,6 +228,10 @@ void Client::loop()
 
   while (!TerminateLoop.get().load())
   {
+    if (ExternalEventProcessor)
+      // Process "external" events before blocking on "wait()".
+      ExternalEventProcessor(*this);
+
     const std::size_t NumTriggeredFDs = Poll->wait();
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
@@ -313,6 +318,11 @@ void Client::setDataCallback(std::function<RawCallbackFn> Callback)
 void Client::setInputCallback(std::function<RawCallbackFn> Callback)
 {
   InputHandler = std::move(Callback);
+}
+
+void Client::setExternalEventProcessor(std::function<RawCallbackFn> Callback)
+{
+  ExternalEventProcessor = std::move(Callback);
 }
 
 void Client::exit(ExitReason E)
@@ -425,6 +435,15 @@ void Client::sendData(std::string_view Data)
     return;
   }
   DataSocket->write(Data);
+}
+
+void Client::notifyWindowSize(unsigned short Rows, unsigned short Columns)
+{
+  using namespace monomux::message;
+  notification::Redraw M;
+  M.Rows = Rows;
+  M.Columns = Columns;
+  sendMessage(ControlSocket, M);
 }
 
 void Client::enableControlResponse()

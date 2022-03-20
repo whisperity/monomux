@@ -37,7 +37,7 @@
 
 using namespace monomux;
 
-static const char* ShortOptions = "hs:n:ldDN";
+static const char* ShortOptions = "hs:n:ldDNk";
 // clang-format off
 static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
   {"help",       no_argument,       nullptr, 'h'},
@@ -47,6 +47,8 @@ static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
   {"list",       no_argument,       nullptr, 'l'},
   {"detach",     no_argument,       nullptr, 'd'},
   {"detach-all", no_argument,       nullptr, 'D'},
+  {"no-daemon",  no_argument,       nullptr, 'N'},
+  {"keepalive",  no_argument,       nullptr, 'k'},
   {nullptr,      0,                 nullptr, 0}
 };
 // clang-format on
@@ -128,8 +130,10 @@ In-session options:
 Server options:
     -s PATH, --socket PATH      - Path of the sever socket to create and await
                                   clients on.
-    -N                          - Do not daemonise (put the running server into
-                                  the background) automatically.
+    -k, --keepalive             - Do not automatically shut the server down if
+                                  the only session running in it had exited.
+    -N, --no-daemon             - Do not daemonise (put the running server into
+                                  the background) automatically. Implies '-k'.
 
 )EOF";
   std::cout << std::endl;
@@ -191,6 +195,10 @@ int main(int ArgC, char* ArgV[])
           break;
         case 'N':
           ServerOpts.Background = false;
+          ServerOpts.ExitOnLastSessionTerminate = false;
+          break;
+        case 'K':
+          ServerOpts.ExitOnLastSessionTerminate = false;
           break;
       }
     }
@@ -280,8 +288,8 @@ int main(int ArgC, char* ArgV[])
 
       ServerOpts.ServerMode = true;
       Process::fork(
-        [] { /* In the parent, continue. */
-             return;
+        [] {         /* In the parent, continue. */
+             return; // NOLINT(readability-redundant-control-flow)
         },
         [&ServerOpts, &ArgV] /* NOLINT(modernize-avoid-c-arrays) */ {
           // Perform the server restart in the child, so it gets

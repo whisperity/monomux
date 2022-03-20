@@ -165,6 +165,15 @@ struct Detach
   DetachMode Mode;
 };
 
+/// A request from the client to the server to deliver a process signal to the
+/// attached session.
+struct Signal
+{
+  MONOMUX_MESSAGE(SignalRequest, Signal);
+  /// \see signal(7)
+  int SigNum;
+};
+
 } // namespace request
 
 namespace response
@@ -252,6 +261,18 @@ struct Detached
     ServerShutdown
   };
   DetachMode Mode;
+};
+
+/// A notification send by the client to the server indicating that its terminal
+/// buffer ("window size") has changed, prompting the server to relay this
+/// information into the attached session.
+///
+/// \see ioctl_tty(4)
+struct Redraw
+{
+  MONOMUX_MESSAGE(RedrawNotification, Redraw);
+  unsigned short Rows;
+  unsigned short Columns;
 };
 
 } // namespace notification

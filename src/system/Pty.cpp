@@ -19,7 +19,9 @@
 #include "Pty.hpp"
 
 #include "CheckedPOSIX.hpp"
+#include "POD.hpp"
 
+#include <climits>
 #include <iostream>
 
 #include <pty.h>
@@ -31,27 +33,24 @@ namespace monomux
 
 Pty::Pty()
 {
-  raw_fd MasterFD, SlaveFD;
-  char DEVICE_NAME[1024];
+  raw_fd MasterFD;
+  raw_fd SlaveFD;
+  POD<char[PATH_MAX]> DeviceName; // NOLINT(modernize-avoid-c-arrays)
 
   CheckedPOSIXThrow(
-    [&MasterFD, &SlaveFD, &DEVICE_NAME]() {
-      return ::openpty(&MasterFD, &SlaveFD, DEVICE_NAME, nullptr, nullptr);
+    [&MasterFD, &SlaveFD, &DeviceName] /* NOLINT(modernize-avoid-c-arrays) */ {
+      return ::openpty(&MasterFD, &SlaveFD, DeviceName, nullptr, nullptr);
     },
     "Failed to openpty()",
     -1);
 
-  std::clog << "FDs: " << MasterFD << ' ' << SlaveFD << std::endl;
-  std::clog << "Device: " << DEVICE_NAME << std::endl;
-
   Master = MasterFD;
   Slave = SlaveFD;
+  Name = DeviceName;
 }
 
 void Pty::setupParentSide()
 {
-  std::clog << "In parent: " << Master << ' ' << Slave << std::endl;
-
   // Close PTS, the slave PTY.
   raw_fd PTS = Slave.release();
   fd::close(PTS);
@@ -62,8 +61,7 @@ void Pty::setupParentSide()
 
 void Pty::setupChildrenSide()
 {
-  std::clog << "In child: " << Master << ' ' << Slave << std::endl;
-
+  // Closes PTM, the pseudoterminal multiplexer master (PTMX).
   raw_fd PTM = Master.release();
   fd::close(PTM);
 
@@ -71,5 +69,18 @@ void Pty::setupChildrenSide()
     [this] { return ::login_tty(Slave); }, "login_tty in child", -1);
 }
 
+void Pty::setSize(unsigned short Rows, unsigned short Columns)
+{
+  if (!isMaster())
+    throw std::invalid_argument{"setSize() not allowed on slave device."};
+
+  POD<struct ::winsize> Size;
+  Size->ws_row = Rows;
+  Size->ws_col = Columns;
+  CheckedPOSIXThrow(
+    [RawFD = Master.get(), &Size] { return ::ioctl(RawFD, TIOCSWINSZ, &Size); },
+    "ioctl(PTMX, TIOCSWINSZ /* set window size*/);",
+    -1);
+}
 
 } // namespace monomux

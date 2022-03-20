@@ -41,6 +41,10 @@ struct Options
   /// Whether the server should run as a background process.
   bool Background : 1;
 
+  /// Whether the server should automatically quit if the last session running
+  /// has terminated.
+  bool ExitOnLastSessionTerminate : 1;
+
   /// The path of the server socket to start listening on.
   std::optional<std::string> SocketPath;
 };

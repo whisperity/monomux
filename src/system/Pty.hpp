@@ -19,6 +19,8 @@
 #pragma once
 #include "fd.hpp"
 
+#include "adt/unique_scalar.hpp"
+
 #include <optional>
 
 namespace monomux
@@ -29,10 +31,13 @@ namespace monomux
 /// physical typewriter and printer machines were connected to computers.
 class Pty
 {
-  bool IsMaster = false;
-  fd Master, Slave;
+  unique_scalar<bool, false> IsMaster;
+  fd Master;
+  fd Slave;
+  std::string Name;
 
 public:
+  /// Creates a new PTY-pair.
   Pty();
 
   /// \returns whether the current instance is open on the master (PTM, control)
@@ -47,6 +52,9 @@ public:
   /// open.
   fd& raw() noexcept { return isMaster() ? Master : Slave; }
 
+  /// \returns the name of the PTY interface that was created (e.g. /dev/pts/2).
+  const std::string& name() const noexcept { return Name; }
+
   /// Executes actions that configure the current PTY from the owning parent's
   /// point of view. This usually means that the PTS (pseudoterminal-slave)
   /// file descriptor is closed.
@@ -59,6 +67,9 @@ public:
   /// Normally, after a call to this function, it is expected for the child
   /// process to be replaced with another one.
   void setupChildrenSide();
+
+  /// Sets the size of the pseudoterminal device to have the given dimensions.
+  void setSize(unsigned short Rows, unsigned short Columns);
 };
 
 } // namespace monomux

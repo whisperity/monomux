@@ -11,4 +11,8 @@ DISPATCH(MakeSessionRequest, requestMakeSession)
 DISPATCH(AttachRequest, requestAttach)
 DISPATCH(DetachRequest, requestDetach)
 
+DISPATCH(SignalRequest, signalSession)
+
+DISPATCH(RedrawNotification, redrawNotified)
+
 #undef DISPATCH

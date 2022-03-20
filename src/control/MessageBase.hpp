@@ -95,6 +95,13 @@ enum class MessageKind : std::uint16_t
   /// A notification sent by the server to a client indicating that the client
   /// had been detached.
   DetachedNotification,
+
+  /// A request to the server to send a \p signal to the attached session.
+  SignalRequest,
+
+  /// A notification to the server to apply window resize/redraw to an attached
+  /// session.
+  RedrawNotification,
 };
 
 /// Helper class that contains the parsed \p MessageKind of a \p Message, and

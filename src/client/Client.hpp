@@ -180,6 +180,10 @@ public:
   /// Sends \p Data to the server over the \e data connection.
   void sendData(std::string_view Data);
 
+  /// Sends a notification to the server that the dimensions of the window the
+  /// client is running in has changed to the new \p Rows and \p Columns.
+  void notifyWindowSize(unsigned short Rows, unsigned short Columns);
+
   /// The callback that is fired when data is available on the \e control
   /// connection of the client. This method deals with parsing a \p Message
   /// from the control connection, and fire a message-specific handler.
@@ -188,6 +192,7 @@ public:
   void controlCallback();
 
   using RawCallbackFn = void(Client& Client);
+
   /// Sets the handler that is fired when data is received from the server.
   /// The data is \b NOT read before the callback fires.
   void setDataCallback(std::function<RawCallbackFn> Callback);
@@ -196,6 +201,10 @@ public:
   /// the client.
   /// The input is \b NOT read before the callback fires.
   void setInputCallback(std::function<RawCallbackFn> Callback);
+
+  /// Sets the callback object for handling external events when the client's
+  /// internal event handling \p loop() is ready for such.
+  void setExternalEventProcessor(std::function<RawCallbackFn> Callback);
 
 private:
   /// The control socket is used to communicate control commands with the
@@ -216,7 +225,13 @@ private:
   /// Information about the session the client attached to.
   std::optional<SessionData> AttachedSession;
 
+  /// A callback object that is fired when the client's event handling loop is
+  /// "in the mood" for processing externalia.
+  std::function<RawCallbackFn> ExternalEventProcessor;
+
+  /// The callback object fired when data becomes available on \p DataSocket.
   std::function<RawCallbackFn> DataHandler;
+  /// The callback object fired when data becomes available on \p InputFile.
   std::function<RawCallbackFn> InputHandler;
 
   /// Weak file handle for the stream that is considered the user-facing input
@@ -227,7 +242,7 @@ private:
   /// \p Poll is enabled.
   unique_scalar<bool, false> InputFileEnabled;
 
-  unique_scalar<ExitReason, None> Exit;
+  ExitReason Exit;
   /// Terminate the handling \p loop() of the client and set the exit status to
   /// \p E.
   void exit(ExitReason E);

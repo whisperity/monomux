@@ -33,7 +33,8 @@ namespace monomux
 namespace server
 {
 
-Server::Server(Socket&& Sock) : Sock(std::move(Sock))
+Server::Server(Socket&& Sock)
+  : Sock(std::move(Sock)), ExitIfNoMoreSessions(false)
 {
   setUpDispatch();
   DeadChildren.fill(Process::Invalid);
@@ -45,6 +46,11 @@ void Server::registerMessageHandler(std::uint16_t Kind,
                                     std::function<HandlerFunction> Handler)
 {
   Dispatch[Kind] = std::move(Handler);
+}
+
+void Server::setExitIfNoMoreSessions(bool ExitIfNoMoreSessions)
+{
+  this->ExitIfNoMoreSessions = ExitIfNoMoreSessions;
 }
 
 void Server::loop()
@@ -62,6 +68,7 @@ void Server::loop()
 
   while (!TerminateLoop.get().load())
   {
+    // Process "external" events.
     reapDeadChildren();
 
     const std::size_t NumTriggeredFDs = Poll->wait();
@@ -221,7 +228,7 @@ void Server::removeSession(SessionData& Session)
 
   Sessions.erase(Session.name());
 
-  if (Sessions.empty())
+  if (Sessions.empty() && ExitIfNoMoreSessions)
     TerminateLoop.get().store(true);
 }
 
