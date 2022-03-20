@@ -109,7 +109,7 @@ bool Client::handshake(std::string* FailureReason)
                          "establish connection.";
       return false;
     }
-    responseClientID(MB.RawData);
+    responseClientID(*this, MB.RawData);
     if (ClientID == static_cast<std::size_t>(-1) && !Nonce.has_value())
     {
       if (FailureReason)
@@ -185,7 +185,7 @@ bool Client::handshake(std::string* FailureReason)
                          "sign off connection.";
       return false;
     }
-    responseClientID(MB.RawData);
+    responseClientID(*this, MB.RawData);
     if (ClientID == static_cast<std::size_t>(-1) && !Nonce.has_value())
     {
       if (FailureReason)
@@ -297,7 +297,7 @@ void Client::controlCallback()
             << std::endl;
   try
   {
-    Action->second(MB.RawData);
+    Action->second(*this, MB.RawData);
   }
   catch (const std::system_error& Err)
   {
@@ -448,6 +448,16 @@ bool Client::requestAttach(std::string SessionName)
     Attached = false;
   else
     Attached = Resp->Success;
+
+  if (Attached)
+  {
+    if (!AttachedSession)
+      AttachedSession.emplace();
+
+    AttachedSession->Name = std::move(Resp->Session.Name);
+    AttachedSession->Created =
+      std::chrono::system_clock::from_time_t(std::move(Resp->Session.Created));
+  }
 
   return Attached;
 }

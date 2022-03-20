@@ -31,15 +31,15 @@ namespace client
 void Client::setUpDispatch()
 {
 #define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
-#define MEMBER(NAME)                                                           \
-  std::bind(std::mem_fn(&Client::NAME), this, std::placeholders::_1)
+#define MEMBER(NAME) &Client::NAME
 #define DISPATCH(K, FUNCTION) registerMessageHandler(KIND(K), MEMBER(FUNCTION));
 #include "Dispatch.ipp"
 #undef MEMBER
 #undef KIND
 }
 
-#define HANDLER(NAME) void Client::NAME(std::string_view Message)
+#define HANDLER(NAME)                                                          \
+  void Client::NAME(Client& Client, std::string_view Message)
 
 #define MSG(TYPE)                                                              \
   std::optional<TYPE> Msg = TYPE::decode(Message);                             \
@@ -51,11 +51,11 @@ HANDLER(responseClientID)
   std::clog << __PRETTY_FUNCTION__ << std::endl;
   MSG(response::ClientID);
 
-  ClientID = Msg->Client.ID;
-  Nonce.emplace(Msg->Client.Nonce);
+  Client.ClientID = Msg->Client.ID;
+  Client.Nonce.emplace(Msg->Client.Nonce);
 
-  std::clog << "DEBUG: Client is " << ClientID << " (with nonce " << *Nonce
-            << ')' << std::endl;
+  std::clog << "DEBUG: Client is " << Client.ClientID << " (with nonce "
+            << *Client.Nonce << ')' << std::endl;
 }
 
 HANDLER(receivedDetachNotification)
@@ -67,13 +67,13 @@ HANDLER(receivedDetachNotification)
   switch (Msg->Mode)
   {
     case Detached::Detach:
-      exit(Detached);
+      Client.exit(Detached);
       break;
     case Detached::Exit:
-      exit(SessionExit);
+      Client.exit(SessionExit);
       break;
     case Detached::ServerShutdown:
-      exit(ServerExit);
+      Client.exit(ServerExit);
       break;
   }
 }

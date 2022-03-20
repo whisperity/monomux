@@ -65,11 +65,14 @@ class Server
 public:
   /// The type of message handler functions.
   ///
+  /// \param Server The \p Server manager that received the message.
   /// \param Client The server-side client data structure for the entity that
   /// sent the message.
   /// \param RawMessage A view into the buffer of the message, before any
   /// structural parsing had been applied.
-  using HandlerFunction = void(ClientData& Client, std::string_view RawMessage);
+  using HandlerFunction = void(Server& Server,
+                               ClientData& Client,
+                               std::string_view RawMessage);
 
   /// Create a new server that will listen on the associated socket.
   Server(Socket&& Sock);
@@ -230,7 +233,8 @@ private:
   void setUpDispatch();
 
 #define DISPATCH(KIND, FUNCTION_NAME)                                          \
-  void FUNCTION_NAME(ClientData& Client, std::string_view Message);
+  static void FUNCTION_NAME(                                                   \
+    Server& Server, ClientData& Client, std::string_view Message);
 #include "Dispatch.ipp"
 };
 

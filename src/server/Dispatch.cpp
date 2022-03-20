@@ -33,11 +33,7 @@ namespace server
 void Server::setUpDispatch()
 {
 #define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
-#define MEMBER(NAME)                                                           \
-  std::bind(std::mem_fn(&Server::NAME),                                        \
-            this,                                                              \
-            std::placeholders::_1,                                             \
-            std::placeholders::_2)
+#define MEMBER(NAME) &Server::NAME
 #define DISPATCH(K, FUNCTION) registerMessageHandler(KIND(K), MEMBER(FUNCTION));
 #include "Dispatch.ipp"
 #undef MEMBER
@@ -56,7 +52,8 @@ void Server::sendRejectClient(ClientData& Client, std::string Reason)
 }
 
 #define HANDLER(NAME)                                                          \
-  void Server::NAME(ClientData& Client, std::string_view Message)
+  void Server::NAME(                                                           \
+    Server& Server, ClientData& Client, std::string_view Message)
 
 #define MSG(TYPE)                                                              \
   std::optional<TYPE> Msg = TYPE::decode(Message);                             \
@@ -88,8 +85,8 @@ HANDLER(requestDataSocket)
   std::cout << "Server: Client #" << Client.id()
             << ": Associate as Data Socket for " << Msg->Client.ID << std::endl;
 
-  auto MainIt = Clients.find(Msg->Client.ID);
-  if (MainIt == Clients.end())
+  auto MainIt = Server.Clients.find(Msg->Client.ID);
+  if (MainIt == Server.Clients.end())
   {
     sendMessage(Client.getControlSocket(), Resp);
     return;
@@ -107,7 +104,7 @@ HANDLER(requestDataSocket)
     return;
   }
 
-  turnClientIntoDataOfOtherClient(MainClient, Client);
+  Server.turnClientIntoDataOfOtherClient(MainClient, Client);
   assert(MainClient.getDataSocket() &&
          "Turnover should have subjugated client!");
   Resp.Success = true;
@@ -119,7 +116,7 @@ HANDLER(requestSessionList)
   MSG(request::SessionList);
   response::SessionList Resp;
 
-  for (const auto& SessionElem : Sessions)
+  for (const auto& SessionElem : Server.Sessions)
   {
     monomux::message::SessionData TransmitData;
     TransmitData.Name = SessionElem.first;
@@ -140,7 +137,7 @@ HANDLER(requestMakeSession)
   Resp.Name = Msg->Name;
   Resp.Success = false;
 
-  if (!Msg->Name.empty() && getSession(Msg->Name))
+  if (!Msg->Name.empty() && Server.getSession(Msg->Name))
   {
     std::clog << "INFO: Spawning session of name '" << Msg->Name
               << "' failed: Already exists." << std::endl;
@@ -151,7 +148,7 @@ HANDLER(requestMakeSession)
   {
     // Generate a default session name, which will just be a numeric ID.
     std::size_t SessionNum = 1;
-    while (getSession(std::to_string(SessionNum)))
+    while (Server.getSession(std::to_string(SessionNum)))
       ++SessionNum;
     Msg->Name = std::to_string(SessionNum);
   }
@@ -174,7 +171,7 @@ HANDLER(requestMakeSession)
   {
     MonomuxSession MS;
     MS.SessionName = Resp.Name;
-    MS.Socket = SocketPath::absolutise(Sock.identifier());
+    MS.Socket = SocketPath::absolutise(Server.Sock.identifier());
 
     for (std::pair<std::string, std::string> BuiltinEnvVar : MS.createEnvVars())
       SOpts.Environment[std::move(BuiltinEnvVar.first)] =
@@ -185,8 +182,8 @@ HANDLER(requestMakeSession)
   Process P = Process::spawn(SOpts);
   S->setProcess(std::move(P));
 
-  auto InsertResult = Sessions.try_emplace(Resp.Name, std::move(S));
-  createCallback(*InsertResult.first->second);
+  auto InsertResult = Server.Sessions.try_emplace(Resp.Name, std::move(S));
+  Server.createCallback(*InsertResult.first->second);
 
   Resp.Success = true;
   sendMessage(Client.getControlSocket(), Resp);
@@ -198,15 +195,17 @@ HANDLER(requestAttach)
   response::Attach Resp;
   Resp.Success = false;
 
-  SessionData* S = getSession(Msg->Name);
+  SessionData* S = Server.getSession(Msg->Name);
   if (!S)
   {
     sendMessage(Client.getControlSocket(), Resp);
     return;
   }
 
-  clientAttachedCallback(Client, *S);
+  Server.clientAttachedCallback(Client, *S);
   Resp.Success = true;
+  Resp.Session.Name = S->name();
+  Resp.Session.Created = std::chrono::system_clock::to_time_t(S->whenCreated());
   sendMessage(Client.getControlSocket(), Resp);
 }
 
@@ -236,7 +235,7 @@ HANDLER(requestDetach)
   for (ClientData* C : ClientsToDetach)
   {
     C->sendDetachReason(notification::Detached::DetachMode::Detach);
-    clientDetachedCallback(*C, *S);
+    Server.clientDetachedCallback(*C, *S);
   }
 
   sendMessage(Client.getControlSocket(), Resp);

@@ -212,6 +212,9 @@ struct Attach
 {
   MONOMUX_MESSAGE(AttachResponse, Attach);
   monomux::message::Boolean Success;
+  /// Information about the session the client attached to. Only meaningful if
+  /// \p Success is \p true.
+  SessionData Session;
 };
 
 /// The response to the \p request::Detach indicating receipt.

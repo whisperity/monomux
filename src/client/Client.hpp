@@ -74,9 +74,10 @@ public:
 
   /// The type of message handler functions.
   ///
+  /// \param Client The \p Client manager that received the message.
   /// \param RawMessage A view into the buffer of the message, before any
   /// structural parsing had been applied.
-  using HandlerFunction = void(std::string_view RawMessage);
+  using HandlerFunction = void(Client& Client, std::string_view RawMessage);
 
   /// Creates a new connection client to the server at the specified socket.
   ///
@@ -262,16 +263,13 @@ private:
   /// Return the stored \p Nonce of the current instance, resetting it.
   std::size_t consumeNonce() noexcept;
 
-  // FIXME(UB): When Client is *moved*, the this pointer stored in the dispatch
-  // table bindings result in a crash when the handlers call behind the bad
-  // this!!!
   /// Maps \p MessageKind to handler functions.
   std::map<std::uint16_t, std::function<HandlerFunction>> Dispatch;
 
   void setUpDispatch();
 
 #define DISPATCH(KIND, FUNCTION_NAME)                                          \
-  void FUNCTION_NAME(std::string_view Message);
+  static void FUNCTION_NAME(Client& Client, std::string_view Message);
 #include "Dispatch.ipp"
 };
 

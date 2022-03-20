@@ -265,13 +265,18 @@ TEST(ControlMessageSerialisation, AttachResponse)
     EXPECT_FALSE(Decode.Success);
   }
 
-  Obj.Success = true;
 
-  EXPECT_EQ(encode(Obj), "<ATTACH><TRUE /></ATTACH>");
+  std::time_t CurrentTimeEncoded =
+    std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  Obj.Success = true;
+  Obj.Session.Name = "Foo";
+  Obj.Session.Created = CurrentTimeEncoded;
 
   {
     auto Decode = codec(Obj);
     EXPECT_TRUE(Decode.Success);
+    EXPECT_EQ(Decode.Session.Name, Obj.Session.Name);
+    EXPECT_EQ(Decode.Session.Created, Obj.Session.Created);
   }
 }
 

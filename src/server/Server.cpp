@@ -299,7 +299,7 @@ void Server::controlCallback(ClientData& Client)
             << std::endl;
   try
   {
-    Action->second(Client, MB.RawData);
+    Action->second(*this, Client, MB.RawData);
   }
   catch (const std::system_error& Err)
   {

@@ -671,6 +671,8 @@ ENCODE(Attach)
   std::ostringstream Buf;
   Buf << "<ATTACH>";
   Buf << monomux::message::Boolean::encode(Object.Success);
+  if (Object.Success)
+    Buf << monomux::message::SessionData::encode(Object.Session);
   Buf << "</ATTACH>";
   return Buf.str();
 }
@@ -683,6 +685,14 @@ DECODE(Attach)
   if (!Success)
     return std::nullopt;
   Ret.Success = *Success;
+
+  if (Ret.Success)
+  {
+    auto Session = monomux::message::SessionData::decode(View);
+    if (!Session)
+      return std::nullopt;
+    Ret.Session = std::move(*Session);
+  }
 
   FOOTER_OR_NONE("</ATTACH>");
   return Ret;

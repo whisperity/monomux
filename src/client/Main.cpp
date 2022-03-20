@@ -110,7 +110,9 @@ struct SessionSelectionResult
   enum SessionMode
   {
     None,
+    /// The client should instruct the server to create the selected session.
     Create,
+    /// The user selected only attaching to an already existing session.
     Attach
   };
   SessionMode Mode;
@@ -367,6 +369,7 @@ int main(Options& Opts)
     Client.setTerminal(std::move(Term));
   }
 
+  // ----------------------------- Be a real client ----------------------------
   Client.loop();
 
   switch (Client.exitReason())
