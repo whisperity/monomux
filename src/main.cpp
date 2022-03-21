@@ -39,7 +39,7 @@ using namespace monomux;
 
 static const char* ShortOptions = "hs:n:ldDNk";
 // clang-format off
-static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
+static struct ::option LongOptions[] = {
   {"help",       no_argument,       nullptr, 'h'},
   {"server",     no_argument,       nullptr, 0},
   {"socket",     required_argument, nullptr, 's'},
@@ -56,7 +56,7 @@ static struct ::option LongOptions[] = { // NOLINT(modernize-avoid-c-arrays)
 static void printOptionHelp()
 {
   std::cout << R"EOF(Usage:
-    monomux [SERVER OPTIONS...] --server
+    monomux --server [SERVER OPTIONS...]
     monomux [CLIENT OPTIONS...] [PROGRAM]
     monomux [CLIENT OPTIONS...] -- PROGRAM [ARGS...]
     monomux (-dD)
@@ -122,9 +122,9 @@ Client options:
 
 In-session options:
     -d, --detach                - When executed from within a running session,
-                                  detach the current client.
+                                  detach the CURRENT client.
     -D, --detach-all            - When executed from within a running session,
-                                  detach all clients attached to that session.
+                                  detach ALL clients attached to that session.
 
 
 Server options:
@@ -291,7 +291,7 @@ int main(int ArgC, char* ArgV[])
         [] {         /* In the parent, continue. */
              return; // NOLINT(readability-redundant-control-flow)
         },
-        [&ServerOpts, &ArgV] /* NOLINT(modernize-avoid-c-arrays) */ {
+        [&ServerOpts, &ArgV] {
           // Perform the server restart in the child, so it gets
           // disowned when we eventually exit, and we can remain the
           // client.

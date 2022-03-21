@@ -31,7 +31,6 @@ namespace monomux
 {
 
 static void allocCopyString(const std::string& Source,
-                            // NOLINTNEXTLINE(modernize-avoid-c-arrays)
                             char* DestinationStringArray[],
                             std::size_t Index)
 {

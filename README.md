@@ -2,13 +2,17 @@ MonoMux
 =======
 
 MonoMux (for _Monophone Terminal Multiplexer_ &mdash; pun intended) is a system tool that allows executing terminal sessions in the background with on-demand attaching to them.
+
+> **📢 Important!** MonoMux is in active incremental development!
+> You are welcome using it as your daily driver, but for long-term production systems, use the proven alternatives instead!
+
 MonoMux is a tool similar to [`screen`](http://gnu.org/software/screen/) and [`tmux`](https://github.com/tmux/tmux/wiki).
-It allows most of the core features of _screen_ or _tmux_, with being less intrusive about its behaviour when it comes to using these tools with modern *terminal emulators*.
+It allows most of the core features of _screen_ or _tmux_, with being less intrusive about its behaviour when it comes to using these tools with modern _terminal emulators_.
 
 > **⚠️ Warning!** Currently, _MonoMux_ is designed with only supporting Linux operating systems in mind.
 > Most of the project is written with POSIX system calls in mind, but there are *some* GNU extensions used.
 
-> **⚠️ Note:** _MonoMux_ is **NOT** a terminal emulator by itself!
+> **ℹ️ Note:** _MonoMux_ is **NOT** a terminal emulator by itself!
 > To use it, you may use any of your favourite terminal emulators.
 
 Dependencies
@@ -65,6 +69,9 @@ However, _dtach_ has a straightforward and non-trivial interface, e.g. the user 
 MonoMux aims to combine the good aspects of all of these tools but remove almost all of the possible hurdles in the way of tools running in the background session.
 
  * Attach/detach features are supported without the need of parsing control sequences.
+ * Every I/O operation to and from the client to the attached session is passed **verbatim**, without understanding the contents.
+   * This allows using all the features of a modern _terminal emulator_ as-is.
+   * However, this also means that features found in _tmux_ such as splits or keybinds _can not_ and **will not** be implemented in this tool.
  * Better defaults than _dtach_: no need to specify an exit escape sequence or modern resize events.
  * Like _tmux_, there is meaningful session management by default, giving an interactive attach menu if multiple sessions exist.
 

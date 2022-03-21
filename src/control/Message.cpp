@@ -54,7 +54,6 @@ std::size_t Message::binaryStringToSize(std::string_view Str) noexcept
   if (Str.size() < sizeof(std::size_t))
     return 0;
 
-  // NOLINTNEXTLINE(modernize-avoid-c-arrays)
   char SCh[sizeof(std::size_t)] = {0};
   for (std::size_t I = 0; I < sizeof(std::size_t); ++I)
     SCh[I] = Str[I];
@@ -78,7 +77,6 @@ MessageKind Message::decodeKind(std::string_view Str) noexcept
   if (Str.size() < sizeof(MessageKind))
     return MessageKind::Invalid;
 
-  // NOLINTNEXTLINE(modernize-avoid-c-arrays)
   char MKCh[sizeof(MessageKind)] = {0};
   for (std::size_t I = 0; I < sizeof(MessageKind); ++I)
     MKCh[I] = Str[I];

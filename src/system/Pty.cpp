@@ -35,10 +35,10 @@ Pty::Pty()
 {
   raw_fd MasterFD;
   raw_fd SlaveFD;
-  POD<char[PATH_MAX]> DeviceName; // NOLINT(modernize-avoid-c-arrays)
+  POD<char[PATH_MAX]> DeviceName;
 
   CheckedPOSIXThrow(
-    [&MasterFD, &SlaveFD, &DeviceName] /* NOLINT(modernize-avoid-c-arrays) */ {
+    [&MasterFD, &SlaveFD, &DeviceName] {
       return ::openpty(&MasterFD, &SlaveFD, DeviceName, nullptr, nullptr);
     },
     "Failed to openpty()",

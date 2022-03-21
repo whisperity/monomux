@@ -209,12 +209,12 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
   std::string Return;
   Return.reserve(Bytes);
 
-  POD<char[BufferSize]> RawBuffer; // NOLINT(modernize-avoid-c-arrays)
+  POD<char[BufferSize]> RawBuffer;
   if (Bytes > BufferSize)
     Bytes = BufferSize;
 
   auto ReadBytes = CheckedPOSIX(
-    [FD = Handle.get(), Bytes, &RawBuffer] { // NOLINT(modernize-avoid-c-arrays)
+    [FD = Handle.get(), Bytes, &RawBuffer] {
       return ::recv(FD, &RawBuffer, Bytes, 0);
     },
     -1);

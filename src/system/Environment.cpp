@@ -105,14 +105,13 @@ SocketPath SocketPath::defaultSocketPath()
 
 SocketPath SocketPath::absolutise(const std::string& Path)
 {
-  POD<char[PATH_MAX]> Result; // NOLINT(modernize-avoid-c-arrays)
+  POD<char[PATH_MAX]> Result;
   if (Path.front() == '/')
     // If the path begins with a '/', assume it is absolute.
     std::strncpy(Result, Path.c_str(), PATH_MAX);
   else
   {
     auto R = CheckedPOSIX(
-      // NOLINTNEXTLINE(modernize-avoid-c-arrays)
       [&Path, &Result] { return ::realpath(Path.c_str(), Result); },
       nullptr);
     if (!R)
@@ -124,7 +123,6 @@ SocketPath SocketPath::absolutise(const std::string& Path)
         // absolute path conversion ourselves.)
         Result.reset();
         R.get() = CheckedPOSIXThrow(
-          // NOLINTNEXTLINE(modernize-avoid-c-arrays)
           [&Result] { return ::realpath(".", Result); },
           "realpath(\".\")",
           nullptr);
@@ -145,13 +143,11 @@ SocketPath SocketPath::absolutise(const std::string& Path)
     assert(R.get() == &Result[0]);
   }
 
-  POD<char[PATH_MAX]> Dir; // NOLINT(modernize-avoid-c-arrays)
+  POD<char[PATH_MAX]> Dir;
   std::strncpy(Dir, Result, PATH_MAX);
   char* DirResult =
-    // NOLINTNEXTLINE(modernize-avoid-c-arrays)
     CheckedPOSIXThrow([&Dir] { return ::dirname(Dir); }, "dirname()", nullptr);
   char* BaseResult = CheckedPOSIXThrow(
-    // NOLINTNEXTLINE(modernize-avoid-c-arrays)
     [&Result] { return ::basename(Result); },
     "basename()",
     nullptr);

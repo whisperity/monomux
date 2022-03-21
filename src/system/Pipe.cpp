@@ -147,12 +147,9 @@ std::string Pipe::read(raw_fd FD, std::size_t Bytes, bool* Success)
   bool ContinueReading = true;
   while (ContinueReading && RemainingBytes > 0 && RemainingBytes <= Bytes)
   {
-    POD<char[BufferSize]> RawBuffer; // NOLINT(modernize-avoid-c-arrays)
-
+    POD<char[BufferSize]> RawBuffer;
     auto ReadBytes = CheckedPOSIX(
-      [FD,
-       ReadSize = std::min(BufferSize, RemainingBytes),
-       &RawBuffer /* NOLINT(modernize-avoid-c-arrays) */] {
+      [FD, ReadSize = std::min(BufferSize, RemainingBytes), &RawBuffer] {
         return ::read(FD, &RawBuffer, ReadSize);
       },
       -1);
