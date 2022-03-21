@@ -37,7 +37,10 @@ add_library(monomuxMain STATIC
   ${libmonomuxMain_SOURCES}
   ${libmonomuxMain_HEADERS}
   )
-target_link_libraries(monomuxMain PUBLIC monomuxCore)
+target_link_libraries(monomuxMain PUBLIC
+  monomuxCore
+  util
+  )
 
 # The monomux binary adds the user-facing command-line parset to the mix,
 # creating a proper executable.
@@ -47,7 +50,6 @@ add_executable(monomux
   )
 target_link_libraries(monomux PUBLIC
   monomuxMain
-  util
   )
 set_target_properties(monomux PROPERTIES
   # Put resulting binary to <Build>/, not <Build>/src/...
