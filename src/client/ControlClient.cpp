@@ -38,6 +38,7 @@ void ControlClient::requestDetachLatestClient()
   if (!BackingClient.attached())
     return;
 
+  auto X = BackingClient.inhibitControlResponse();
   sendMessage(BackingClient.getControlSocket(),
               request::Detach{request::Detach::Latest});
   receiveMessage<response::Detach>(BackingClient.getControlSocket());
@@ -49,6 +50,7 @@ void ControlClient::requestDetachAllClients()
   if (!BackingClient.attached())
     return;
 
+  auto X = BackingClient.inhibitControlResponse();
   sendMessage(BackingClient.getControlSocket(),
               request::Detach{request::Detach::All});
   receiveMessage<response::Detach>(BackingClient.getControlSocket());

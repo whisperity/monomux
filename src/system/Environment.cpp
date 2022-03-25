@@ -112,8 +112,7 @@ SocketPath SocketPath::absolutise(const std::string& Path)
   else
   {
     auto R = CheckedPOSIX(
-      [&Path, &Result] { return ::realpath(Path.c_str(), Result); },
-      nullptr);
+      [&Path, &Result] { return ::realpath(Path.c_str(), Result); }, nullptr);
     if (!R)
     {
       std::error_code EC = R.getError();
@@ -122,10 +121,10 @@ SocketPath SocketPath::absolutise(const std::string& Path)
         // (For files that do not exist, realpath will fail. So we do the
         // absolute path conversion ourselves.)
         Result.reset();
-        R.get() = CheckedPOSIXThrow(
-          [&Result] { return ::realpath(".", Result); },
-          "realpath(\".\")",
-          nullptr);
+        R.get() =
+          CheckedPOSIXThrow([&Result] { return ::realpath(".", Result); },
+                            "realpath(\".\")",
+                            nullptr);
 
         std::size_t ReadlinkCurDirPathSize = std::strlen(Result);
         if (ReadlinkCurDirPathSize + 1 + Path.size() > PATH_MAX)
@@ -148,9 +147,7 @@ SocketPath SocketPath::absolutise(const std::string& Path)
   char* DirResult =
     CheckedPOSIXThrow([&Dir] { return ::dirname(Dir); }, "dirname()", nullptr);
   char* BaseResult = CheckedPOSIXThrow(
-    [&Result] { return ::basename(Result); },
-    "basename()",
-    nullptr);
+    [&Result] { return ::basename(Result); }, "basename()", nullptr);
 
   SocketPath SP;
   SP.Path = DirResult;
