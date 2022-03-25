@@ -117,34 +117,33 @@ jobs:
 
           cd ..
 
-          # TODO: Do something with version numbers and such!
-
-          mv -v Build/MonoMux-*-Linux.tar.gz "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
-          mv -v Build/MonoMux-*-Linux.deb "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+          echo "::set-output name=PACKAGE_VERSION::$(cat Build/Version.txt)"
+          mv -v Build/MonoMux-*-Linux.tar.gz "./MonoMux-$(cat Build/Version.txt)-${{ matrix.compiler }}.tgz"
+          mv -v Build/MonoMux-*-Linux.deb "./MonoMux-$(cat Build/Version.txt)-${{ matrix.compiler }}.deb"
       - name: "Check whether the Debian package is installable"
         id: deb-install
-        # This condition is disabled so running the CI locally via `act` executes this step.
+        # This condition is disabled so running the CI locally via `act` executes this, and further, step.
         # if: steps.binary-package.outcome == 'success'
         run: |
           if [[ "${{ steps.binary-package.outcome }}" == "success" ]]
           then
-            sudo apt-get -fy install "./MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+            sudo apt-get -fy install "./MonoMux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
           else
             echo "::warning title=Debian Package self-check skipped::The package failed to assemble and thus wasn't tested."
           fi
       - name: "Upload binary package artefacts: Tarball"
-        if: steps.binary-package.outcome == 'success'
+        if: steps.binary-package.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang'
         uses: actions/upload-artifact@v2
         with:
-          path: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
-          name: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
+          path: "MonoMux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
+          name: "MonoMux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
           if-no-files-found: warn
           retention-days: 7
       - name: "Upload binary package artefacts: Debian package"
-        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success'
+        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang'
         uses: actions/upload-artifact@v2
         with:
-          path: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
-          name: "MonoMux-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+          path: "MonoMux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
+          name: "MonoMux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
           if-no-files-found: warn
           retention-days: 7

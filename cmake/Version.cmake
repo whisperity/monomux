@@ -30,7 +30,7 @@ endfunction()
 function(write_version_header)
   configure_file("${VERSION_HEADER_TEMPLATE}" "${VERSION_HEADER_RESULT}")
 
-  if (NOT VERSION_HAS_EXTAS)
+  if (NOT VERSION_HAS_EXTRAS)
     file(WRITE "${VERSION_TXT_RESULT}"
       "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}")
   else()
@@ -53,11 +53,6 @@ if (NOT git)
   print_version()
   write_version()
   return()
-endif()
-
-if (DEFINED ENV{GITHUB_RUN_NUMBER})
-  set(VERSION_TWEAK "$ENV{GITHUB_RUN_NUMBER}")
-  message(STATUS "[Version] Currently executing build $ENV{GITHUB_RUN_NUMBER}")
 endif()
 
 execute_process(COMMAND git describe --always --tags --dirty=-dirty
@@ -89,7 +84,7 @@ if (git_describe_result MATCHES "^v")
     set(VERSION_HAS_EXTRAS ON)
     set(VERSION_DIRTY "-dirty")
   else()
-    set(VERSION_DIRTY OFF)
+    set(VERSION_DIRTY "")
   endif()
 else()
   string(REGEX MATCH "^([0-f]*)(-dirty)?" _ "${git_describe_result}")
@@ -107,7 +102,7 @@ else()
     set(VERSION_HAS_EXTRAS ON)
     set(VERSION_DIRTY "-dirty")
   else()
-    set(VERSION_DIRTY OFF)
+    set(VERSION_DIRTY "")
   endif()
 endif()
 
@@ -117,6 +112,11 @@ if (VERSION_COMMIT)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     OUTPUT_STRIP_TRAILING_WHITESPACE)
   set(VERSION_COMMIT "${git_full_hash}")
+endif()
+
+if (DEFINED ENV{GITHUB_RUN_NUMBER})
+  set(VERSION_TWEAK "$ENV{GITHUB_RUN_NUMBER}")
+  message(STATUS "[Version] Currently executing build $ENV{GITHUB_RUN_NUMBER}")
 endif()
 
 # Generate a trampoline script from a template which will be executed to write

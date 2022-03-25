@@ -44,6 +44,7 @@ include_directories("${CMAKE_BINARY_DIR}/include")
 add_subdirectory(src)
 
 set(CPACK_PACKAGE_NAME "MonoMux")
+set(CPACK_PACKAGE_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}")
 set(CPACK_PACKAGE_VENDOR "Whisperity")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MonoMux: Monophone Terminal Multiplexer - Less intrusive than tmux, smarter than screen")
 set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/README.md")
