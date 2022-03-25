@@ -6,7 +6,9 @@ include_directories(
 # reusable libraries.
 set(libmonomuxCore_SOURCES)
 set(libmonomuxCore_HEADERS)
-set(libmonomuxMain_SOURCES)
+set(libmonomuxMain_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/Version.cpp
+  )
 set(libmonomuxMain_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/ExitCode.hpp
   )
@@ -37,6 +39,7 @@ add_library(monomuxMain STATIC
   ${libmonomuxMain_SOURCES}
   ${libmonomuxMain_HEADERS}
   )
+add_dependencies(monomuxMain generate_version_h)
 target_link_libraries(monomuxMain PUBLIC
   monomuxCore
   util

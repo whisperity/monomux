@@ -1,5 +1,15 @@
-cmake_minimum_required(VERSION 3.11.4)
-project(monomux LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.15.0)
+
+list(APPEND CMAKE_MODULE_PATH
+  "${CMAKE_SOURCE_DIR}/cmake"
+  )
+include(Version)
+
+project(monomux
+  LANGUAGES CXX
+  VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}
+  DESCRIPTION "MonoMux: Monophone Terminal Multiplexer"
+  HOMEPAGE_URL "http://github.com/whisperity/MonoMux")
 
 if (NOT UNIX)
   message(FATAL_ERROR "This project supports only POSIX Unix/Linux platforms!")
@@ -29,14 +39,17 @@ if ( (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "
   check_add_compile_option(-Wextra)
 endif()
 
+include_directories("${CMAKE_BINARY_DIR}/include")
+
 add_subdirectory(src)
 
 set(CPACK_PACKAGE_NAME "MonoMux")
-set(CPACK_PACKAGE_VENDOR "http://github.com/whisperity/MonoMux")
+set(CPACK_PACKAGE_VENDOR "Whisperity")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MonoMux: Monophone Terminal Multiplexer - Less intrusive than tmux, smarter than screen")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/README.md")
 set(CPACK_PACKAGE_CONTACT "Whisperity <whisperity-packages@protonmail.com>")
-set(CPACK_FILE_LICENSE "${CMAKE_SOURCE_DIR}/../LICENSE")
-set(CPACK_FILE_README "${CMAKE_SOURCE_DIR}/../README.md")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 set(CPACK_PACKAGE_EXECUTABLES monomux "MonoMux")
 set(CPACK_CREATE_DESKTOP_LINKS monomux)
 

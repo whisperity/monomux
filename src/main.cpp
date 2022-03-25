@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "ExitCode.hpp"
+#include "Version.hpp"
 
 #include "client/Main.hpp"
 #include "server/Main.hpp"
@@ -37,10 +38,11 @@
 
 using namespace monomux;
 
-static const char* ShortOptions = "hs:n:ldDNk";
+static const char* ShortOptions = "hVs:n:ldDNk";
 // clang-format off
 static struct ::option LongOptions[] = {
   {"help",       no_argument,       nullptr, 'h'},
+  {"version",    no_argument,       nullptr, 'V'},
   {"server",     no_argument,       nullptr, 0},
   {"socket",     required_argument, nullptr, 's'},
   {"name",       required_argument, nullptr, 'n'},
@@ -139,6 +141,11 @@ Server options:
   std::cout << std::endl;
 }
 
+static void printVersion()
+{
+  std::cout << "MonoMux version " << getFullVersion() << std::endl;
+}
+
 int main(int ArgC, char* ArgV[])
 {
   server::Options ServerOpts{};
@@ -177,6 +184,9 @@ int main(int ArgC, char* ArgV[])
           break;
         case 'h':
           printOptionHelp();
+          return EXIT_Success;
+        case 'V':
+          printVersion();
           return EXIT_Success;
         case 's':
           ClientOpts.SocketPath.emplace(optarg);
