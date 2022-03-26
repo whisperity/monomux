@@ -1,0 +1,94 @@
+name: CodeChecker C++ Static Analysis
+
+on:
+  push:
+    paths:
+      - '**.c'
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+      - '**.i'
+      - '**.ipp'
+      - '.github/workflows/codechecker.yml'
+    branches:
+      - '**'
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+  pull_request:
+
+# Attempt to cancel any in-progress jobs for a given PR.
+concurrency:
+  group: codechecker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ubuntu_2004:
+    name: "Ubuntu Linux 20.04"
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: "Install dependencies"
+        id: dependencies
+        env:
+          COMPILER: 'clang'
+          DISTRO: 'ubuntu-20.04'
+        shell: bash
+        run: .github/scripts/get-dependencies.sh
+      - name: "Prepare build with CMake"
+        env:
+          CC: ${{ steps.dependencies.outputs.CC }}
+          CXX: ${{ steps.dependencies.outputs.CXX }}
+        run: |
+          cmake --version
+
+          cmake -S . -B Build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: "Execute Static Analysis"
+        uses: whisperity/codechecker-analysis-action@v1
+        id: codechecker
+        continue-on-error: true
+        with:
+          llvm-version: 'latest'
+
+          config: .github/codechecker/config.json
+
+          build-command: "cd Build && cmake --build . -- -j3"
+
+          # ctu: ${{ github.ref == 'refs/heads/master' && github.event_name == 'push' }}
+
+          # Don't do differential check for now.
+          # diff: false
+          # diff-url: ${{ secrets.CODECHECKER_URL }}
+          # diff-username: ${{ secrets.CODECHECKER_USERNAME }}
+          # diff-password: ${{ secrets.CODECHECKER_PASSWORD }}
+
+          store: true
+          store-url: ${{ secrets.CODECHECKER_URL }}
+          store-username: ${{ secrets.CODECHECKER_USERNAME }}
+          store-password: ${{ secrets.CODECHECKER_PASSWORD }}
+
+      - name: "Fetch the version of the project"
+        id: version
+        run: |
+          set -x
+          echo "::set-output name=PACKAGE_VERSION::$(cat Build/Version.txt)"
+
+      - name: "Upload HTML reports"
+        uses: actions/upload-artifact@v2
+        with:
+          name: "monomux-${{ steps.version.outputs.PACKAGE_VERSION }}-codechecker-${{ steps.codechecker.outputs.codechecker-version }}+${{ steps.codechecker.outputs.codechecker-hash }}-llvm-${{ steps.codechecker.outputs.llvm-version }}-results"
+          path: "${{ steps.codechecker.outputs.result-html-dir }}"
+          if-no-files-found: error
+      - name: "Upload analysis failure reproducers"
+        uses: actions/upload-artifact@v2
+        with:
+          name: "monomux-${{ steps.version.outputs.PACKAGE_VERSION }}-codechecker-${{ steps.codechecker.outputs.codechecker-version }}+${{ steps.codechecker.outputs.codechecker-hash }}-llvm-${{ steps.codechecker.outputs.llvm-version }}-failures"
+          path: "${{ steps.codechecker.outputs.analyze-output }}/failed"
+          if-no-files-found: ignore
+
+      - name: "Finish job"
+        run: |
+          echo "::notice title=Static analysis job set to always pass::The job is configured in a way that it always passes. Please see the reports in the generated and uploaded artefacts."
+          exit 0

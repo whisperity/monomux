@@ -5,6 +5,7 @@ Checks: >-
   -bugprone-narrowing-conversions,
   bugprone-easily-swappable-parameters,
   cert-*,
+  google-build-namespaces,
   llvm-header-guard,
   llvm-include-order,
   llvm-namespace-comment,

@@ -4,7 +4,7 @@ on:
   push:
 
 jobs:
-  lint:
+  style:
     name: "Style checks"
     runs-on: ubuntu-20.04
     steps:
@@ -14,15 +14,6 @@ jobs:
         uses: jidicula/clang-format-action@v4.6.2
         with:
           check-path: src
-      # - name: "Clang-Tidy"
-      #   if: ${{ matrix.compiler == "clang" }}
-      #   env:
-      #     CC: ${{ steps.dependencies.outputs.CC }}
-      #   run: |
-      #     CLANG_TIDY=$(echo ${CC} | sed 's/clang/clang-tidy/')
-      #     sudo apt-get -y install ${CLANG_TIDY}
-      #     # Figure out how to automate this nicely.
-      #     # ${CLANG_TIDY} -p ./Build/compile_commands.json
 
   lts-linux:
     strategy:
@@ -39,52 +30,14 @@ jobs:
     name: "${{ matrix.distribution }} LTS, ${{ matrix.compiler }}"
     runs-on: ${{ matrix.distribution }}
     steps:
+      - uses: actions/checkout@v2
       - name: "Install dependencies"
         id: dependencies
-        run: |
-          echo "::group::Updating package lists"
-          sudo apt-get -y update
-          echo "::endgroup::"
-
-          # Get the latest version of the compiler available for the
-          # distribution.
-          echo "::group::Installing compiler ${{ matrix.compiler }}"
-          CC=$(apt-cache search $(echo "${{ matrix.compiler }}") | grep "^${{ matrix.compiler }}-" | cut -d "-" -f 1-2 | grep "\-[0-9]" | sort -rV | head -n 1)
-          if [[ "${{ matrix.compiler }}" == "gcc" ]];
-          then
-            CXX=$(echo ${CC} | sed 's/gcc/g++/')
-            # With GCC, you need to install G++-X to get C++ compilation.
-            sudo apt-get -y install ${CXX}
-          elif [[ "${{ matrix.compiler }}" == "clang" ]];
-          then
-            CXX=$(echo ${CC} | sed 's/clang/clang++/')
-            # Clang works both ways.
-            sudo apt-get -y install ${CC}
-          fi
-          echo "Using compiler ${CC} (${CXX})..."
-          echo "::set-output name=CC::${CC}"
-          echo "::set-output name=CXX::${CXX}"
-          echo "::endgroup::"
-
-          echo "::group::Installing CMake"
-          if [[ "${{ matrix.distribution }}" == "ubuntu-18.04" ]]
-          then
-            # We need a newer version of CMake than supplied by Ubuntu...
-            # FetchContent is only available 3.11 and onwards, Ubuntu gives
-            # 3.10.
-            sudo apt-get install -y software-properties-common lsb-release
-            sudo apt-get install -y wget
-            wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
-            sudo apt-add-repository -y "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
-            sudo apt-get -y update
-            sudo apt-get -y install cmake="3.15.0-0kitware1" cmake-data="3.15.0-0kitware1"
-          elif [[ "${{ matrix.distribution }}" == "ubuntu-20.04" ]]
-          then
-            sudo apt-get -y install \
-              cmake
-          fi
-          echo "::endgroup::"
-      - uses: actions/checkout@v2
+        env:
+          COMPILER: ${{ matrix.compiler }}
+          DISTRO: ${{ matrix.distribution }}
+        shell: bash
+        run: .github/scripts/get-dependencies.sh
       - name: "Prepare build with CMake"
         env:
           CC: ${{ steps.dependencies.outputs.CC }}
@@ -118,8 +71,10 @@ jobs:
           cd ..
 
           echo "::set-output name=PACKAGE_VERSION::$(cat Build/Version.txt)"
-          mv -v Build/MonoMux-*-Linux.tar.gz "./MonoMux-$(cat Build/Version.txt)-${{ matrix.compiler }}.tgz"
-          mv -v Build/MonoMux-*-Linux.deb "./MonoMux-$(cat Build/Version.txt)-${{ matrix.compiler }}.deb"
+          mv -v Build/MonoMux-*-Linux.tar.gz \
+            "./MonoMux-$(cat Build/Version.txt)-${{ matrix.compiler }}.tgz"
+          mv -v Build/MonoMux-*-Linux.deb \
+            "./MonoMux-$(cat Build/Version.txt)-${{ matrix.compiler }}.deb"
       - name: "Check whether the Debian package is installable"
         id: deb-install
         # This condition is disabled so running the CI locally via `act` executes this, and further, step.
@@ -127,7 +82,8 @@ jobs:
         run: |
           if [[ "${{ steps.binary-package.outcome }}" == "success" ]]
           then
-            sudo apt-get -fy install "./MonoMux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
+            sudo apt-get -fy install \
+              "./MonoMux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
           else
             echo "::warning title=Debian Package self-check skipped::The package failed to assemble and thus wasn't tested."
           fi
