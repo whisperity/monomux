@@ -16,16 +16,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cstring>
+#include <sys/wait.h>
+
 #include "Process.hpp"
 
 #include "CheckedPOSIX.hpp"
 #include "Pty.hpp"
 #include "Signal.hpp"
-#include "unreachable.hpp"
 
-#include <cstring>
+#include "monomux/Log.hpp"
+#include "monomux/unreachable.hpp"
 
-#include <sys/wait.h>
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/Process")
 
 namespace monomux
 {
@@ -42,29 +45,28 @@ static void allocCopyString(const std::string& Source,
 
 [[noreturn]] void Process::exec(const SpawnOptions& Opts)
 {
-  std::clog << "----- Process::exec() was called -----\n\n";
+  LOG(debug) << "----- Process::exec() was called -----\n";
 
   char** NewArgv = new char*[Opts.Arguments.size() + 2];
   allocCopyString(Opts.Program, NewArgv, 0);
-  std::clog << "        Program:    " << Opts.Program << '\n';
+  LOG(debug) << "        Program:    " << Opts.Program << '\n';
   NewArgv[Opts.Arguments.size() + 1] = nullptr;
   for (std::size_t I = 0; I < Opts.Arguments.size(); ++I)
   {
     allocCopyString(Opts.Arguments[I], NewArgv, I + 1);
-    std::clog << "        Arg " << I << ":    " << Opts.Arguments[I] << '\n';
+    LOG(debug) << "        Arg " << I << ":    " << Opts.Arguments[I];
   }
 
   for (const auto& E : Opts.Environment)
   {
     if (!E.second.has_value())
     {
-      std::clog << "        Env var:    " << E.first << " unset!" << '\n';
+      LOG(debug) << "        Env var:    " << E.first << " unset!";
       CheckedPOSIX([&K = E.first] { return ::unsetenv(K.c_str()); }, -1);
     }
     else
     {
-      std::clog << "        Env var:    " << E.first << '=' << *E.second
-                << '\n';
+      LOG(debug) << "        Env var:    " << E.first << '=' << *E.second;
       CheckedPOSIX(
         [&K = E.first, &V = E.second] {
           return ::setenv(K.c_str(), V->c_str(), 1);
@@ -73,7 +75,7 @@ static void allocCopyString(const std::string& Source,
     }
   }
 
-  std::clog << "----- Process::exec() firing -----" << std::endl;
+  LOG(debug) << "----- Process::exec() firing -----";
 
   CheckedPOSIXThrow([NewArgv] { return ::execvp(NewArgv[0], NewArgv); },
                     "Executing process failed",
@@ -94,6 +96,7 @@ Process Process::spawn(const SpawnOptions& Opts)
     // We are in the parent.
     Process P;
     P.Handle = ForkResult;
+    LOG(debug) << "PID " << P.Handle << " spawned.";
 
     if (PTY)
     {
@@ -124,13 +127,16 @@ bool Process::reapIfDead()
   if (!ChangedPID)
   {
     std::error_code EC = ChangedPID.getError();
-    if (EC == std::errc::no_child_process)
+    if (EC == std::errc::no_child_process /* ECHILD */)
       return false;
     throw std::system_error{EC, "waitpid(" + std::to_string(Handle) + ")"};
   }
 
   if (ChangedPID.get() == Handle)
+  {
+    LOG(trace) << "Successfully reaped child PID " << Handle;
     return true;
+  }
   if (ChangedPID.get() == 0)
     return false;
 

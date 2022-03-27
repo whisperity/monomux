@@ -17,17 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "Client.hpp"
-
-#include "system/Environment.hpp"
-
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace monomux
-{
-namespace client
+#include "Client.hpp"
+
+#include "system/Environment.hpp"
+
+namespace monomux::client
 {
 
 /// Options interested to invocation of a Monomux Client.
@@ -95,5 +93,4 @@ connect(Options& Opts, bool Block, std::string* FailureReason);
 /// \returns \p ExitCode
 int main(Options& Opts);
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

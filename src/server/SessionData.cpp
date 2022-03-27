@@ -16,22 +16,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <algorithm>
+
 #include "SessionData.hpp"
 #include "ClientData.hpp"
 
 #include "system/Pipe.hpp"
 
-#include <algorithm>
-#include <iostream>
+#include "monomux/Log.hpp"
+#include "monomux/system/Time.hpp"
 
-namespace monomux
-{
-namespace server
+#define LOG(SEVERITY) monomux::log::SEVERITY("server/SessionData")
+
+namespace monomux::server
 {
 
 void SessionData::setProcess(Process&& Process) noexcept
 {
-  std::clog << "DEBUG: Setting process for session " << Name << std::endl;
   MainProcess.reset();
   MainProcess.emplace(std::move(Process));
 }
@@ -54,19 +55,25 @@ std::size_t SessionData::sendInput(std::string_view Data)
 
 ClientData* SessionData::getLatestClient() const
 {
+  DEBUG(LOG(debug) << "Searching latest active client of \"" << Name << '"...');
   ClientData* R = nullptr;
   std::optional<decltype(std::declval<ClientData>().lastActive())> Time;
   for (ClientData* C : AttachedClients)
   {
     if (!C->getDataSocket())
       continue;
+    DEBUG(LOG(data) << "\tCandidate client \"" << C->id()
+                    << "\" last active at " << formatTime(C->lastActive()));
     auto CTime = C->lastActive();
     if (!Time || *Time < CTime)
     {
+      DEBUG(LOG(data) << "\t\tSelecting \"" << C->id());
       Time = CTime;
       R = C;
     }
   }
+  DEBUG(if (R) LOG(debug) << "\tSelected client \"" << R->id() << '"';
+        else LOG(debug) << "\tNo clients attached";);
   return R;
 }
 
@@ -85,5 +92,4 @@ void SessionData::removeClient(ClientData& Client) noexcept
     }
 }
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

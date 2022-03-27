@@ -20,9 +20,7 @@
 #include "MessageBase.hpp"
 #include "system/CommunicationChannel.hpp"
 
-namespace monomux
-{
-namespace message
+namespace monomux::message
 {
 
 /// Sends a specific message, fully encoded for transportation, on the
@@ -57,5 +55,4 @@ std::optional<T> receiveMessage(CommunicationChannel& Channel)
   return Msg;
 }
 
-} // namespace message
-} // namespace monomux
+} // namespace monomux::message

@@ -4,7 +4,10 @@ include_directories(
 
 # Create some variables to store files needed for distributing Monomux as
 # reusable libraries.
-set(libmonomuxCore_SOURCES)
+set(libmonomuxCore_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/Log.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/Unreachable.cpp
+  )
 set(libmonomuxCore_HEADERS)
 set(libmonomuxMain_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Version.cpp

@@ -9,8 +9,6 @@ list(APPEND libmonomuxCore_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/Process.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Pty.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Socket.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/Time.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/unreachable.hpp
   )
 set(libmonomuxCore_HEADERS "${libmonomuxCore_HEADERS}" PARENT_SCOPE)
 list(APPEND libmonomuxCore_SOURCES
@@ -22,7 +20,6 @@ list(APPEND libmonomuxCore_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Process.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Pty.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Socket.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/unreachable.cpp
   )
 set(libmonomuxCore_SOURCES "${libmonomuxCore_SOURCES}" PARENT_SCOPE)
 

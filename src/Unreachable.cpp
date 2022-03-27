@@ -16,9 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "unreachable.hpp"
-
 #include <iostream>
+
+#include "monomux/unreachable.hpp"
 
 [[noreturn]] void
 unreachable_impl(const char* Msg, const char* File, std::size_t LineNo)
@@ -26,13 +26,13 @@ unreachable_impl(const char* Msg, const char* File, std::size_t LineNo)
   std::cerr << "FATAL! UNREACHABLE executed";
   if (File)
     std::cerr << " at " << File << ':' << LineNo;
+
   if (Msg)
     std::cerr << ": " << Msg << '\n';
   else
     std::cerr << '\n';
-  std::cerr.flush();
 
-  // Noreturn.
+  // [[noreturn]]
   std::abort();
   std::_Exit(-1);
 }

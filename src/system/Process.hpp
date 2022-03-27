@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "CheckedPOSIX.hpp"
-#include "Pty.hpp"
-
 #include <map>
 #include <optional>
 #include <string>
@@ -27,9 +24,13 @@
 
 #include <unistd.h>
 
+#include "CheckedPOSIX.hpp"
+#include "Pty.hpp"
+
+#include "monomux/Log.hpp"
+
 namespace monomux
 {
-
 
 /// Responsible for creating, executing, and handling processes on the
 /// system.
@@ -96,9 +97,15 @@ public:
     auto ForkResult = CheckedPOSIXThrow([] { return ::fork(); }, "fork()", -1);
 
     if (ForkResult == 0)
+    {
+      DEBUG(log::trace("system/Process") << "Forked, in child...");
       ChildAction();
+    }
     else
+    {
+      DEBUG(log::trace("system/Process") << "Forked, in parent...");
       ParentAction();
+    }
   }
 };
 

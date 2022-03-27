@@ -16,16 +16,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "Pipe.hpp"
 
 #include "CheckedPOSIX.hpp"
 #include "POD.hpp"
 
-#include <iostream>
-#include <iterator>
+#include "monomux/Log.hpp"
 
-#include <sys/stat.h>
-#include <unistd.h>
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/Pipe")
 
 namespace monomux
 {
@@ -47,6 +48,8 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
     "open('" + Path + "')",
     -1);
 
+  LOG(debug) << "Created FIFO at " << Path;
+
   Pipe P{std::move(Handle), std::move(Path), true};
   P.Handle = std::move(Handle);
   P.OpenedAs = Write;
@@ -62,6 +65,9 @@ Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
     },
     "open('" + Path + "')",
     -1);
+
+  LOG(debug) << "Opened FIFO at " << Path << "for "
+             << (OpenMode == Read ? "Read" : "Write");
 
   Pipe P{std::move(Handle), std::move(Path), false};
   P.Handle = std::move(Handle);
@@ -82,6 +88,8 @@ Pipe Pipe::wrap(fd&& FD, Mode OpenMode, std::string Identifier)
     Identifier.append(std::to_string(FD.get()));
     Identifier.push_back('>');
   }
+
+  LOG(trace) << "Pipeified FD " << Identifier;
 
   Pipe P{std::move(FD), std::move(Identifier), false};
   P.OpenedAs = OpenMode;
@@ -114,9 +122,8 @@ Pipe::~Pipe() noexcept
       CheckedPOSIX([this] { return ::unlink(identifier().c_str()); }, -1);
     if (!RemoveResult)
     {
-      std::cerr << "Failed to remove file '" << identifier()
-                << "' when closing the pipe.\n";
-      std::cerr << std::strerror(RemoveResult.getError().value()) << std::endl;
+      LOG(error) << "Failed to remove file \"" << identifier()
+                 << "\" when closing the pipe.\n\t" << RemoveResult.getError();
     }
   }
 }
@@ -166,7 +173,7 @@ std::string Pipe::read(raw_fd FD, std::size_t Bytes, bool* Success)
         break;
       }
 
-      std::cerr << "Pipe " << FD << " - read error." << std::endl;
+      LOG(error) << FD << ": Read error";
       if (Success)
         *Success = false;
       throw std::system_error{std::make_error_code(EC)};
@@ -174,7 +181,7 @@ std::string Pipe::read(raw_fd FD, std::size_t Bytes, bool* Success)
 
     if (ReadBytes.get() == 0)
     {
-      std::cout << "Pipe " << FD << " disconnected." << std::endl;
+      LOG(error) << FD << ": Disconnected";
       ContinueReading = false;
       break;
     }
@@ -210,7 +217,7 @@ std::size_t Pipe::write(raw_fd FD, std::string_view Buffer, bool* Success)
         // Not an error.
         continue;
 
-      std::cerr << "Pipe " << FD << " - write error." << std::endl;
+      LOG(error) << FD << ": Write error";
       if (Success)
         *Success = false;
       throw std::system_error{std::make_error_code(EC)};
@@ -218,7 +225,7 @@ std::size_t Pipe::write(raw_fd FD, std::string_view Buffer, bool* Success)
 
     if (SentBytes.get() == 0)
     {
-      std::cout << "Pipe " << FD << " disconnected." << std::endl;
+      LOG(error) << FD << ": Disconnected";
       if (Success)
         *Success = false;
       break;

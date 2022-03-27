@@ -16,23 +16,28 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <chrono>
+#include <iostream>
+#include <thread>
+
 #include "Main.hpp"
 #include "Client.hpp"
 #include "ControlClient.hpp"
 #include "Terminal.hpp"
 
 #include "ExitCode.hpp"
+
+#include "adt/MemberFnScopeGuard.hpp"
 #include "system/Environment.hpp"
 #include "system/Signal.hpp"
-#include "system/Time.hpp"
 
-#include <chrono>
-#include <iostream>
-#include <thread>
+#include "monomux/Log.hpp"
+#include "monomux/adt/scope_guard.hpp"
+#include "monomux/system/Time.hpp"
 
-namespace monomux
-{
-namespace client
+#define LOG(SEVERITY) monomux::log::SEVERITY("client/Main")
+
+namespace monomux::client
 {
 
 Options::Options()
@@ -103,6 +108,17 @@ connect(Options& Opts, bool Block, std::string* FailureReason)
   return C;
 }
 
+namespace
+{
+
+using TerminalFn = void (Terminal::*)();
+MONOMUX_MEMBER_FN_SCOPE_GUARD_0(TerminalGuard, TerminalFn, Terminal);
+
+using SignalHandlerFn = void (SignalHandling::*)();
+MONOMUX_MEMBER_FN_SCOPE_GUARD_0(SignalGuard, SignalHandlerFn, SignalHandling);
+
+} // namespace
+
 /// Handler for \p SIGWINCH (window size change) events produces by the terminal
 /// the program is running in.
 static void windowSizeChange(SignalHandling::Signal /* SigNum */,
@@ -147,33 +163,30 @@ selectSession(const std::string& ClientID,
   {
     if (Sessions.empty())
     {
-      std::clog << "DEBUG: List of sessions on the server is empty, requesting "
-                   "default one..."
-                << std::endl;
+      LOG(debug)
+        << "List of sessions on server is empty, requesting default...";
       return {DefaultSessionName, SessionSelectionResult::Create};
     }
 
     if (DefaultSessionName.empty() && Sessions.size() == 1)
     {
-      std::clog << "DEBUG: No session '--name' specified, attaching to only "
-                   "existing session..."
-                << std::endl;
+      LOG(debug) << "No session '--name' specified, attaching to the single "
+                    "existing session...";
       return {Sessions.front().Name, SessionSelectionResult::Attach};
     }
 
     if (!DefaultSessionName.empty())
     {
-      std::clog << "DEBUG: Session name '" << DefaultSessionName
-                << "' specified, checking if it exists..." << std::endl;
+      LOG(debug) << "Session \"" << DefaultSessionName
+                 << "\" requested, checking...";
       for (const SessionData& S : Sessions)
         if (S.Name == DefaultSessionName)
         {
-          std::clog << "DEBUG: Session found, attaching!" << std::endl;
+          LOG(debug) << "\tFound requested session, preparing for attach...";
           return {S.Name, SessionSelectionResult::Attach};
         }
 
-      std::clog << "DEBUG: Session not found, requesting creation..."
-                << std::endl;
+      LOG(debug) << "\tRequested session not found, requesting spawn...";
       return {DefaultSessionName, SessionSelectionResult::Create};
     }
 
@@ -184,6 +197,7 @@ selectSession(const std::string& ClientID,
   std::size_t QuitChoice = NewSessionChoice + 1;
   std::size_t UserChoice = 0;
 
+  // Mimicking the layout of tmux/byobu menu.
   while (true)
   {
     std::cout << "\nMonomux sessions on '" << ClientID << "'...\n\n";
@@ -220,8 +234,7 @@ int main(Options& Opts)
   // of the Client itself is placed into the global entry point.
   if (!Opts.Connection.has_value())
   {
-    std::cerr << "ERROR: Attempted to start client without active connection."
-              << std::endl;
+    LOG(fatal) << "Attempted to start Client without an active connection";
     return EXIT_SystemError;
   }
   Client& Client = *Opts.Connection;
@@ -233,8 +246,8 @@ int main(Options& Opts)
       Opts.SessionData = MonomuxSession::loadFromEnv();
     if (!Opts.SessionData)
     {
-      std::cerr << "ERROR: In-session options require the client to be "
-                   "executed within a session!"
+      std::cerr << "In-session options require the client to be executed "
+                   "within a session!"
                 << std::endl;
       return EXIT_InvocationError;
     }
@@ -242,19 +255,15 @@ int main(Options& Opts)
     ControlClient CC{Client, std::move(Opts.SessionData->SessionName)};
     if (!Client.attached())
     {
-      std::cerr << "ERROR: Failed to attach to session '" << CC.sessionName()
-                << "'!" << std::endl;
+      LOG(fatal) << "Failed to attach to session \"" << CC.sessionName()
+                 << "\"!";
       return EXIT_SystemError;
     }
 
     if (Opts.DetachRequestLatest)
-    {
       CC.requestDetachLatestClient();
-    }
     else if (Opts.DetachRequestAll)
-    {
       CC.requestDetachAllClients();
-    }
 
     return EXIT_Success;
   }
@@ -269,16 +278,12 @@ int main(Options& Opts)
       ++HandshakeCounter;
       if (HandshakeCounter == MaxHandshakeTries)
       {
-        std::cerr
-          << "ERROR: Failed to establish full connection after enough retries."
-          << std::endl;
+        LOG(fatal)
+          << "Failed to establish full connection after enough retries.";
         return EXIT_SystemError;
       }
 
-      std::clog << "WARNING: Establishing full connection failed:\n\t"
-                << FailureReason << std::endl;
-      std::clog << "DEBUG: Trying to authenticate with server again..."
-                << std::endl;
+      LOG(warn) << "Establishing full connection failed:\n\t" << FailureReason;
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
@@ -289,18 +294,15 @@ int main(Options& Opts)
       Client.requestSessionList();
     if (!Sessions.has_value())
     {
-      std::cerr
-        << "ERROR: Receiving the list of sessions from the server failed!"
-        << std::endl;
+      LOG(fatal) << "Receiving the list of sessions from the server failed!";
       return EXIT_SystemError;
     }
 
     std::string DefaultProgram = Opts.Program ? *Opts.Program : defaultShell();
     if (DefaultProgram.empty())
-      std::cerr << "WARNING: Failed to figure out what shell is being used, "
-                   "and no good defaults are available.\nPlease set the SHELL "
-                   "environment variable."
-                << std::endl;
+      LOG(warn) << "Failed to figure out what shell is being used, and no good "
+                   "defaults are available.\nPlease set the SHELL environment "
+                   "variable.";
 
     SessionSelectionResult SessionAction =
       selectSession(Client.getControlSocket().identifier(),
@@ -316,8 +318,8 @@ int main(Options& Opts)
       Spawn.Program = std::move(DefaultProgram);
       if (Spawn.Program.empty())
       {
-        std::cerr << "ERROR: When creating a new session, no program set."
-                  << std::endl;
+        LOG(fatal)
+          << "When creating a new session, no program to start was set.";
         return EXIT_InvocationError;
       }
       Spawn.Arguments = std::move(Opts.ProgramArgs);
@@ -329,8 +331,7 @@ int main(Options& Opts)
         Client.requestMakeSession(SessionAction.SessionName, std::move(Spawn));
       if (!Response.has_value() || Response->empty())
       {
-        std::cerr << "ERROR: When creating a new session, the creation failed."
-                  << std::endl;
+        LOG(fatal) << "When creating a new session, the creation failed.";
         return EXIT_SystemError;
       }
       SessionAction.SessionName = *Response;
@@ -340,8 +341,7 @@ int main(Options& Opts)
     }
     if (SessionAction.Mode == SessionSelectionResult::Attach)
     {
-      std::clog << "DEBUG: Attaching to '" << SessionAction.SessionName
-                << "'..." << std::endl;
+      LOG(debug) << "Attaching to \"" << SessionAction.SessionName << "\"...";
       bool Attached =
         Client.requestAttach(std::move(SessionAction.SessionName));
       if (!Attached)
@@ -355,29 +355,51 @@ int main(Options& Opts)
 
   // ----------------------------- Be a real client ----------------------------
   Terminal Term{fd::fileno(stdin), fd::fileno(stdout)};
-  Term.setupClient(Client);
-  Term.engage();
 
   {
     // Send the initial window size to the server so the attached session prompt
     // is appropriately (re)drawn.
     Terminal::Size S = Term.getSize();
+    LOG(data) << "Terminal size rows=" << S.Rows << ", columns=" << S.Columns;
     Client.notifyWindowSize(S.Rows, S.Columns);
   }
 
   {
-    SignalHandling& Sig = SignalHandling::get();
-    Sig.registerObject("Terminal", &Term);
-    Sig.registerCallback(SIGWINCH, &windowSizeChange);
-    Sig.enable();
+    scope_guard TerminalSetup{[&Term, &Client] { Term.setupClient(Client); },
+                              [&Term] { Term.releaseClient(); }};
+    scope_guard Signal{[&Term] {
+                         SignalHandling& Sig = SignalHandling::get();
+                         Sig.registerObject("Terminal", &Term);
+                         Sig.registerCallback(SIGWINCH, &windowSizeChange);
+                         Sig.enable();
+                       },
+                       [] {
+                         SignalHandling& Sig = SignalHandling::get();
+                         Sig.clearCallback(SIGWINCH);
+                         Sig.deleteObject("Terminal");
+                         Sig.disable();
+                       }};
+
+    LOG(trace) << "Starting client...";
+
+    // Turn off all logging from this point now on, because the attached client
+    // randomly printing log to stdout would garble the terminal printouts.
+    using namespace monomux::log;
+    Severity LogLevel;
+    scope_guard Loglevel{[&LogLevel] {
+                           Logger& L = Logger::get();
+                           LogLevel = L.getLimit();
+                           L.setLimit(None);
+                         },
+                         [&LogLevel] { Logger::get().setLimit(LogLevel); }};
+
+    scope_guard TermIO{[&Term] { Term.engage(); },
+                       [&Term] { Term.disengage(); }};
+
+    Client.loop();
   }
 
-  Client.loop();
-
-  SignalHandling::get().disable();
-
-  Term.disengage();
-  Term.releaseClient();
+  LOG(trace) << "Client stopped...";
 
   switch (Client.exitReason())
   {
@@ -400,7 +422,10 @@ int main(Options& Opts)
       std::cout << "]" << std::endl;
       return EXIT_Success;
     case Client::SessionExit:
-      std::cout << "[exited]" << std::endl;
+      std::cout << "[exited";
+      if (const SessionData* S = Client.attachedSession())
+        std::cout << " (from session '" << S->Name << "')";
+      std::cout << "]" << std::endl;
       return EXIT_Success;
     case Client::ServerExit:
       std::cout << "[server exited]" << std::endl;
@@ -410,5 +435,4 @@ int main(Options& Opts)
   return EXIT_Success;
 }
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

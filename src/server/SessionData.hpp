@@ -17,17 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "system/Process.hpp"
-
 #include <cassert>
 #include <chrono>
 #include <optional>
 #include <string>
 #include <utility>
 
-namespace monomux
-{
-namespace server
+#include "system/Process.hpp"
+
+namespace monomux::server
 {
 
 class ClientData;
@@ -103,5 +101,4 @@ private:
   std::vector<ClientData*> AttachedClients;
 };
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

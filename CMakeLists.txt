@@ -39,7 +39,10 @@ if ( (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "
   check_add_compile_option(-Wextra)
 endif()
 
-include_directories("${CMAKE_BINARY_DIR}/include")
+include_directories(
+  "${CMAKE_SOURCE_DIR}/include"
+  "${CMAKE_BINARY_DIR}/include"
+  )
 
 add_subdirectory(src)
 

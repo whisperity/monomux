@@ -16,10 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Environment.hpp"
-#include "CheckedPOSIX.hpp"
-#include "POD.hpp"
-
 #include <cassert>
 #include <climits>
 #include <cstdlib>
@@ -28,6 +24,14 @@
 #include <libgen.h>
 #include <sys/stat.h>
 
+#include "CheckedPOSIX.hpp"
+#include "Environment.hpp"
+#include "POD.hpp"
+
+#include "monomux/Log.hpp"
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/Environment")
+
 namespace monomux
 {
 
@@ -35,7 +39,11 @@ std::string getEnv(const std::string& Key)
 {
   const char* const Value = std::getenv(Key.c_str());
   if (!Value)
+  {
+    DEBUG(LOG(data) << "getEnv(" << Key << ") -> unset");
     return {};
+  }
+  DEBUG(LOG(data) << "getEnv(" << Key << ") = " << Value);
   return {Value};
 }
 
@@ -59,27 +67,23 @@ std::string defaultShell()
   if (!EnvVar.empty())
     return EnvVar;
 
-  // Try to see if /bin/bash is available and default to that.
-  auto Bash = CheckedPOSIX(
-    [] {
-      POD<struct ::stat> Stat;
-      return ::stat("/bin/bash", &Stat);
-    },
-    -1);
-  if (Bash)
-    return "/bin/bash";
+  auto Check = [](const std::string& Program) {
+    LOG(debug) << "Trying Shell program " << Program;
+    return CheckedPOSIX(
+      [Prog = Program.c_str()] {
+        POD<struct ::stat> StatResult;
+        return ::stat(Prog, &StatResult);
+      },
+      -1);
+  };
 
-  // Try to see if /bin/sh is available and default to that.
-  auto Sh = CheckedPOSIX(
-    [] {
-      POD<struct ::stat> Stat;
-      return ::stat("/bin/sh", &Stat);
-    },
-    -1);
-  if (Sh)
+  if (Check("/bin/bash"))
+    return "/bin/bash";
+  if (Check("/bin/sh"))
     return "/bin/sh";
 
   // Did not succeed.
+  LOG(debug) << "No Shell found.";
   return {};
 }
 
@@ -89,26 +93,39 @@ SocketPath SocketPath::defaultSocketPath()
 
   std::string Dir = getEnv("XDG_RUNTIME_DIR");
   if (!Dir.empty())
+  {
+    LOG(debug) << "Socket path under XDG_RUNTIME_DIR";
     return {std::move(Dir), "mnmx", true};
+  }
 
   Dir = getEnv("TMPDIR");
   if (!Dir.empty())
   {
     std::string User = getEnv("USER");
     if (!User.empty())
+    {
+      LOG(debug) << "Socket path under TMPDIR for $USER";
       return {std::move(Dir), "mnmx" + std::move(User), false};
+    }
+    LOG(debug) << "Socket path under TMPDIR";
     return {std::move(Dir), "mnmx", false};
   }
 
+  LOG(debug) << "Socket path under hardcoded /tmp";
   return {"/tmp", "mnmx", false};
 }
 
 SocketPath SocketPath::absolutise(const std::string& Path)
 {
+  LOG(trace) << "Absolutising path \"" << Path << "\"...";
+
   POD<char[PATH_MAX]> Result;
   if (Path.front() == '/')
+  {
     // If the path begins with a '/', assume it is absolute.
+    LOG(trace) << '"' << Path << "\" is already absolute.";
     std::strncpy(Result, Path.c_str(), PATH_MAX);
+  }
   else
   {
     auto R = CheckedPOSIX(
@@ -116,6 +133,7 @@ SocketPath SocketPath::absolutise(const std::string& Path)
     if (!R)
     {
       std::error_code EC = R.getError();
+      LOG(trace) << "realpath(" << Path << ") failed: " << EC.message();
       if (EC == std::errc::no_such_file_or_directory /* ENOENT */)
       {
         // (For files that do not exist, realpath will fail. So we do the
@@ -125,6 +143,7 @@ SocketPath SocketPath::absolutise(const std::string& Path)
           CheckedPOSIXThrow([&Result] { return ::realpath(".", Result); },
                             "realpath(\".\")",
                             nullptr);
+        LOG(trace) << "realpath(.) = " << R.get();
 
         std::size_t ReadlinkCurDirPathSize = std::strlen(Result);
         if (ReadlinkCurDirPathSize + 1 + Path.size() > PATH_MAX)
@@ -135,6 +154,7 @@ SocketPath SocketPath::absolutise(const std::string& Path)
         Result[ReadlinkCurDirPathSize + 1] = 0;
         std::strncat(
           Result + ReadlinkCurDirPathSize, Path.c_str(), Path.size());
+        LOG(trace) << "realpath(.) + " << Path << " -> " << Result;
       }
       else
         throw std::system_error{EC, "realpath()"};
@@ -149,6 +169,9 @@ SocketPath SocketPath::absolutise(const std::string& Path)
   char* BaseResult = CheckedPOSIXThrow(
     [&Result] { return ::basename(Result); }, "basename()", nullptr);
 
+  LOG(trace) << "Path split: dirname = " << DirResult
+             << "; name = " << BaseResult;
+
   SocketPath SP;
   SP.Path = DirResult;
   SP.Filename = BaseResult;
@@ -158,7 +181,11 @@ SocketPath SocketPath::absolutise(const std::string& Path)
 std::string SocketPath::toString() const
 {
   std::ostringstream Buf;
-  Buf << Path << '/' << Filename;
+  if (!Path.empty())
+    Buf << Path;
+  if (Path.size() > 1 || Path.front() != '/')
+    Buf << '/';
+  Buf << Filename;
   return Buf.str();
 }
 
@@ -178,6 +205,9 @@ std::optional<MonomuxSession> MonomuxSession::loadFromEnv()
 
   if (SocketPath.empty() || SessionName.empty())
     return std::nullopt;
+
+  LOG(data) << "Session from environment:\n\tServer socket: " << SocketPath
+            << "\n\tSession name: " << SessionName;
 
   MonomuxSession S;
   S.Socket.Filename = SocketPath;

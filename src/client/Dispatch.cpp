@@ -19,13 +19,15 @@
 #include "Client.hpp"
 
 #include "control/Message.hpp"
-#include "system/unreachable.hpp"
+
+#include "monomux/Log.hpp"
+#include "monomux/unreachable.hpp"
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("client/Dispatch")
 
 using namespace monomux::message;
 
-namespace monomux
-{
-namespace client
+namespace monomux::client
 {
 
 void Client::setUpDispatch()
@@ -44,24 +46,23 @@ void Client::setUpDispatch()
 #define MSG(TYPE)                                                              \
   std::optional<TYPE> Msg = TYPE::decode(Message);                             \
   if (!Msg)                                                                    \
-    return;
+    return;                                                                    \
+  DEBUG(LOG(trace) << __PRETTY_FUNCTION__);
 
 HANDLER(responseClientID)
 {
-  std::clog << __PRETTY_FUNCTION__ << std::endl;
   MSG(response::ClientID);
 
   Client.ClientID = Msg->Client.ID;
   Client.Nonce.emplace(Msg->Client.Nonce);
 
-  std::clog << "DEBUG: Client is " << Client.ClientID << " (with nonce "
-            << *Client.Nonce << ')' << std::endl;
+  DEBUG(LOG(data) << "Client is \"" << Client.ClientID
+                  << "\" with nonce: " << *Client.Nonce);
 }
 
 HANDLER(receivedDetachNotification)
 {
   using namespace monomux::message::notification;
-  std::clog << __PRETTY_FUNCTION__ << std::endl;
   MSG(notification::Detached);
 
   switch (Msg->Mode)
@@ -80,5 +81,4 @@ HANDLER(receivedDetachNotification)
 
 #undef HANDLER
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

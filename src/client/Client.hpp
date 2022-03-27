@@ -17,6 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <cassert>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+
 #include "SessionData.hpp"
 
 #include "adt/MemberFnScopeGuard.hpp"
@@ -26,17 +34,8 @@
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
 
-#include <cassert>
-#include <cstdint>
-#include <functional>
-#include <map>
-#include <memory>
-#include <optional>
-#include <string>
 
-namespace monomux
-{
-namespace client
+namespace monomux::client
 {
 
 /// This class represents a connection to a running \p Server - or rather,
@@ -276,7 +275,7 @@ private:
 
 #define INHIBITOR_CLASS(NAME)                                                  \
   friend class NAME##Inhibitor;                                                \
-  MONOMUX_MEMBER_FN_SCOPE_GAURD(NAME##Inhibitor, VoidMemFn, Client);
+  MONOMUX_MEMBER_FN_SCOPE_GUARD_0(NAME##Inhibitor, VoidMemFn, Client);
 
   INHIBITOR_CLASS(Control);
   INHIBITOR_CLASS(Data);
@@ -319,5 +318,4 @@ public:
   InputInhibitor inhibitInputFile();
 };
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

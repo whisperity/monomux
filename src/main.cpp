@@ -16,6 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <chrono>
+#include <iostream>
+#include <system_error>
+#include <thread>
+
+#include <getopt.h>
+#include <unistd.h>
+
 #include "ExitCode.hpp"
 #include "Version.hpp"
 
@@ -25,16 +33,10 @@
 #include "system/CheckedPOSIX.hpp"
 #include "system/Environment.hpp"
 #include "system/Process.hpp"
-#include "system/Pty.hpp"
-#include "system/unreachable.hpp"
 
-#include <chrono>
-#include <iostream>
-#include <system_error>
-#include <thread>
+#include "monomux/Log.hpp"
 
-#include <getopt.h>
-#include <unistd.h>
+#define LOG(SEVERITY) monomux::log::SEVERITY("main")
 
 using namespace monomux;
 
@@ -154,6 +156,12 @@ int main(int ArgC, char* ArgV[])
   // ------------------------ Parse command-line options -----------------------
   {
     bool HadErrors = false;
+    auto ArgError = [&HadErrors, Prog = ArgV[0]]() -> std::ostream& {
+      std::cerr << Prog << ": ";
+      HadErrors = true;
+      return std::cerr;
+    };
+
     int Opt;
     int LongOptIndex;
     while ((Opt = ::getopt_long(
@@ -172,9 +180,8 @@ int main(int ArgC, char* ArgV[])
           }
           else
           {
-            std::cerr << ArgV[0] << ": option '--" << Opt
-                      << "' registered, but no handler associated with it"
-                      << std::endl;
+            ArgError() << "option '--" << Opt
+                       << "' registered, but no handler associated with it";
             return -1;
           }
           break;
@@ -214,13 +221,8 @@ int main(int ArgC, char* ArgV[])
     }
 
     if (ClientOpts.DetachRequestLatest && ClientOpts.DetachRequestAll)
-    {
-      std::cerr << ArgV[0]
-                << ": option '-D/--detach-all' and '-d/--detach' are mutually "
-                   "exclusive!"
-                << std::endl;
-      HadErrors = true;
-    }
+      ArgError() << "option '-D/--detach-all' and '-d/--detach' are mutually "
+                    "exclusive!";
 
     if (!ServerOpts.ServerMode)
       ClientOpts.ClientMode = true;
@@ -230,9 +232,8 @@ int main(int ArgC, char* ArgV[])
     {
       if (ServerOpts.ServerMode)
       {
-        std::cerr << "ERROR: '--server' does not take positional argument \""
-                  << ArgV[::optind] << "\"" << std::endl;
-        HadErrors = true;
+        ArgError() << "option '--server' does not take positional argument \""
+                   << ArgV[::optind] << "\"";
         break;
       }
 
@@ -269,7 +270,7 @@ int main(int ArgC, char* ArgV[])
     ClientOpts.SocketPath = SocketPath.toString();
     ServerOpts.SocketPath = ClientOpts.SocketPath;
 
-    std::clog << "DEBUG: Using socket " << *ClientOpts.SocketPath << std::endl;
+    LOG(debug) << "Using socket: \"" << *ClientOpts.SocketPath << '"';
   }
 
   // --------------------- Dispatch to appropriate handler ---------------------
@@ -293,9 +294,7 @@ int main(int ArgC, char* ArgV[])
 
     if (!ToServer)
     {
-      std::clog << "DEBUG: No running server found, creating one..."
-                << std::endl;
-
+      LOG(debug) << "No running server found, starting one automatically...";
       ServerOpts.ServerMode = true;
       Process::fork(
         [] {         /* In the parent, continue. */
@@ -321,8 +320,8 @@ int main(int ArgC, char* ArgV[])
 
     if (!ToServer)
     {
-      std::cerr << "ERROR: Connecting to the MonoMux server failed:\n\t"
-                << FailureReason << std::endl;
+      std::cerr << "FATAL: Connecting to the server failed:\n\t"
+                << FailureReason;
       return EXIT_SystemError;
     }
 

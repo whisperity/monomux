@@ -28,7 +28,9 @@ namespace detail
 {
 
 /// Prevents optimisation of \p memset calls by too clever compilers.
-inline void memset_manual(void* B, int Ch, std::size_t N) noexcept
+inline void
+// NOLINTNEXTLINE(readability-identifier-naming)
+memset_manual(void* B, int Ch, std::size_t N) noexcept
 {
   if (!B || !N)
     return;

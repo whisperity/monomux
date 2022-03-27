@@ -17,14 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "POD.hpp"
-#include "fd.hpp"
-
 #include <cassert>
 #include <map>
 #include <vector>
 
 #include <sys/epoll.h>
+
+#include "POD.hpp"
+#include "fd.hpp"
 
 namespace monomux
 {
@@ -54,6 +54,8 @@ class EPoll
 public:
   /// Create a new \p epoll(7) structure associated with the current process.
   EPoll(std::size_t EventCount);
+
+  ~EPoll();
 
   /// Get the number of events that fired in the last successful \p wait().
   std::size_t getEventCount() const noexcept { return FiredEventCount; }

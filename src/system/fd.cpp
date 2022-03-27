@@ -16,13 +16,18 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <sys/resource.h>
+#include <unistd.h>
+
 #include "fd.hpp"
 
 #include "CheckedPOSIX.hpp"
 #include "POD.hpp"
 
-#include <sys/resource.h>
-#include <unistd.h>
+#include "monomux/Log.hpp"
+
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("fd")
 
 namespace monomux
 {
@@ -45,7 +50,7 @@ fd::raw_fd fd::fileno(std::FILE* File)
 
 void fd::close(raw_fd FD) noexcept
 {
-  std::clog << "DEBUG: Closing FD #" << FD << "..." << std::endl;
+  LOG(debug) << "Closing FD #" << FD << "...";
   CheckedPOSIX([FD] { return ::close(FD); }, -1);
 }
 

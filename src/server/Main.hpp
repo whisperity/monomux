@@ -21,9 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace monomux
-{
-namespace server
+namespace monomux::server
 {
 
 /// Options interested to invocation of a Monomux Server.
@@ -57,5 +55,4 @@ struct Options
 /// \returns \p ExitCode
 int main(Options& Opts);
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

@@ -16,14 +16,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cstring>
+#include <sstream>
+
 #include "Message.hpp"
 #include "Messaging.hpp"
-#include "system/unreachable.hpp"
 
-#include <cstring>
-#include <iostream>
-#include <sstream>
-#include <tuple>
+#include "monomux/Log.hpp"
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("control/Message")
 
 #define DECODE(NAME) std::optional<NAME> NAME::decode(std::string_view Buffer)
 #define ENCODE(NAME) std::string NAME::encode(const NAME& Object)
@@ -32,9 +33,7 @@
   std::optional<NAME> NAME::decode(std::string_view& Buffer)
 #define ENCODE_BASE(NAME) std::string NAME::encode(const NAME& Object)
 
-namespace monomux
-{
-namespace message
+namespace monomux::message
 {
 
 std::string Message::sizeToBinaryString(std::size_t N)
@@ -119,8 +118,8 @@ std::string readPascalString(CommunicationChannel& Channel)
   std::size_t Size = Message::binaryStringToSize(SizeStr);
   if (Size > MaxMeaningfulMessageSize)
   {
-    std::clog << "NEARMISS: When reading PascalString, got a size prefix of "
-              << Size << ", which is bollocks. Ignoring!" << std::endl;
+    LOG(warn) << "When reading a Pascal String, got a prefix of " << Size
+              << " that was deemed too large. Ignoring message!";
     return {};
   }
   std::string DataStr = Channel.read(Size);
@@ -830,8 +829,7 @@ DECODE(Redraw)
 
 } // namespace notification
 
-} // namespace message
-} // namespace monomux
+} // namespace monomux::message
 
 #undef CONSUME_OR_NONE
 #undef PEEK_AND_CONSUME

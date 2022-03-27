@@ -17,12 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "CommunicationChannel.hpp"
-#include "fd.hpp"
-
 #include <optional>
 #include <string>
 #include <system_error>
+
+#include "CommunicationChannel.hpp"
+#include "fd.hpp"
 
 namespace monomux
 {

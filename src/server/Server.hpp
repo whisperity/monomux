@@ -17,6 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <atomic>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <variant>
+
 #include "ClientData.hpp"
 #include "SessionData.hpp"
 
@@ -28,17 +36,7 @@
 #include "system/Socket.hpp"
 #include "system/fd.hpp"
 
-#include <atomic>
-#include <cstdint>
-#include <functional>
-#include <map>
-#include <memory>
-#include <optional>
-#include <variant>
-
-namespace monomux
-{
-namespace server
+namespace monomux::server
 {
 
 /// The monomux server is responsible for creating child processes of sessions.
@@ -249,5 +247,4 @@ private:
 #include "Dispatch.ipp"
 };
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

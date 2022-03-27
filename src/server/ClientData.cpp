@@ -16,15 +16,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cassert>
+
 #include "ClientData.hpp"
 
 #include "control/Messaging.hpp"
 
-#include <cassert>
-
-namespace monomux
-{
-namespace server
+namespace monomux::server
 {
 
 ClientData::ClientData(std::unique_ptr<Socket> Connection)
@@ -64,5 +62,4 @@ void ClientData::sendDetachReason(
                        monomux::message::notification::Detached{R});
 }
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

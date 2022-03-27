@@ -17,17 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
-#include "control/Message.hpp"
-#include "system/Socket.hpp"
-
 #include <chrono>
 #include <memory>
 #include <optional>
 
-namespace monomux
-{
-namespace server
+#include "control/Message.hpp"
+#include "system/Socket.hpp"
+
+namespace monomux::server
 {
 
 class SessionData;
@@ -97,5 +94,4 @@ private:
   SessionData* AttachedSession;
 };
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

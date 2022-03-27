@@ -17,9 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include <iostream>
-
 #include <fcntl.h>
+
+#include "monomux/Log.hpp"
 
 namespace monomux
 {
@@ -42,7 +42,7 @@ public:
   /// Wrap the raw platform resource handle into the RAII object.
   fd(raw_fd Handle) noexcept : Handle(Handle)
   {
-    std::clog << "TRACE: FD #" << Handle << " opened." << std::endl;
+    log::debug("system/fd") << "FD #" << Handle << " opened.";
   }
 
   fd(fd&& RHS) noexcept : Handle(RHS.release()) {}

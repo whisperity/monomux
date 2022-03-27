@@ -22,11 +22,12 @@
 #include <system_error>
 #include <type_traits>
 
-using errno_t = int;
-struct CheckedPOSIX;
-
 namespace monomux
 {
+
+// Hardcode this, because decltype(errno) would not be portable. errno might be
+// a macro.
+using errno_t = int;
 
 namespace detail
 {

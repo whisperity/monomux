@@ -16,17 +16,94 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Signal.hpp"
-#include "CheckedPOSIX.hpp"
-#include "unreachable.hpp"
-
 #include <exception>
-#include <iostream>
 #include <system_error>
 #include <type_traits>
 
+#include "CheckedPOSIX.hpp"
+#include "Signal.hpp"
+
+#include "monomux/Log.hpp"
+#include "monomux/unreachable.hpp"
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/Signal")
+
 namespace monomux
 {
+
+static const char* signalName(SignalHandling::Signal S)
+{
+#ifndef NDEBUG
+  switch (S)
+  {
+    case SIGINT:
+      return "SIGINT (Interrupted)";
+    case SIGILL:
+      return "SIGILL (Illegal instruction)";
+    case SIGABRT:
+      return "SIGABRT(/SIGIOT) (Aborted)";
+    case SIGFPE:
+      return "SIGFPE (Floating-point exception)";
+    case SIGSEGV:
+      return "SIGSEGV (Segmentation fault)";
+    case SIGTERM:
+      return "SIGTERM (Termination)";
+    case SIGHUP:
+      return "SIGHUP (Hung up)";
+    case SIGQUIT:
+      return "SIGQUIT (Quit)";
+    case SIGTRAP:
+      return "SIGTRAP (Trace trapped)";
+    case SIGKILL:
+      return "SIGKILL (Killed)";
+    case SIGBUS:
+      return "SIGBUS (Bus error)";
+    case SIGSYS:
+      return "SIGSYS (Bad system call)";
+    case SIGPIPE:
+      return "SIGPIPE (Broken pipe)";
+    case SIGALRM:
+      return "SIGALRM (Timer tocked)";
+    case SIGURG:
+      return "SIGURG (Urgent data on socket)";
+    case SIGSTOP:
+      return "SIGSTOP (Stop process)";
+    case SIGTSTP:
+      return "SIGTSTP (Terminal stop request)";
+    case SIGCONT:
+      return "SIGCONT (Continue)";
+    case SIGCHLD:
+      return "SIGCHLD(/SIGCLD) (Child process terminated)";
+    case SIGTTIN:
+      return "SIGTTIN (Backgrounded read from terminal)";
+    case SIGTTOU:
+      return "SIGTTOU (Backgrounded write to terminal)";
+    case SIGPOLL:
+      return "SIGPOLL(/SIGIO) (Pollable event)";
+    case SIGXCPU:
+      return "SIGXCPU (CPU time limit exceeded)";
+    case SIGXFSZ:
+      return "SIGXFSZ (File size limit exceeded)";
+    case SIGVTALRM:
+      return "SIGVTALRM (Virtual alarm tocked)";
+    case SIGPROF:
+      return "SIGPROF (Profiling timer expired)";
+    case SIGUSR1:
+      return "SIGUSR1";
+    case SIGUSR2:
+      return "SIGUSR2";
+    case SIGWINCH:
+      return "SIGWINCH (Window size changed)";
+    case SIGSTKFLT:
+      return "SIGSTKFLT (Stack fault)";
+    case SIGPWR:
+      return "SIGPWR (Power failure)";
+  }
+#endif
+
+  (void)S;
+  return "?";
+}
 
 void SignalHandling::handler(Signal SigNum,
                              ::siginfo_t* Info,
@@ -49,7 +126,11 @@ std::unique_ptr<SignalHandling> SignalHandling::Singleton;
 SignalHandling& SignalHandling::get()
 {
   if (!Singleton)
+  {
     Singleton = std::make_unique<SignalHandling>();
+    DEBUG(LOG(debug) << "SignalHandling initialised at address "
+                     << Singleton.get());
+  }
   return *Singleton;
 }
 
@@ -75,6 +156,8 @@ static void handleSignal(SignalHandling::Signal S,
   CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
                     "sigaction(" + std::to_string(S) + ")",
                     -1);
+
+  LOG(trace) << signalName(S) << " set to handle";
 }
 
 static void defaultSignal(SignalHandling::Signal S)
@@ -85,6 +168,8 @@ static void defaultSignal(SignalHandling::Signal S)
   CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
                     "sigaction(" + std::to_string(S) + ", SIG_DFL)",
                     -1);
+
+  LOG(trace) << signalName(S) << " set to default";
 }
 
 static void ignoreSignal(SignalHandling::Signal S)
@@ -95,6 +180,8 @@ static void ignoreSignal(SignalHandling::Signal S)
   CheckedPOSIXThrow([S, &SigAct] { return ::sigaction(S, &SigAct, nullptr); },
                     "sigaction(" + std::to_string(S) + ", SIG_IGN)",
                     -1);
+
+  LOG(trace) << signalName(S) << " set to ignore";
 }
 
 void SignalHandling::enable()
@@ -187,6 +274,7 @@ void SignalHandling::registerCallback(Signal SigNum,
                                 " cannot be handled!"};
 
   Callbacks.at(SigNum) = std::move(Callback);
+  LOG(data) << "Callback registered for " << signalName(SigNum);
 }
 
 void SignalHandling::clearCallback(Signal SigNum)
@@ -196,6 +284,8 @@ void SignalHandling::clearCallback(Signal SigNum)
 
   std::function<SignalCallback> Empty{};
   Callbacks.at(SigNum).swap(Empty);
+
+  LOG(data) << "Callback cleared from " << signalName(SigNum);
 }
 
 void SignalHandling::clearCallbacks() noexcept
@@ -205,6 +295,7 @@ void SignalHandling::clearCallbacks() noexcept
     std::function<SignalCallback> Empty{};
     Callbacks.at(S).swap(Empty);
   }
+  LOG(data) << "All callbacks cleared";
 }
 
 void SignalHandling::registerObject(std::string Name, std::any Object)
@@ -218,9 +309,10 @@ void SignalHandling::registerObject(std::string Name, std::any Object)
 
     if (IName == Name || IName.empty())
     {
+      LOG(data) << "Object \"" << Name << "\" registered (ID: " << I << ')';
+
       if (IName.empty())
         IName = std::move(Name);
-
       Objects.at(I) = std::move(Object);
       return;
     }
@@ -241,6 +333,7 @@ void SignalHandling::deleteObject(const std::string& Name) noexcept
     if (ObjectNames.at(I) == Name)
     {
       Objects.at(I).reset();
+      LOG(data) << "Object \"" << Name << "\" (ID: " << I << ") deleted";
       return;
     }
   }
@@ -255,6 +348,7 @@ void SignalHandling::deleteObjects() noexcept
     ObjectNames.at(I).clear();
     Objects.at(I).reset();
   }
+  LOG(data) << "Objects deleted";
 }
 
 std::any* SignalHandling::getObject(const char* Name) noexcept

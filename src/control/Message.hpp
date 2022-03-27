@@ -17,17 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "MessageBase.hpp"
-
 #include <cstdint>
 #include <ctime>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace monomux
-{
-namespace message
+#include "MessageBase.hpp"
+
+namespace monomux::message
 {
 
 /// Contains the data members required to identify a connected Client.
@@ -277,5 +275,4 @@ struct Redraw
 
 } // namespace notification
 
-} // namespace message
-} // namespace monomux
+} // namespace monomux::message

@@ -16,21 +16,20 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <chrono>
+#include <thread>
+
 #include "Server.hpp"
 
 #include "control/Messaging.hpp"
 #include "system/CheckedPOSIX.hpp"
 #include "system/POD.hpp"
 
-#include <chrono>
-#include <iostream>
-#include <thread>
+#include "monomux/Log.hpp"
 
-#include <sys/socket.h>
+#define LOG(SEVERITY) monomux::log::SEVERITY("server/Server")
 
-namespace monomux
-{
-namespace server
+namespace monomux::server
 {
 
 Server::Server(Socket&& Sock)
@@ -59,9 +58,6 @@ void Server::loop()
   static constexpr std::size_t EventQueue = 1 << 16;
   Sock.listen(ListenQueue);
 
-  POD<struct ::sockaddr_storage> SocketAddr;
-  POD<::socklen_t> SocketLen;
-
   fd::addStatusFlag(Sock.raw(), O_NONBLOCK);
   Poll = std::make_unique<EPoll>(EventQueue);
   Poll->listen(Sock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
@@ -72,8 +68,7 @@ void Server::loop()
     reapDeadChildren();
 
     const std::size_t NumTriggeredFDs = Poll->wait();
-    std::clog << "DEBUG: Server - " << NumTriggeredFDs << " events received!"
-              << std::endl;
+    LOG(data) << NumTriggeredFDs << " events received!";
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
       if (Poll->fdAt(I) == Sock.raw())
@@ -84,8 +79,11 @@ void Server::loop()
         std::optional<Socket> ClientSock = Sock.accept(&Error, &Recoverable);
         if (!ClientSock)
         {
-          std::cerr << "SERVER - accept() did not succeed: " << Error.message()
-                    << " - recoverable? " << Recoverable << std::endl;
+          if (Recoverable)
+            LOG(warn) << "accept() did not succeed: " << Error;
+          else
+            LOG(error) << "accept() did not succeed: " << Error
+                       << " (not recoverable)";
 
           if (Recoverable)
           {
@@ -100,8 +98,8 @@ void Server::loop()
         {
           // The client with the same socket FD is already known.
           // TODO: What is the good way of handling this?
-          std::clog << "DEBUG: Server - Stale socket " << ClientSock->raw()
-                    << " left behind!" << std::endl;
+          LOG(debug) << "Stale socket of gone client, " << ClientSock->raw()
+                     << " left behind?";
           exitCallback(*ExistingClient);
           removeClient(*ExistingClient);
         }
@@ -114,14 +112,14 @@ void Server::loop()
       {
         // Event occured on another (connected client) socket.
         raw_fd FD = Poll->fdAt(I);
-        std::clog << "DEBUG: Server - Data on file descriptor " << FD
-                  << std::endl;
+        DEBUG(LOG(trace) << "Data on file descriptor " << FD);
 
         LookupVariant* Entity = FDLookup.tryGet(FD);
         if (!Entity)
         {
-          std::clog << "DEBUG: File descriptor " << FD
-                    << " not in the lookup table!" << std::endl;
+          LOG(error) << "\tFile descriptor " << FD
+                     << " missing from lookup table? (Possible internal error "
+                        "or race condition!)";
           continue;
         }
 
@@ -244,21 +242,22 @@ void Server::registerDeadChild(Process::raw_handle PID) const noexcept
 
 void Server::acceptCallback(ClientData& Client)
 {
-  std::cout << "Client connected as " << Client.id() << std::endl;
+  LOG(info) << "Client \"" << Client.id() << "\" connected";
 
   raw_fd FD = Client.getControlSocket().raw();
 
   // (8 is a good guesstimate because FDLookup usually counts from 5 or 6, not
   // from 0.)
   static constexpr std::size_t FDKeepSpare = 8;
-  if (FDLookup.size() >= fd::maxNumFDs() - FDKeepSpare)
+  std::size_t FDCount = FDLookup.size();
+  std::size_t MaxFDs = fd::maxNumFDs() - FDKeepSpare;
+  if (FDCount >= MaxFDs)
   {
     // As a full client connection would require *TWO* file descriptors (control
     // and data socket) and we would need to keep 1 open so we can always
     // accept() a connection, reject the client if there aren't any space left.
-    std::cerr << "TRACE: Client connected, but there are less than "
-                 "satisfactory free file descriptors left. Rejecting..."
-              << std::endl;
+    LOG(warn) << "Self-defence rejecting client - " << FDCount
+              << " FDs allocated out of the max " << MaxFDs;
     sendRejectClient(Client, "Not enough file descriptors left on server.");
     removeClient(Client);
     return;
@@ -274,10 +273,8 @@ void Server::acceptCallback(ClientData& Client)
 void Server::controlCallback(ClientData& Client)
 {
   using namespace monomux::message;
-
+  DEBUG(LOG(trace) << "Client \"" << Client.id() << "\" sent CONTROL!");
   Socket& ClientSock = Client.getControlSocket();
-  std::cout << "Client " << Client.id() << " has data!" << std::endl;
-
   std::string Data;
   try
   {
@@ -285,8 +282,8 @@ void Server::controlCallback(ClientData& Client)
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when reading control from Client " << Client.id()
-              << ": " << Err.what() << std::endl;
+    LOG(error) << "Client \"" << Client.id()
+               << "\": error when reading CONTROL: " << Err.what();
   }
 
   if (ClientSock.failed())
@@ -299,30 +296,25 @@ void Server::controlCallback(ClientData& Client)
   if (Data.empty())
     return;
 
-  std::cout << Data << std::endl;
-
-  std::cout << "Check for message kind... ";
   Message MB = Message::unpack(Data);
   auto Action =
     Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
   if (Action == Dispatch.end())
   {
-    std::cerr << "Error: Unknown message type " << static_cast<int>(MB.Kind)
-              << " received." << std::endl;
+    LOG(trace) << "Client \"" << Client.id() << "\": unknown message type "
+               << static_cast<int>(MB.Kind) << " received";
     return;
   }
-  std::cout << static_cast<int>(MB.Kind) << std::endl;
 
-  std::cout << "Read data " << std::string_view{Data.data(), Data.size()}
-            << std::endl;
+  DEBUG(LOG(data) << "Client \"" << Client.id() << "\"\n" << MB.RawData);
   try
   {
     Action->second(*this, Client, MB.RawData);
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when handling message of client " << Client.id()
-              << std::endl;
+    LOG(warn) << "Client \"" << Client.id()
+              << "\": error when handling message";
     if (ClientSock.failed())
       exitCallback(Client);
     return;
@@ -334,9 +326,7 @@ void Server::dataCallback(ClientData& Client)
   // NOLINTNEXTLINE(readability-identifier-naming)
   static constexpr std::size_t BUFFER_SIZE = 1024;
 
-  std::cout << "Client " << Client.id()
-            << " sent some data on their data connection!" << std::endl;
-
+  DEBUG(LOG(trace) << "Client \"" << Client.id() << "\" sent DATA!");
   std::string Data;
   try
   {
@@ -344,13 +334,12 @@ void Server::dataCallback(ClientData& Client)
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when reading data from "
-              << Client.getDataSocket()->raw() << ": " << Err.what()
-              << std::endl;
+    LOG(error) << "Client \"" << Client.id()
+               << "\": error when reading DATA: " << Err.what();
     return;
   }
-  std::cout << "DEBUG: Client data received:\n\t" << Data << std::endl;
   Client.activity();
+  DEBUG(LOG(data) << "Client \"" << Client.id() << "\" data: " << Data);
 
   if (SessionData* S = Client.getAttachedSession())
     S->sendInput(Data);
@@ -358,7 +347,7 @@ void Server::dataCallback(ClientData& Client)
 
 void Server::exitCallback(ClientData& Client)
 {
-  std::cout << "Client " << Client.id() << " is leaving..." << std::endl;
+  LOG(info) << "Client \"" << Client.id() << "\" left";
 
   if (const auto* DS = Client.getDataSocket())
   {
@@ -374,8 +363,7 @@ void Server::exitCallback(ClientData& Client)
 
 void Server::createCallback(SessionData& Session)
 {
-  std::cout << "Session " << Session.name() << " created." << std::endl;
-
+  LOG(info) << "Session \"" << Session.name() << "\" created";
   if (Session.hasProcess() && Session.getProcess().hasPty())
   {
     raw_fd FD = Session.getProcess().getPty()->raw();
@@ -390,25 +378,21 @@ void Server::dataCallback(SessionData& Session)
   // NOLINTNEXTLINE(readability-identifier-naming)
   static constexpr std::size_t BUFFER_SIZE = 1024;
 
-  std::cout << "Session " << Session.name()
-            << " sent some data on their data connection!" << std::endl;
-
+  DEBUG(LOG(trace) << "Session \"" << Session.name() << "\" sent DATA!");
   std::string Data;
-
   try
   {
     Data = Session.readOutput(BUFFER_SIZE);
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when reading data from session "
-              << Session.getProcess().getPty()->raw() << ": " << Err.what()
-              << std::endl;
+    LOG(error) << "Session \"" << Session.name()
+               << "\": error when reading DATA: " << Err.what();
     return;
   }
-  std::cout << "DEBUG: Session data received:\n\t" << Data << std::endl;
-
   Session.activity();
+  DEBUG(LOG(data) << "Session \"" << Session.name() << "\" data: " << Data);
+
   for (ClientData* C : Session.getAttachedClients())
     if (Socket* DS = C->getDataSocket())
       try
@@ -417,15 +401,16 @@ void Server::dataCallback(SessionData& Session)
       }
       catch (const std::system_error& Err)
       {
-        std::cerr << "Error when writing data to client " << C->id() << ": "
-                  << Err.what() << std::endl;
+        LOG(error) << "Session \"" << Session.name()
+                   << "\": error when sending DATA to attached client \""
+                   << C->id() << "\": " << Err.what();
       }
 }
 
 void Server::clientAttachedCallback(ClientData& Client, SessionData& Session)
 {
-  std::clog << "DEBUG: Client " << Client.id() << " attached to "
-            << Session.name() << std::endl;
+  LOG(info) << "Client \"" << Client.id() << "\" attached to \""
+            << Session.name() << '"';
   Client.attachToSession(Session);
   Session.attachClient(Client);
 }
@@ -434,16 +419,15 @@ void Server::clientDetachedCallback(ClientData& Client, SessionData& Session)
 {
   if (Client.getAttachedSession() != &Session)
     return;
-  std::clog << "DEBUG: Client " << Client.id() << " detached from "
-            << Session.name() << std::endl;
+  LOG(info) << "Client \"" << Client.id() << "\" detached from \""
+            << Session.name() << '"';
   Client.detachSession();
   Session.removeClient(Client);
 }
 
 void Server::destroyCallback(SessionData& Session)
 {
-  std::cout << "Session " << Session.name() << " exited..." << std::endl;
-
+  LOG(info) << "Session \"" << Session.name() << "\" exited";
   if (Session.hasProcess() && Session.getProcess().hasPty())
   {
     raw_fd FD = Session.getProcess().getPty()->raw();
@@ -458,8 +442,9 @@ void Server::destroyCallback(SessionData& Session)
 void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
                                              ClientData& DataClient)
 {
-  std::clog << "DEBUG: Client " << DataClient.id()
-            << " becoming data connection for " << MainClient.id() << std::endl;
+  LOG(trace) << "Client \"" << DataClient.id()
+             << "\" becoming the DATA connection for Client \""
+             << MainClient.id() << '"';
   MainClient.subjugateIntoDataSocket(DataClient);
   FDLookup[MainClient.getDataSocket()->raw()] =
     ClientDataConnection{&MainClient};
@@ -486,8 +471,8 @@ void Server::reapDeadChildren()
     bool Dead = SessionForProc->second->getProcess().reapIfDead();
     if (Dead)
     {
-      std::clog << "INFO: Child process #" << PID << " of session '"
-                << SessionForProc->second->name() << "' exited." << std::endl;
+      LOG(debug) << "Child PID " << PID << " of Session \""
+                 << SessionForProc->second->name() << "\" exited";
 
       for (ClientData* AC : SessionForProc->second->getAttachedClients())
         AC->sendDetachReason(monomux::message::notification::Detached::Exit);
@@ -498,5 +483,4 @@ void Server::reapDeadChildren()
   }
 }
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

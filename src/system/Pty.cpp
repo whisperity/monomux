@@ -16,17 +16,20 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <climits>
+
+#include <pty.h>
+#include <unistd.h>
+#include <utmp.h>
+
 #include "Pty.hpp"
 
 #include "CheckedPOSIX.hpp"
 #include "POD.hpp"
 
-#include <climits>
-#include <iostream>
+#include "monomux/Log.hpp"
 
-#include <pty.h>
-#include <unistd.h>
-#include <utmp.h>
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/Pty")
 
 namespace monomux
 {
@@ -44,6 +47,9 @@ Pty::Pty()
     "Failed to openpty()",
     -1);
 
+  LOG(debug) << "Opened " << DeviceName << "(master: " << MasterFD
+             << ", slave: " << SlaveFD << ')';
+
   Master = MasterFD;
   Slave = SlaveFD;
   Name = DeviceName;
@@ -51,6 +57,8 @@ Pty::Pty()
 
 void Pty::setupParentSide()
 {
+  DEBUG(LOG(trace) << Master << ": Set up as parent...");
+
   // Close PTS, the slave PTY.
   raw_fd PTS = Slave.release();
   fd::close(PTS);
@@ -61,6 +69,8 @@ void Pty::setupParentSide()
 
 void Pty::setupChildrenSide()
 {
+  DEBUG(LOG(trace) << Slave << ": Set up as child...");
+
   // Closes PTM, the pseudoterminal multiplexer master (PTMX).
   raw_fd PTM = Master.release();
   fd::close(PTM);
@@ -73,6 +83,9 @@ void Pty::setSize(unsigned short Rows, unsigned short Columns)
 {
   if (!isMaster())
     throw std::invalid_argument{"setSize() not allowed on slave device."};
+
+  DEBUG(LOG(data) << Master << ": setSize(Rows=" << Rows
+                  << ", Columns=" << Columns << ')');
 
   POD<struct ::winsize> Size;
   Size->ws_row = Rows;

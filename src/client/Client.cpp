@@ -16,14 +16,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <utility>
+
 #include "Client.hpp"
 
 #include "control/Message.hpp"
 #include "control/Messaging.hpp"
 #include "system/Pipe.hpp"
 
-#include <iostream>
-#include <utility>
+#include "monomux/Log.hpp"
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("client/Client")
 
 namespace monomux
 {
@@ -262,6 +265,7 @@ void Client::loop()
 void Client::controlCallback()
 {
   using namespace monomux::message;
+  DEBUG(LOG(trace) << "ControlCallback");
   std::string Data;
   try
   {
@@ -269,7 +273,7 @@ void Client::controlCallback()
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "ERROR: When reading from control:" << Err.what() << std::endl;
+    LOG(error) << "Reading CONTROL: " << Err.what();
   }
 
   if (ControlSocket.failed())
@@ -281,29 +285,24 @@ void Client::controlCallback()
   if (Data.empty())
     return;
 
-  std::cout << Data << std::endl;
-
-  std::cout << "Check for message kind... ";
   Message MB = Message::unpack(Data);
   auto Action =
     Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
   if (Action == Dispatch.end())
   {
-    std::cerr << "Error: Unknown message type " << static_cast<int>(MB.Kind)
-              << " received." << std::endl;
+    LOG(trace) << "Unknown message type " << static_cast<int>(MB.Kind)
+               << " received";
     return;
   }
-  std::cout << static_cast<int>(MB.Kind) << std::endl;
 
-  std::cout << "Read data " << std::string_view{Data.data(), Data.size()}
-            << std::endl;
+  DEBUG(LOG(data) << MB.RawData);
   try
   {
     Action->second(*this, MB.RawData);
   }
   catch (const std::system_error& Err)
   {
-    std::cerr << "Error when handling message " << std::endl;
+    LOG(warn) << "Error when handling message";
     if (getControlSocket().failed())
       exit(Failed);
     return;
@@ -327,7 +326,7 @@ void Client::setExternalEventProcessor(std::function<RawCallbackFn> Callback)
 
 void Client::exit(ExitReason E)
 {
-  std::clog << "TRACE: Client exit " << E << std::endl;
+  LOG(trace) << "Exit with reason " << E;
   Exit = E;
   Poll.reset();
   TerminateLoop.get().store(true);
@@ -343,7 +342,6 @@ std::size_t Client::consumeNonce() noexcept
 
 std::optional<std::vector<SessionData>> Client::requestSessionList()
 {
-  std::clog << __PRETTY_FUNCTION__ << std::endl;
   using namespace monomux::message;
   auto X = inhibitControlResponse();
 
@@ -429,9 +427,7 @@ void Client::sendData(std::string_view Data)
 {
   if (!DataSocket)
   {
-    std::cerr
-      << "ERROR: Trying to send data but data connection was not established."
-      << std::endl;
+    LOG(error) << "Trying to sendData() but the connection was not established";
     return;
   }
   DataSocket->write(Data);
@@ -440,6 +436,7 @@ void Client::sendData(std::string_view Data)
 void Client::notifyWindowSize(unsigned short Rows, unsigned short Columns)
 {
   using namespace monomux::message;
+  auto X = inhibitControlResponse();
   notification::Redraw M;
   M.Rows = Rows;
   M.Columns = Columns;

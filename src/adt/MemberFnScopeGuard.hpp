@@ -17,18 +17,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
-#include "unique_scalar.hpp"
-
 #include <functional>
 #include <tuple>
+
+#include "unique_scalar.hpp"
 
 namespace monomux
 {
 
 /// An abstract scope guard that fires two callbacks of an object at the
 /// beginning and the end of its own life.
-template <typename Function, typename Object> class MemberFnScopeGuard
+template <typename Function, typename Object> class MemberFnScopeGuard0
 {
   unique_scalar<bool, false> Alive;
   Function Enter;
@@ -37,30 +36,78 @@ template <typename Function, typename Object> class MemberFnScopeGuard
 
 public:
   // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-  MemberFnScopeGuard(Function Enter, Function Exit, Object* Obj)
+  MemberFnScopeGuard0(Function Enter, Function Exit, Object* Obj)
     : Enter(Enter), Exit(Exit), O(Obj)
   {
-    (this->O->*Enter)();
+    if (Enter)
+      (this->O->*Enter)();
     Alive = true;
   }
 
-  ~MemberFnScopeGuard()
+  ~MemberFnScopeGuard0()
   {
-    if (Alive)
+    if (Alive && Exit)
       (this->O->*Exit)();
+    Alive = false;
+  }
+};
+
+/// An abstract scope guard that fires two callbacks of an object at the
+/// beginning and the end of its own life.
+template <typename Function, typename Object, typename Arg1Type>
+class MemberFnScopeGuard1
+{
+  unique_scalar<bool, false> Alive;
+  Function Enter;
+  Function Exit;
+  Object* O;
+  Arg1Type Arg1;
+
+public:
+  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+  MemberFnScopeGuard1(Function Enter, Function Exit, Object* Obj, Arg1Type Arg1)
+    : Enter(Enter), Exit(Exit), O(Obj), Arg1(Arg1)
+  {
+    if (Enter)
+      (this->O->*Enter)(Arg1);
+    Alive = true;
+  }
+
+  ~MemberFnScopeGuard1()
+  {
+    if (Alive && Exit)
+      (this->O->*Exit)(Arg1);
     Alive = false;
   }
 };
 
 } // namespace monomux
 
-#define MONOMUX_MEMBER_FN_SCOPE_GAURD(CLASS_NAME, FUNCTION_TYPE, OBJECT_TYPE)  \
+#define MONOMUX_MEMBER_FN_SCOPE_GUARD_0(                                       \
+  CLASS_NAME, FUNCTION_TYPE, OBJECT_TYPE)                                      \
   class CLASS_NAME                                                             \
-    : public monomux::MemberFnScopeGuard<FUNCTION_TYPE, OBJECT_TYPE>           \
+    : public monomux::MemberFnScopeGuard0<FUNCTION_TYPE, OBJECT_TYPE>          \
   {                                                                            \
   public:                                                                      \
     CLASS_NAME(FUNCTION_TYPE Enter, FUNCTION_TYPE Exit, OBJECT_TYPE* Obj)      \
-      : MemberFnScopeGuard(Enter, Exit, Obj)                                   \
+      : MemberFnScopeGuard0(Enter, Exit, Obj)                                  \
+    {}                                                                         \
+                                                                               \
+    ~CLASS_NAME() = default;                                                   \
+  };
+
+#define MONOMUX_MEMBER_FN_SCOPE_GUARD_1(                                       \
+  CLASS_NAME, FUNCTION_TYPE, OBJECT_TYPE, ARG_1_TYPE)                          \
+  class CLASS_NAME                                                             \
+    : public monomux::                                                         \
+        MemberFnScopeGuard1<FUNCTION_TYPE, OBJECT_TYPE, ARG_1_TYPE>            \
+  {                                                                            \
+  public:                                                                      \
+    CLASS_NAME(FUNCTION_TYPE Enter,                                            \
+               FUNCTION_TYPE Exit,                                             \
+               OBJECT_TYPE* Obj,                                               \
+               ARG_1_TYPE Arg1)                                                \
+      : MemberFnScopeGuard1(Enter, Exit, Obj, Arg1)                            \
     {}                                                                         \
                                                                                \
     ~CLASS_NAME() = default;                                                   \

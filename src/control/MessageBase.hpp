@@ -36,9 +36,7 @@
   static std::string encode(const NAME& Object);
 #endif
 
-namespace monomux
-{
-namespace message
+namespace monomux::message
 {
 
 /// A global enumeration table of messages that are supported by the protocol.
@@ -163,5 +161,4 @@ template <typename T> std::optional<T> decode(std::string_view Str) noexcept
   return Msg;
 }
 
-} // namespace message
-} // namespace monomux
+} // namespace monomux::message

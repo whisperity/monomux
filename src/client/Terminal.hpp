@@ -17,17 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <termios.h>
 
 #include "adt/MovableAtomic.hpp"
 #include "adt/unique_scalar.hpp"
 #include "system/POD.hpp"
 #include "system/fd.hpp"
 
-#include <termios.h>
-
-namespace monomux
-{
-namespace client
+namespace monomux::client
 {
 
 class Client;
@@ -103,5 +100,4 @@ private:
   static void clientEventReady(Terminal* Term, Client& Client);
 };
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

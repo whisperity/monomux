@@ -23,11 +23,13 @@
 #include "system/Environment.hpp"
 #include "system/Process.hpp"
 
+#include "monomux/Log.hpp"
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("server/Dispatch")
+
 using namespace monomux::message;
 
-namespace monomux
-{
-namespace server
+namespace monomux::server
 {
 
 void Server::setUpDispatch()
@@ -58,15 +60,13 @@ void Server::sendRejectClient(ClientData& Client, std::string Reason)
 #define MSG(TYPE)                                                              \
   std::optional<TYPE> Msg = TYPE::decode(Message);                             \
   if (!Msg)                                                                    \
-    return;
+    return;                                                                    \
+  DEBUG(LOG(trace) << __PRETTY_FUNCTION__);
 
 HANDLER(requestClientID)
 {
   (void)Server;
   MSG(request::ClientID);
-  std::cout << "SERVER: Client #" << Client.id() << ": Request Client ID"
-            << std::endl;
-
   response::ClientID Resp;
   Resp.Client.ID = Client.id();
   Resp.Client.Nonce = Client.makeNewNonce();
@@ -82,9 +82,6 @@ HANDLER(requestDataSocket)
 
   // In this function, Client is the message sender, so the connection that
   // wants to become the data socket.
-
-  std::cout << "Server: Client #" << Client.id()
-            << ": Associate as Data Socket for " << Msg->Client.ID << std::endl;
 
   auto MainIt = Server.Clients.find(Msg->Client.ID);
   if (MainIt == Server.Clients.end())
@@ -140,8 +137,7 @@ HANDLER(requestMakeSession)
 
   if (!Msg->Name.empty() && Server.getSession(Msg->Name))
   {
-    std::clog << "INFO: Spawning session of name '" << Msg->Name
-              << "' failed: Already exists." << std::endl;
+    LOG(info) << "Session \"" << Msg->Name << "\" already exists";
     sendMessage(Client.getControlSocket(), Resp);
     return;
   }
@@ -154,7 +150,7 @@ HANDLER(requestMakeSession)
     Msg->Name = std::to_string(SessionNum);
   }
 
-  std::clog << "DEBUG: Creating session '" << Msg->Name << "'..." << std::endl;
+  LOG(debug) << "Creating Session \"" << Msg->Name << "\"...";
   Resp.Name = Msg->Name;
   auto S = std::make_unique<SessionData>(std::move(Msg->Name));
 
@@ -244,7 +240,7 @@ HANDLER(requestDetach)
 
 HANDLER(signalSession)
 {
-  std::cerr << "WARNING: <signal> requests not yet implemented!" << std::endl;
+  LOG(always) << "WARNING: <signal> requests not yet implemented!";
 }
 
 HANDLER(redrawNotified)
@@ -261,5 +257,4 @@ HANDLER(redrawNotified)
 
 #undef HANDLER
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

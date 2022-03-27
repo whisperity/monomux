@@ -20,6 +20,10 @@
 
 #include "CheckedPOSIX.hpp"
 
+#include "monomux/Log.hpp"
+
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/epoll")
+
 namespace monomux
 {
 
@@ -30,10 +34,15 @@ EPoll::EPoll(std::size_t EventCount)
   MasterFD = CheckedPOSIXThrow(
     [EventCount] { return ::epoll_create(EventCount); }, "epoll_create()", -1);
   fd::setNonBlockingCloseOnExec(MasterFD.get());
+
+  LOG(debug) << MasterFD << ": created with " << EventCount << " events";
 }
+
+EPoll::~EPoll() { LOG(debug) << MasterFD << ": destroyed"; }
 
 std::size_t EPoll::wait()
 {
+  DEBUG(LOG(trace) << "epoll_wait()...");
   auto MaybeFiredEventCount = CheckedPOSIX(
     [this] {
       return ::epoll_wait(MasterFD, &(*Events.data()), Events.size(), -1);
@@ -48,6 +57,7 @@ std::size_t EPoll::wait()
     throw std::system_error{EC, "epoll_wait()"};
   }
   FiredEventCount = MaybeFiredEventCount.get();
+  DEBUG(LOG(trace) << MasterFD << ": " << FiredEventCount << " events hit.");
   return FiredEventCount;
 }
 
@@ -90,7 +100,7 @@ EPoll::Listener::Listener(EPoll& Master,
     },
     "epoll_ctl registering file",
     -1);
-  std::clog << "DEBUG: epoll() listening for FD " << FD << std::endl;
+  LOG(trace) << Master.MasterFD << ": listen for FD " << FD;
 }
 
 EPoll::Listener::~Listener()
@@ -105,8 +115,7 @@ EPoll::Listener::~Listener()
         Master.MasterFD, EPOLL_CTL_DEL, FDToListenFor, &Control);
     },
     -1);
-  std::clog << "DEBUG: epoll() no longer listening for FD " << FDToListenFor
-            << std::endl;
+  LOG(trace) << Master.MasterFD << ": stop listening for FD " << FDToListenFor;
 }
 
 } // namespace monomux

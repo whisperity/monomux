@@ -16,21 +16,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Terminal.hpp"
-
-#include "Client.hpp"
-#include "system/CheckedPOSIX.hpp"
-#include "system/Pipe.hpp"
-
 #include <cassert>
 #include <functional>
 
 #include <sys/ioctl.h>
 #include <termios.h>
 
-namespace monomux
-{
-namespace client
+#include "Terminal.hpp"
+
+#include "Client.hpp"
+#include "system/CheckedPOSIX.hpp"
+#include "system/Pipe.hpp"
+
+namespace monomux::client
 {
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
@@ -184,5 +182,4 @@ void Terminal::notifySizeChanged() const noexcept
   WindowSizeChanged.get().store(true);
 }
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

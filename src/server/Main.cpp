@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <thread>
+
 #include "Main.hpp"
 
 #include "ExitCode.hpp"
@@ -23,14 +25,14 @@
 #include "system/Environment.hpp"
 #include "system/Process.hpp"
 #include "system/Signal.hpp"
-#include "system/unreachable.hpp"
 
-#include <iostream>
-#include <thread>
+#include "monomux/Log.hpp"
+#include "monomux/adt/scope_guard.hpp"
+#include "monomux/unreachable.hpp"
 
-namespace monomux
-{
-namespace server
+#define LOG(SEVERITY) monomux::log::SEVERITY("server/Main")
+
+namespace monomux::server
 {
 
 Options::Options()
@@ -58,7 +60,7 @@ std::vector<std::string> Options::toArgv() const
 
 [[noreturn]] void exec(const Options& Opts, const char* ArgV0)
 {
-  std::clog << "DEBUG: exec() a new server!" << std::endl;
+  LOG(debug) << "exec() a new server";
 
   Process::SpawnOptions SO;
   SO.Program = ArgV0;
@@ -102,28 +104,31 @@ int main(Options& Opts)
   Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));
   S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
+  scope_guard Server{[] {}, [&S] { S.shutdown(); }};
 
-  {
-    SignalHandling& Sig = SignalHandling::get();
-    Sig.registerObject("Server", &S);
-    Sig.registerCallback(SIGINT, &serverShutdown);
-    Sig.registerCallback(SIGTERM, &serverShutdown);
-    Sig.registerCallback(SIGCHLD, &childExited);
-    Sig.ignore(SIGPIPE);
-    Sig.enable();
-  }
+  scope_guard Signal{[&S] {
+                       SignalHandling& Sig = SignalHandling::get();
+                       Sig.registerObject("Server", &S);
+                       Sig.registerCallback(SIGINT, &serverShutdown);
+                       Sig.registerCallback(SIGTERM, &serverShutdown);
+                       Sig.registerCallback(SIGCHLD, &childExited);
+                       Sig.ignore(SIGPIPE);
+                       Sig.enable();
+                     },
+                     [] {
+                       SignalHandling& Sig = SignalHandling::get();
+                       Sig.disable();
+                       Sig.unignore(SIGPIPE);
+                       Sig.clearCallback(SIGCHLD);
+                       Sig.clearCallback(SIGTERM);
+                       Sig.clearCallback(SIGINT);
+                       Sig.deleteObject("Server");
+                     }};
 
-  std::cout << "INFO: Monomux Server starting to listen..." << std::endl;
+  LOG(info) << "Starting Monomux Server";
   S.loop();
-  std::cout << "INFO: Server listen exited" << std::endl;
-
-  SignalHandling::get().disable();
-
-  S.shutdown();
-
-  std::cout << "INFO: Server shut down..." << std::endl;
+  LOG(info) << "Monomux Server stopped";
   return EXIT_Success;
 }
 
-} // namespace server
-} // namespace monomux
+} // namespace monomux::server

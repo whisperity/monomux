@@ -19,8 +19,16 @@
 #pragma once
 #include <cstdint>
 
-[[noreturn]] void unreachable_impl(const char* Msg = nullptr,
-                                   const char* File = nullptr,
-                                   std::size_t LineNo = 0);
+/// If executed during runtime, kills the program and prints the specified
+/// message to the standard error stream.
+[[noreturn]] void
+// NOLINTNEXTLINE(readability-identifier-naming)
+unreachable_impl(const char* Msg = nullptr,
+                 const char* File = nullptr,
+                 std::size_t LineNo = 0);
 
+#ifndef NDEBUG
 #define unreachable(MSG) ::unreachable_impl(MSG, __FILE__, __LINE__)
+#else
+#define unreachable(MSG) ::unreachable_impl(MSG, nullptr, 0)
+#endif

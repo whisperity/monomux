@@ -17,20 +17,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include <chrono>
-#include <string>
 
-namespace monomux::client
+#include "adt/unique_scalar.hpp"
+
+namespace monomux
 {
 
-/// A snaphot view of sessions running on a server, as reported by the server.
+/// A simple scope guard that fires a callback function (in most cases, a
+/// lambda passed to the constructor) when constructed, and when destructed.
 ///
-/// \see monomux::message::SessionData
-/// \see monomux::server::SessionData
-struct SessionData
+/// Example:
+///
+///     scope_guard RAII{[] { enter(); }, [] { exit(); }};
+template <typename EnterFunction, typename ExitFunction>
+struct scope_guard // NOLINT(readability-identifier-naming)
 {
-  std::string Name;
-  std::chrono::time_point<std::chrono::system_clock> Created;
+  scope_guard(EnterFunction&& Enter, ExitFunction&& Exit) : Exit(Exit)
+  {
+    Enter();
+    Alive = true;
+  }
+
+  ~scope_guard()
+  {
+    if (Alive)
+      Exit();
+  }
+
+private:
+  bool Alive;
+  ExitFunction Exit;
 };
 
-} // namespace monomux::client
+} // namespace monomux

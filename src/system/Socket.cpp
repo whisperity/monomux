@@ -16,16 +16,18 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
 #include "Socket.hpp"
 
 #include "CheckedPOSIX.hpp"
 #include "POD.hpp"
 
-#include <iostream>
+#include "monomux/Log.hpp"
 
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/Socket")
 
 namespace monomux
 {
@@ -41,6 +43,8 @@ Socket Socket::create(std::string Path, bool InheritInChild)
     [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
     "socket()",
     -1);
+
+  DEBUG(LOG(trace) << "Anonymous socket created");
 
   // TODO: Mask?
 
@@ -58,6 +62,8 @@ Socket Socket::create(std::string Path, bool InheritInChild)
     "bind('" + Path + "')",
     -1);
 
+  LOG(debug) << "Created at \"" << Path << '"';
+
   Socket S{std::move(Handle), std::move(Path), true};
   S.Owning = true;
   return S;
@@ -70,6 +76,8 @@ Socket Socket::connect(std::string Path, bool InheritInChild)
     [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
     "socket()",
     -1);
+
+  DEBUG(LOG(trace) << "Anonymous socket created");
 
   POD<struct ::sockaddr_un> SocketAddr;
   SocketAddr->sun_family = AF_UNIX;
@@ -85,6 +93,8 @@ Socket Socket::connect(std::string Path, bool InheritInChild)
     "connect('" + Path + "')",
     -1);
 
+  LOG(debug) << "Connected to \"" << Path << '"';
+
   Socket S{std::move(Handle), std::move(Path), false};
   S.Owning = false;
   return S;
@@ -98,6 +108,8 @@ Socket Socket::wrap(fd&& FD, std::string Identifier)
     Identifier.append(std::to_string(FD.get()));
     Identifier.push_back('>');
   }
+
+  LOG(trace) << "Socketified FD " << Identifier;
 
   Socket S{std::move(FD), std::move(Identifier), false};
   S.Owning = false;
@@ -129,11 +141,9 @@ Socket::~Socket() noexcept
     auto RemoveResult =
       CheckedPOSIX([this] { return ::unlink(identifier().c_str()); }, -1);
     if (!RemoveResult)
-    {
-      std::cerr << "Failed to remove file '" << identifier()
-                << "' when closing the socket.\n";
-      std::cerr << std::strerror(RemoveResult.getError().value()) << std::endl;
-    }
+      LOG(error) << "Failed to remove file \"" << identifier()
+                 << "\" when closing the socket.\n\t"
+                 << RemoveResult.getError();
   }
 }
 
@@ -152,6 +162,7 @@ void Socket::listen(std::size_t QueueSize)
     [this, QueueSize] { return ::listen(Handle, static_cast<int>(QueueSize)); },
     "listen()",
     -1);
+  DEBUG(LOG(trace) << identifier() << ": Listening...");
   Listening = true;
 }
 
@@ -159,6 +170,8 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
 {
   POD<struct ::sockaddr_un> SocketAddr;
   POD<::socklen_t> SocketAddrLen;
+
+  LOG(trace) << identifier() << ": Accepting client...";
 
   auto MaybeClient = CheckedPOSIX(
     [this, &SocketAddr, &SocketAddrLen] {
@@ -174,24 +187,20 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
 
     bool ConsiderRecoverable = false;
     std::errc EC = static_cast<std::errc>(MaybeClient.getError().value());
-    if (EC == std::errc::resource_unavailable_try_again /* EAGAIN */ ||
-        EC == std::errc::interrupted /* EINTR */ ||
-        EC == std::errc::connection_aborted /* ECONNABORTED */)
+    if (EC == std::errc::too_many_files_open /* EMFILE */ ||
+        EC == std::errc::too_many_files_open_in_system /* ENFILE */)
     {
-      std::cerr << "accept() " << std::make_error_code(EC) << std::endl;
-      ConsiderRecoverable = false;
-    }
-    else if (EC == std::errc::too_many_files_open /* EMFILE */ ||
-             EC == std::errc::too_many_files_open_in_system /* ENFILE */)
-    {
-      std::cerr << "accept() " << std::make_error_code(EC) << ", recoverable..."
-                << std::endl;
+      LOG(warn) << identifier()
+                << ": Failed to accept client: " << MaybeClient.getError();
       ConsiderRecoverable = true;
     }
-    else
+    else if (EC == std::errc::resource_unavailable_try_again /* EAGAIN */ ||
+             EC == std::errc::interrupted /* EINTR */ ||
+             EC == std::errc::connection_aborted /* ECONNABORTED */ ||
+             static_cast<int>(EC) != 0)
     {
-      std::cerr << "accept() failed: " << MaybeClient.getError().message()
-                << std::endl;
+      LOG(error) << identifier()
+                 << ": Failed to accept client: " << MaybeClient.getError();
       ConsiderRecoverable = false;
     }
 
@@ -201,7 +210,9 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
   }
 
   // Successfully accepted a client.
-  return Socket::wrap(MaybeClient.get(), std::string{SocketAddr->sun_path});
+  std::string ClientPath = SocketAddr->sun_path;
+  LOG(trace) << identifier() << ": Client \"" << ClientPath << "\" connected";
+  return Socket::wrap(MaybeClient.get(), std::move(ClientPath));
 }
 
 std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
@@ -235,7 +246,7 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
       return {};
     }
 
-    std::cerr << "Socket " << Handle.get() << " - read error." << std::endl;
+    LOG(error) << identifier() << ": Read error";
     Continue = false;
     setFailed();
     throw std::system_error{std::make_error_code(EC)};
@@ -245,7 +256,7 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
   Continue = true;
   if (ReadBytes.get() == 0)
   {
-    std::clog << "Socket " << Handle.get() << " - disconnected." << std::endl;
+    LOG(error) << identifier() << ": Disconnected";
     setFailed();
     Continue = false;
   }
@@ -269,7 +280,7 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
       return 0;
     }
 
-    std::cerr << "Socket " << Handle.get() << " - write error." << std::endl;
+    LOG(error) << identifier() << ": Write error";
     setFailed();
     Continue = false;
     throw std::system_error{std::make_error_code(EC)};
@@ -278,7 +289,7 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
   Continue = true;
   if (SentBytes.get() == 0)
   {
-    std::cout << "Socket " << Handle.get() << " disconnected." << std::endl;
+    LOG(error) << identifier() << ": Disconnected";
     setFailed();
     Continue = false;
   }

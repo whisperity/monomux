@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "POD.hpp"
-
 #include <any>
 #include <array>
 #include <csignal>
@@ -26,6 +24,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+
+#include "POD.hpp"
 
 namespace monomux
 {
