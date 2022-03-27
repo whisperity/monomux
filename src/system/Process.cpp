@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <csignal>
 #include <cstring>
 #include <sys/wait.h>
 
@@ -141,6 +142,17 @@ bool Process::reapIfDead()
     return false;
 
   return false;
+}
+
+// NOLINTNEXTLINE(readability-make-member-function-const)
+void Process::signal(int Signal)
+{
+  if (Handle == Invalid)
+    return;
+
+  LOG(trace) << "Sending signal " << Signal << " to PID " << Handle;
+  CheckedPOSIX([PGroup = -Handle, Signal] { return ::kill(PGroup, Signal); },
+               -1);
 }
 
 } // namespace monomux

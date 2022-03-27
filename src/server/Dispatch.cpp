@@ -240,7 +240,12 @@ HANDLER(requestDetach)
 
 HANDLER(signalSession)
 {
-  LOG(always) << "WARNING: <signal> requests not yet implemented!";
+  (void)Server;
+  MSG(request::Signal);
+  SessionData* S = Client.getAttachedSession();
+  if (!S || !S->hasProcess())
+    return;
+  S->getProcess().signal(Msg->SigNum);
 }
 
 HANDLER(redrawNotified)

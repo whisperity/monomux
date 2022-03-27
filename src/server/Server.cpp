@@ -153,6 +153,7 @@ void Server::interrupt() const noexcept { TerminateLoop.get().store(true); }
 
 void Server::shutdown()
 {
+  LOG(info) << "Detaching all clients...";
   while (!Clients.empty())
   {
     ClientData& Client = *Clients.begin()->second;
@@ -169,6 +170,7 @@ void Server::shutdown()
     removeClient(Client);
   }
 
+  LOG(info) << "Terminating all sessions...";
   while (!Sessions.empty())
   {
     SessionData& Session = *Sessions.begin()->second;
@@ -276,48 +278,55 @@ void Server::controlCallback(ClientData& Client)
   DEBUG(LOG(trace) << "Client \"" << Client.id() << "\" sent CONTROL!");
   Socket& ClientSock = Client.getControlSocket();
   std::string Data;
-  try
-  {
-    Data = readPascalString(ClientSock);
-  }
-  catch (const std::system_error& Err)
-  {
-    LOG(error) << "Client \"" << Client.id()
-               << "\": error when reading CONTROL: " << Err.what();
-  }
 
-  if (ClientSock.failed())
+  // Consume all the control messages that might be on the socket if a burst
+  // happened.
+  while (true)
   {
-    // We realise the client disconnected during an attempt to read.
-    exitCallback(Client);
-    return;
-  }
+    Data.clear();
+    try
+    {
+      Data = readPascalString(ClientSock);
+    }
+    catch (const std::system_error& Err)
+    {
+      LOG(error) << "Client \"" << Client.id()
+                 << "\": error when reading CONTROL: " << Err.what();
+    }
 
-  if (Data.empty())
-    return;
-
-  Message MB = Message::unpack(Data);
-  auto Action =
-    Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
-  if (Action == Dispatch.end())
-  {
-    LOG(trace) << "Client \"" << Client.id() << "\": unknown message type "
-               << static_cast<int>(MB.Kind) << " received";
-    return;
-  }
-
-  DEBUG(LOG(data) << "Client \"" << Client.id() << "\"\n" << MB.RawData);
-  try
-  {
-    Action->second(*this, Client, MB.RawData);
-  }
-  catch (const std::system_error& Err)
-  {
-    LOG(warn) << "Client \"" << Client.id()
-              << "\": error when handling message";
     if (ClientSock.failed())
+    {
+      // We realise the client disconnected during an attempt to read.
       exitCallback(Client);
-    return;
+      return;
+    }
+
+    if (Data.empty())
+      return;
+
+    Message MB = Message::unpack(Data);
+    auto Action =
+      Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
+    if (Action == Dispatch.end())
+    {
+      LOG(trace) << "Client \"" << Client.id() << "\": unknown message type "
+                 << static_cast<int>(MB.Kind) << " received";
+      continue;
+    }
+
+    DEBUG(LOG(data) << "Client \"" << Client.id() << "\"\n" << MB.RawData);
+    try
+    {
+      Action->second(*this, Client, MB.RawData);
+    }
+    catch (const std::system_error& Err)
+    {
+      LOG(warn) << "Client \"" << Client.id()
+                << "\": error when handling message";
+      if (ClientSock.failed())
+        exitCallback(Client);
+      continue;
+    }
   }
 }
 

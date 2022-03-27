@@ -69,7 +69,7 @@ jobs:
           store-username: ${{ secrets.CODECHECKER_USERNAME }}
           store-password: ${{ secrets.CODECHECKER_PASSWORD }}
 
-      - name: "Fetch the version of the project"
+      - name: "Generate version info for artefact"
         id: version
         run: |
           set -x

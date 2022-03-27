@@ -104,8 +104,6 @@ int main(Options& Opts)
   Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));
   S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
-  scope_guard Server{[] {}, [&S] { S.shutdown(); }};
-
   scope_guard Signal{[&S] {
                        SignalHandling& Sig = SignalHandling::get();
                        Sig.registerObject("Server", &S);
@@ -126,7 +124,7 @@ int main(Options& Opts)
                      }};
 
   LOG(info) << "Starting Monomux Server";
-  S.loop();
+  scope_guard Server{[&S] { S.loop(); }, [&S] { S.shutdown(); }};
   LOG(info) << "Monomux Server stopped";
   return EXIT_Success;
 }

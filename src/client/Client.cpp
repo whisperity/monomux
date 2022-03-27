@@ -225,6 +225,8 @@ void Client::loop()
   static constexpr std::size_t EventQueue = 1 << 9;
   Poll = std::make_unique<EPoll>(EventQueue);
 
+  fd::addStatusFlag(ControlSocket.raw(), O_NONBLOCK);
+
   enableControlResponse();
   enableDataSocket();
   enableInputFile();
@@ -267,45 +269,52 @@ void Client::controlCallback()
   using namespace monomux::message;
   DEBUG(LOG(trace) << "ControlCallback");
   std::string Data;
-  try
-  {
-    Data = readPascalString(ControlSocket);
-  }
-  catch (const std::system_error& Err)
-  {
-    LOG(error) << "Reading CONTROL: " << Err.what();
-  }
 
-  if (ControlSocket.failed())
+  // Consume all the control messages that might be on the socket if a burst
+  // happened.
+  while (true)
   {
-    exit(Failed);
-    return;
-  }
+    Data.clear();
+    try
+    {
+      Data = readPascalString(ControlSocket);
+    }
+    catch (const std::system_error& Err)
+    {
+      LOG(error) << "Reading CONTROL: " << Err.what();
+    }
 
-  if (Data.empty())
-    return;
-
-  Message MB = Message::unpack(Data);
-  auto Action =
-    Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
-  if (Action == Dispatch.end())
-  {
-    LOG(trace) << "Unknown message type " << static_cast<int>(MB.Kind)
-               << " received";
-    return;
-  }
-
-  DEBUG(LOG(data) << MB.RawData);
-  try
-  {
-    Action->second(*this, MB.RawData);
-  }
-  catch (const std::system_error& Err)
-  {
-    LOG(warn) << "Error when handling message";
-    if (getControlSocket().failed())
+    if (ControlSocket.failed())
+    {
       exit(Failed);
-    return;
+      return;
+    }
+
+    if (Data.empty())
+      return;
+
+    Message MB = Message::unpack(Data);
+    auto Action =
+      Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
+    if (Action == Dispatch.end())
+    {
+      LOG(trace) << "Unknown message type " << static_cast<int>(MB.Kind)
+                 << " received";
+      continue;
+    }
+
+    DEBUG(LOG(data) << MB.RawData);
+    try
+    {
+      Action->second(*this, MB.RawData);
+    }
+    catch (const std::system_error& Err)
+    {
+      LOG(warn) << "Error when handling message";
+      if (getControlSocket().failed())
+        exit(Failed);
+      continue;
+    }
   }
 }
 
@@ -326,6 +335,9 @@ void Client::setExternalEventProcessor(std::function<RawCallbackFn> Callback)
 
 void Client::exit(ExitReason E)
 {
+  if (Exit != None)
+    return;
+
   LOG(trace) << "Exit with reason " << E;
   Exit = E;
   Poll.reset();
@@ -431,6 +443,15 @@ void Client::sendData(std::string_view Data)
     return;
   }
   DataSocket->write(Data);
+}
+
+void Client::sendSignal(int Signal)
+{
+  using namespace monomux::message;
+  auto X = inhibitControlResponse();
+  request::Signal M;
+  M.SigNum = Signal;
+  sendMessage(ControlSocket, M);
 }
 
 void Client::notifyWindowSize(unsigned short Rows, unsigned short Columns)

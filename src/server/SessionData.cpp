@@ -18,8 +18,8 @@
  */
 #include <algorithm>
 
-#include "SessionData.hpp"
 #include "ClientData.hpp"
+#include "SessionData.hpp"
 
 #include "system/Pipe.hpp"
 
@@ -55,7 +55,8 @@ std::size_t SessionData::sendInput(std::string_view Data)
 
 ClientData* SessionData::getLatestClient() const
 {
-  DEBUG(LOG(debug) << "Searching latest active client of \"" << Name << '"...');
+  DEBUG(LOG(debug) << "Searching latest active client of \"" << Name
+                   << "\"...");
   ClientData* R = nullptr;
   std::optional<decltype(std::declval<ClientData>().lastActive())> Time;
   for (ClientData* C : AttachedClients)

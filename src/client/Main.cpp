@@ -20,9 +20,9 @@
 #include <iostream>
 #include <thread>
 
-#include "Main.hpp"
 #include "Client.hpp"
 #include "ControlClient.hpp"
+#include "Main.hpp"
 #include "Terminal.hpp"
 
 #include "ExitCode.hpp"
@@ -357,10 +357,20 @@ int main(Options& Opts)
   Terminal Term{fd::fileno(stdin), fd::fileno(stdout)};
 
   {
+    // Ask the remote program to redraw by generating the "window size changed"
+    // signal explicitly.
+    Client.sendSignal(SIGWINCH);
+
     // Send the initial window size to the server so the attached session prompt
-    // is appropriately (re)drawn.
+    // is appropriately (re)drawn to the right size, if the size is different.
     Terminal::Size S = Term.getSize();
     LOG(data) << "Terminal size rows=" << S.Rows << ", columns=" << S.Columns;
+
+    // This is a little bit of a hack, but we observed that certain elaborate
+    // prompts, such as multiline ZSH Powerline do not really redraw when the
+    // size remains the same.
+    Client.notifyWindowSize(S.Rows - 1, S.Columns - 1);
+
     Client.notifyWindowSize(S.Rows, S.Columns);
   }
 

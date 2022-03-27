@@ -182,9 +182,7 @@ std::string SocketPath::toString() const
 {
   std::ostringstream Buf;
   if (!Path.empty())
-    Buf << Path;
-  if (Path.size() > 1 || Path.front() != '/')
-    Buf << '/';
+    Buf << Path << '/';
   Buf << Filename;
   return Buf.str();
 }

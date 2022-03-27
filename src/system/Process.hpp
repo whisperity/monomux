@@ -61,6 +61,9 @@ public:
   /// \b MAY remove associated information at the invocation of this call.
   bool reapIfDead();
 
+  /// Send the \p Signal to the underlying process.
+  void signal(int Signal);
+
 private:
   raw_handle Handle;
   /// The \p Pty assocaited with the process, if \p SpawnOptions::CreatePTY was

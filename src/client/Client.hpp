@@ -179,6 +179,10 @@ public:
   /// Sends \p Data to the server over the \e data connection.
   void sendData(std::string_view Data);
 
+  /// Sends a request to the server to deliver \p Signal to the remote session's
+  /// process.
+  void sendSignal(int Signal);
+
   /// Sends a notification to the server that the dimensions of the window the
   /// client is running in has changed to the new \p Rows and \p Columns.
   void notifyWindowSize(unsigned short Rows, unsigned short Columns);
