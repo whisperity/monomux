@@ -39,6 +39,8 @@ if ( (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "
   check_add_compile_option(-Wextra)
 endif()
 
+# TODO: Add -UNDEBUG so #ifndef NDEBUG and asserts are there for RelWithDebInfo.
+
 include_directories(
   "${CMAKE_SOURCE_DIR}/include"
   "${CMAKE_BINARY_DIR}/include"

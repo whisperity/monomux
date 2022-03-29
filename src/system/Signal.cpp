@@ -33,7 +33,6 @@ namespace monomux
 
 static const char* signalName(SignalHandling::Signal S)
 {
-#ifndef NDEBUG
   switch (S)
   {
     case SIGINT:
@@ -99,9 +98,7 @@ static const char* signalName(SignalHandling::Signal S)
     case SIGPWR:
       return "SIGPWR (Power failure)";
   }
-#endif
 
-  (void)S;
   return "?";
 }
 
