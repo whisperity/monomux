@@ -4,7 +4,7 @@
     "--enable=portability",
     "--enable=security",
     "--enable=sensitive",
-    "--disable=google",
+    "--analyzer-config=clang-tidy:take-config-from-directory=true",
     "--skip=.github/codechecker/skipfile.txt"
   ],
   "parse": [

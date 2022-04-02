@@ -9,6 +9,7 @@ on:
       - '**.hpp'
       - '**.i'
       - '**.ipp'
+      - '.github/codechecker/**'
       - '.github/workflows/codechecker.yml'
     branches:
       - '**'
