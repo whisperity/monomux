@@ -47,7 +47,7 @@ Pty::Pty()
     "Failed to openpty()",
     -1);
 
-  LOG(debug) << "Opened " << DeviceName << "(master: " << MasterFD
+  LOG(trace) << "Opened " << DeviceName << "(master: " << MasterFD
              << ", slave: " << SlaveFD << ')';
 
   Master = MasterFD;
@@ -57,7 +57,7 @@ Pty::Pty()
 
 void Pty::setupParentSide()
 {
-  DEBUG(LOG(trace) << Master << ": Set up as parent...");
+  MONOMUX_TRACE_LOG(LOG(trace) << Master << ": Set up as parent...");
 
   // Close PTS, the slave PTY.
   raw_fd PTS = Slave.release();
@@ -69,7 +69,7 @@ void Pty::setupParentSide()
 
 void Pty::setupChildrenSide()
 {
-  DEBUG(LOG(trace) << Slave << ": Set up as child...");
+  MONOMUX_TRACE_LOG(LOG(trace) << Slave << ": Set up as child...");
 
   // Closes PTM, the pseudoterminal multiplexer master (PTMX).
   raw_fd PTM = Master.release();
@@ -84,8 +84,8 @@ void Pty::setSize(unsigned short Rows, unsigned short Columns)
   if (!isMaster())
     throw std::invalid_argument{"setSize() not allowed on slave device."};
 
-  DEBUG(LOG(data) << Master << ": setSize(Rows=" << Rows
-                  << ", Columns=" << Columns << ')');
+  MONOMUX_TRACE_LOG(LOG(data) << Master << ": setSize(Rows=" << Rows
+                              << ", Columns=" << Columns << ')');
 
   POD<struct ::winsize> Size;
   Size->ws_row = Rows;

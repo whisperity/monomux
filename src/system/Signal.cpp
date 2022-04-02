@@ -31,6 +31,7 @@
 namespace monomux
 {
 
+#ifdef MONOMUX_NON_ESSENTIAL_LOGS
 static const char* signalName(SignalHandling::Signal S)
 {
   switch (S)
@@ -101,6 +102,7 @@ static const char* signalName(SignalHandling::Signal S)
 
   return "?";
 }
+#endif
 
 void SignalHandling::handler(Signal SigNum,
                              ::siginfo_t* Info,
@@ -125,8 +127,8 @@ SignalHandling& SignalHandling::get()
   if (!Singleton)
   {
     Singleton = std::make_unique<SignalHandling>();
-    DEBUG(LOG(debug) << "SignalHandling initialised at address "
-                     << Singleton.get());
+    MONOMUX_TRACE_LOG(LOG(debug) << "SignalHandling initialised at address "
+                                 << Singleton.get());
   }
   return *Singleton;
 }
@@ -154,7 +156,7 @@ static void handleSignal(SignalHandling::Signal S,
                     "sigaction(" + std::to_string(S) + ")",
                     -1);
 
-  LOG(trace) << signalName(S) << " set to handle";
+  MONOMUX_TRACE_LOG(LOG(trace) << signalName(S) << " set to handle");
 }
 
 static void defaultSignal(SignalHandling::Signal S)
@@ -166,7 +168,7 @@ static void defaultSignal(SignalHandling::Signal S)
                     "sigaction(" + std::to_string(S) + ", SIG_DFL)",
                     -1);
 
-  LOG(trace) << signalName(S) << " set to default";
+  MONOMUX_TRACE_LOG(LOG(trace) << signalName(S) << " set to default");
 }
 
 static void ignoreSignal(SignalHandling::Signal S)
@@ -178,7 +180,7 @@ static void ignoreSignal(SignalHandling::Signal S)
                     "sigaction(" + std::to_string(S) + ", SIG_IGN)",
                     -1);
 
-  LOG(trace) << signalName(S) << " set to ignore";
+  MONOMUX_TRACE_LOG(LOG(trace) << signalName(S) << " set to ignore");
 }
 
 void SignalHandling::enable()
@@ -271,7 +273,8 @@ void SignalHandling::registerCallback(Signal SigNum,
                                 " cannot be handled!"};
 
   Callbacks.at(SigNum) = std::move(Callback);
-  LOG(data) << "Callback registered for " << signalName(SigNum);
+  MONOMUX_TRACE_LOG(LOG(data)
+                    << "Callback registered for " << signalName(SigNum));
 }
 
 void SignalHandling::clearCallback(Signal SigNum)
@@ -282,7 +285,8 @@ void SignalHandling::clearCallback(Signal SigNum)
   std::function<SignalCallback> Empty{};
   Callbacks.at(SigNum).swap(Empty);
 
-  LOG(data) << "Callback cleared from " << signalName(SigNum);
+  MONOMUX_TRACE_LOG(LOG(data)
+                    << "Callback cleared from " << signalName(SigNum));
 }
 
 void SignalHandling::clearCallbacks() noexcept
@@ -292,7 +296,7 @@ void SignalHandling::clearCallbacks() noexcept
     std::function<SignalCallback> Empty{};
     Callbacks.at(S).swap(Empty);
   }
-  LOG(data) << "All callbacks cleared";
+  MONOMUX_TRACE_LOG(LOG(data) << "All callbacks cleared");
 }
 
 void SignalHandling::registerObject(std::string Name, std::any Object)
@@ -306,7 +310,8 @@ void SignalHandling::registerObject(std::string Name, std::any Object)
 
     if (IName == Name || IName.empty())
     {
-      LOG(data) << "Object \"" << Name << "\" registered (ID: " << I << ')';
+      MONOMUX_TRACE_LOG(LOG(data) << "Object \"" << Name
+                                  << "\" registered (ID: " << I << ')');
 
       if (IName.empty())
         IName = std::move(Name);
@@ -330,7 +335,8 @@ void SignalHandling::deleteObject(const std::string& Name) noexcept
     if (ObjectNames.at(I) == Name)
     {
       Objects.at(I).reset();
-      LOG(data) << "Object \"" << Name << "\" (ID: " << I << ") deleted";
+      MONOMUX_TRACE_LOG(LOG(data) << "Object \"" << Name << "\" (ID: " << I
+                                  << ") deleted");
       return;
     }
   }
@@ -345,7 +351,7 @@ void SignalHandling::deleteObjects() noexcept
     ObjectNames.at(I).clear();
     Objects.at(I).reset();
   }
-  LOG(data) << "Objects deleted";
+  MONOMUX_TRACE_LOG(LOG(data) << "Objects deleted");
 }
 
 std::any* SignalHandling::getObject(const char* Name) noexcept

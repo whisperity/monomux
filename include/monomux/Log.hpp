@@ -22,6 +22,9 @@
 #include <sstream>
 #include <string_view>
 
+#include "monomux/Config.h"
+#include "monomux/Debug.h"
+
 namespace monomux::log
 {
 
@@ -146,18 +149,20 @@ MONOMUX_LOGGER_SHORTCUT(data, Data);
 
 #undef MONOMUX_LOGGER_SHORTCUT
 
-#ifndef NDEBUG
-/// Convenience macro that is defined to its parameter if the program is
-/// compiled in debug mode, and nothing otherwise, similarly to \p assert().
-#define DEBUG(X)                                                               \
-  do                                                                           \
-  {                                                                            \
-    X;                                                                         \
-  } while (false)
+#ifdef MONOMUX_NON_ESSENTIAL_LOGS
+/* Wrap logging code into this macro to suppress building it if config option
+ * \p MONOMUX_NON_ESSENTIAL_LOGS is turned off.
+ *
+ * It has been turned \e ON in this build, and trace logging is compiled.
+ */
+#define MONOMUX_TRACE_LOG(X) MONOMUX_DETAIL_CONDITIONALLY_TRUE(X)
 #else
-/// Convenience macro that is defined to its parameter if the program is
-/// compiled in debug mode, and nothing otherwise, similarly to \p assert().
-#define DEBUG(X) ((void)0)
+/* Wrap logging code into this macro to suppress building it if config option
+ * \p MONOMUX_NON_ESSENTIAL_LOGS is turned off.
+ *
+ * It has been turned \b OFF in this build, and trace logging is stripped.
+ */
+#define MONOMUX_TRACE_LOG(X) MONOMUX_DETAIL_CONDITIONALLY_FALSE(X)
 #endif
 
 } // namespace monomux::log

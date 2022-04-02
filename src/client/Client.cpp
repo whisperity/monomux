@@ -267,7 +267,7 @@ void Client::loop()
 void Client::controlCallback()
 {
   using namespace monomux::message;
-  DEBUG(LOG(trace) << "ControlCallback");
+  MONOMUX_TRACE_LOG(LOG(trace) << __PRETTY_FUNCTION__);
   std::string Data;
 
   // Consume all the control messages that might be on the socket if a burst
@@ -303,7 +303,7 @@ void Client::controlCallback()
       continue;
     }
 
-    DEBUG(LOG(data) << MB.RawData);
+    MONOMUX_TRACE_LOG(LOG(data) << MB.RawData);
     try
     {
       Action->second(*this, MB.RawData);

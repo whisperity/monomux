@@ -55,26 +55,28 @@ std::size_t SessionData::sendInput(std::string_view Data)
 
 ClientData* SessionData::getLatestClient() const
 {
-  DEBUG(LOG(debug) << "Searching latest active client of \"" << Name
-                   << "\"...");
+  MONOMUX_TRACE_LOG(LOG(debug) << "Searching latest active client of \"" << Name
+                               << "\"...");
   ClientData* R = nullptr;
   std::optional<decltype(std::declval<ClientData>().lastActive())> Time;
   for (ClientData* C : AttachedClients)
   {
     if (!C->getDataSocket())
       continue;
-    DEBUG(LOG(data) << "\tCandidate client \"" << C->id()
-                    << "\" last active at " << formatTime(C->lastActive()));
+    MONOMUX_TRACE_LOG(LOG(data)
+                      << "\tCandidate client \"" << C->id()
+                      << "\" last active at " << formatTime(C->lastActive()));
     auto CTime = C->lastActive();
     if (!Time || *Time < CTime)
     {
-      DEBUG(LOG(data) << "\t\tSelecting \"" << C->id());
+      MONOMUX_TRACE_LOG(LOG(data) << "\t\tSelecting \"" << C->id());
       Time = CTime;
       R = C;
     }
   }
-  DEBUG(if (R) LOG(debug) << "\tSelected client \"" << R->id() << '"';
-        else LOG(debug) << "\tNo clients attached";);
+  MONOMUX_TRACE_LOG(if (R) LOG(debug)
+                      << "\tSelected client \"" << R->id() << '"';
+                    else LOG(debug) << "\tNo clients attached";);
   return R;
 }
 

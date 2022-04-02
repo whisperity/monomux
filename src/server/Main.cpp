@@ -60,7 +60,7 @@ std::vector<std::string> Options::toArgv() const
 
 [[noreturn]] void exec(const Options& Opts, const char* ArgV0)
 {
-  LOG(debug) << "exec() a new server";
+  MONOMUX_TRACE_LOG(LOG(trace) << "exec() a new server");
 
   Process::SpawnOptions SO;
   SO.Program = ArgV0;

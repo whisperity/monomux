@@ -24,6 +24,7 @@ Checks: >-
   -readability-function-cognitive-complexity,
   -readability-implicit-bool-conversion,
   readability-identifier-naming,
+  -readability-identifier-length,
   readability-suspicious-call-argument
 CheckOptions:
   - key:             bugprone-easily-swappable-parameters.QualifiersMix

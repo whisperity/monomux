@@ -51,7 +51,6 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
   LOG(debug) << "Created FIFO at " << Path;
 
   Pipe P{std::move(Handle), std::move(Path), true};
-  P.Handle = std::move(Handle);
   P.OpenedAs = Write;
   return P;
 }
@@ -70,7 +69,6 @@ Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
              << (OpenMode == Read ? "Read" : "Write");
 
   Pipe P{std::move(Handle), std::move(Path), false};
-  P.Handle = std::move(Handle);
   P.OpenedAs = OpenMode;
   return P;
 }

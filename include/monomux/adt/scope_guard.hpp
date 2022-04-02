@@ -44,6 +44,12 @@ struct scope_guard // NOLINT(readability-identifier-naming)
       Exit();
   }
 
+  scope_guard() = delete;
+  scope_guard(const scope_guard&) = delete;
+  scope_guard(scope_guard&&) = delete;
+  scope_guard& operator=(const scope_guard&) = delete;
+  scope_guard& operator=(scope_guard&&) = delete;
+
 private:
   bool Alive;
   ExitFunction Exit;

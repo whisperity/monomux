@@ -64,7 +64,8 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
   if (failed())
     throw std::system_error{std::make_error_code(std::errc::io_error),
                             "Channel has failed."};
-  LOG(trace) << identifier() << ": Reading " << Bytes << " bytes";
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << identifier() << ": Reading " << Bytes << " bytes");
 
   std::string Return;
   Return.reserve(Bytes);
@@ -80,8 +81,8 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
     Return.append(V);
     RemainingBytes -= BytesFromRB;
 
-    DEBUG(LOG(trace) << identifier() << ": " << BytesFromRB
-                     << " bytes served from backbuffer");
+    MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": " << BytesFromRB
+                                 << " bytes served from backbuffer");
 
     // Consume the data from the read-buffer's front.
     ReadBuffer.erase(ReadBuffer.begin(), ReadBuffer.begin() + BytesFromRB);
@@ -95,16 +96,18 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
   bool ContinueReading = true;
   while (ContinueReading && RemainingBytes > 0 && RemainingBytes <= Bytes)
   {
-    LOG(trace) << identifier() << ": Requesting " << BufferSize << " bytes...";
+    MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Requesting "
+                                 << BufferSize << " bytes...");
     std::string ReadChunk = readImpl(BufferSize, ContinueReading);
     std::size_t ReadBytes = ReadChunk.size();
     if (!ReadBytes)
     {
-      DEBUG(LOG(trace) << identifier() << ": No further data read");
+      MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": No further data read");
       ContinueReading = false;
       break;
     }
-    DEBUG(LOG(trace) << identifier() << ": Read " << ReadBytes << " bytes");
+    MONOMUX_TRACE_LOG(LOG(trace)
+                      << identifier() << ": Read " << ReadBytes << " bytes");
     if (ReadBytes < BufferSize)
       // Managed to read less data than wanted to in the current chunk. Assume
       // no more data remaining.
@@ -119,9 +122,9 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
 
     if (ReadBytes > RemainingBytes)
     {
-      DEBUG(LOG(trace) << identifier() << ": Storing "
-                       << ReadBytes - RemainingBytes
-                       << " read bytes in backbuffer");
+      MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Storing "
+                                   << ReadBytes - RemainingBytes
+                                   << " read bytes in backbuffer");
       // Store anything that remained in the read chunk (and thus already
       // consumed from the system resource!) in our saving buffer.
       ReadBuffer.insert(ReadBuffer.end(),
@@ -133,8 +136,8 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
     RemainingBytes -= BytesFillableFromCurrentRead;
   }
 
-  LOG(trace) << identifier() << ": Successfully read " << Return.size()
-             << " bytes...";
+  MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Successfully read "
+                               << Return.size() << " bytes...");
   return Return;
 }
 
@@ -143,7 +146,8 @@ std::size_t CommunicationChannel::write(std::string_view Buffer)
   if (failed())
     throw std::system_error{std::make_error_code(std::errc::io_error),
                             "Channel has failed."};
-  LOG(trace) << identifier() << ": Writing " << Buffer.size() << " bytes";
+  MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Writing " << Buffer.size()
+                               << " bytes");
 
   std::size_t BytesSent = 0;
 
@@ -157,8 +161,8 @@ std::size_t CommunicationChannel::write(std::string_view Buffer)
     std::size_t BytesWritten = writeImpl(V, ContinueWriting);
     BytesSent += BytesWritten;
 
-    DEBUG(LOG(trace) << identifier() << ": " << BytesWritten
-                     << " bytes sent from backbuffer");
+    MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": " << BytesWritten
+                                 << " bytes sent from backbuffer");
 
     // Discard the data thas has been written in the current step.
     WriteBuffer.erase(WriteBuffer.begin(), WriteBuffer.begin() + BytesWritten);
@@ -172,11 +176,11 @@ std::size_t CommunicationChannel::write(std::string_view Buffer)
   {
     std::string_view Chunk =
       Buffer.substr(0, std::min(BufferSize, Buffer.size()));
-    DEBUG(LOG(trace) << identifier() << ": Sending " << Chunk.size()
-                     << " bytes...");
+    MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Sending " << Chunk.size()
+                                 << " bytes...");
     std::size_t BytesWritten = writeImpl(Chunk, ContinueWriting);
-    DEBUG(LOG(trace) << identifier() << ": Written " << BytesWritten
-                     << " bytes");
+    MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Written " << BytesWritten
+                                 << " bytes");
     BytesSent += BytesWritten;
 
     // Discard the data that has been written in the current step.
@@ -188,13 +192,14 @@ std::size_t CommunicationChannel::write(std::string_view Buffer)
     // If the buffer is not yet empty, but the writing backend failed, it means
     // that the send data is not sent fully, and would be lost. Save what
     // remains in our stored buffer.
-    DEBUG(LOG(trace) << identifier() << ": Keeping " << Buffer.size()
-                     << " yet unwritten bytes in backbuffer");
+    MONOMUX_TRACE_LOG(LOG(trace)
+                      << identifier() << ": Keeping " << Buffer.size()
+                      << " yet unwritten bytes in backbuffer");
     WriteBuffer.insert(WriteBuffer.end(), Buffer.begin(), Buffer.end());
   }
 
-  LOG(trace) << identifier() << ": Successfully wrote " << BytesSent
-             << " bytes";
+  MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Successfully wrote "
+                               << BytesSent << " bytes");
 
   return BytesSent;
 }

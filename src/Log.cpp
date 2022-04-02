@@ -57,8 +57,8 @@ Logger& Logger::get()
     // FIXME: Use the default loglevel here and implement verbosity on the
     // commandline.
     Singleton = std::make_unique<Logger>(Min, std::clog);
-    DEBUG(Singleton->operator()(log::Debug, "logger")
-          << "Logger initialised at address " << Singleton.get());
+    MONOMUX_TRACE_LOG(Singleton->operator()(log::Debug, "logger")
+                      << "Logger initialised at address " << Singleton.get());
   }
 
   return *Singleton;

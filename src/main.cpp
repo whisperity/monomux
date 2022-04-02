@@ -24,6 +24,7 @@
 #include <getopt.h>
 #include <unistd.h>
 
+#include "Config.hpp"
 #include "ExitCode.hpp"
 #include "Version.hpp"
 
@@ -40,11 +41,13 @@
 
 using namespace monomux;
 
-static const char* ShortOptions = "hVs:n:ldDNk";
+namespace
+{
+
+const char* ShortOptions = "hVs:n:ldDNk";
 // clang-format off
-static struct ::option LongOptions[] = {
+struct ::option LongOptions[] = {
   {"help",       no_argument,       nullptr, 'h'},
-  {"version",    no_argument,       nullptr, 'V'},
   {"server",     no_argument,       nullptr, 0},
   {"socket",     required_argument, nullptr, 's'},
   {"name",       required_argument, nullptr, 'n'},
@@ -57,13 +60,26 @@ static struct ::option LongOptions[] = {
 };
 // clang-format on
 
-static void printOptionHelp()
+struct MainOptions
+{
+  /// -h
+  bool ShowHelp : 1;
+
+  /// -V
+  bool ShowVersion : 1;
+
+  /// -V a second time
+  bool ShowElaborateBuildInformation : 1;
+};
+
+void printOptionHelp()
 {
   std::cout << R"EOF(Usage:
     monomux --server [SERVER OPTIONS...]
     monomux [CLIENT OPTIONS...] [PROGRAM]
     monomux [CLIENT OPTIONS...] -- PROGRAM [ARGS...]
     monomux (-dD)
+    monomux (-V[V])
 
                  MonoMux -- Monophone Terminal Multiplexer
 
@@ -89,6 +105,9 @@ Options:
     --server                    - Start the Monomux server explicitly, without
                                   creating a client, or any sessions. (This
                                   option should seldom be given by users.)
+    -V[V]                       - Show version information about the executable.
+                                  If repeated, elaborate build configuration,
+                                  such as features, too.
 
 
 Client options:
@@ -143,10 +162,17 @@ Server options:
   std::cout << std::endl;
 }
 
-static void printVersion()
+void printVersion()
 {
   std::cout << "MonoMux version " << getFullVersion() << std::endl;
 }
+
+void printFeatures()
+{
+  std::cout << "Features:\n" << getHumanReadableConfiguration() << std::endl;
+}
+
+} // namespace
 
 int main(int ArgC, char* ArgV[])
 {
@@ -155,6 +181,7 @@ int main(int ArgC, char* ArgV[])
 
   // ------------------------ Parse command-line options -----------------------
   {
+    MainOptions MainOpts{};
     bool HadErrors = false;
     auto ArgError = [&HadErrors, Prog = ArgV[0]]() -> std::ostream& {
       std::cerr << Prog << ": ";
@@ -181,8 +208,8 @@ int main(int ArgC, char* ArgV[])
           else
           {
             ArgError() << "option '--" << Opt
-                       << "' registered, but no handler associated with it";
-            return -1;
+                       << "' registered, but no handler associated with it\n";
+            return EXIT_InvocationError;
           }
           break;
         }
@@ -190,11 +217,21 @@ int main(int ArgC, char* ArgV[])
           HadErrors = true;
           break;
         case 'h':
-          printOptionHelp();
-          return EXIT_Success;
+          MainOpts.ShowHelp = true;
+          break;
         case 'V':
-          printVersion();
-          return EXIT_Success;
+          if (!MainOpts.ShowVersion)
+          {
+            MainOpts.ShowVersion = true;
+            break;
+          }
+          if (!MainOpts.ShowElaborateBuildInformation)
+          {
+            MainOpts.ShowElaborateBuildInformation = true;
+            break;
+          }
+          ArgError() << "option '-V' cannot be repeated this many times\n";
+          return EXIT_InvocationError;
         case 's':
           ClientOpts.SocketPath.emplace(optarg);
           break;
@@ -220,9 +257,22 @@ int main(int ArgC, char* ArgV[])
       }
     }
 
+    if (MainOpts.ShowHelp)
+    {
+      printOptionHelp();
+      return EXIT_Success;
+    }
+    if (MainOpts.ShowVersion)
+    {
+      printVersion();
+      if (MainOpts.ShowElaborateBuildInformation)
+        printFeatures();
+      return EXIT_Success;
+    }
+
     if (ClientOpts.DetachRequestLatest && ClientOpts.DetachRequestAll)
       ArgError() << "option '-D/--detach-all' and '-d/--detach' are mutually "
-                    "exclusive!";
+                    "exclusive!\n";
 
     if (!ServerOpts.ServerMode)
       ClientOpts.ClientMode = true;
@@ -233,7 +283,7 @@ int main(int ArgC, char* ArgV[])
       if (ServerOpts.ServerMode)
       {
         ArgError() << "option '--server' does not take positional argument \""
-                   << ArgV[::optind] << "\"";
+                   << ArgV[::optind] << "\"\n";
         break;
       }
 

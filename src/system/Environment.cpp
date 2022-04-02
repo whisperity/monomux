@@ -40,10 +40,10 @@ std::string getEnv(const std::string& Key)
   const char* const Value = std::getenv(Key.c_str());
   if (!Value)
   {
-    DEBUG(LOG(data) << "getEnv(" << Key << ") -> unset");
+    MONOMUX_TRACE_LOG(LOG(data) << "getEnv(" << Key << ") -> unset");
     return {};
   }
-  DEBUG(LOG(data) << "getEnv(" << Key << ") = " << Value);
+  MONOMUX_TRACE_LOG(LOG(data) << "getEnv(" << Key << ") = " << Value);
   return {Value};
 }
 

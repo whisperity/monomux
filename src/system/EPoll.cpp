@@ -42,7 +42,7 @@ EPoll::~EPoll() { LOG(debug) << MasterFD << ": destroyed"; }
 
 std::size_t EPoll::wait()
 {
-  DEBUG(LOG(trace) << "epoll_wait()...");
+  MONOMUX_TRACE_LOG(LOG(trace) << "epoll_wait()...");
   auto MaybeFiredEventCount = CheckedPOSIX(
     [this] {
       return ::epoll_wait(MasterFD, &(*Events.data()), Events.size(), -1);
@@ -57,7 +57,8 @@ std::size_t EPoll::wait()
     throw std::system_error{EC, "epoll_wait()"};
   }
   FiredEventCount = MaybeFiredEventCount.get();
-  DEBUG(LOG(trace) << MasterFD << ": " << FiredEventCount << " events hit.");
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << MasterFD << ": " << FiredEventCount << " events hit.");
   return FiredEventCount;
 }
 

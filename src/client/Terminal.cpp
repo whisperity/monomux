@@ -94,6 +94,7 @@ void Terminal::clientInput(Terminal* Term, Client& Client)
 {
   assert(Term->MovedFromCheck &&
          "Terminal object registered as callback was moved.");
+
   if (Client.getInputFile() != Term->input())
     throw std::invalid_argument{"Client InputFD != Terminal input"};
 
@@ -108,10 +109,8 @@ void Terminal::clientInput(Terminal* Term, Client& Client)
 
 void Terminal::clientOutput(Terminal* Term, Client& Client)
 {
-#ifndef NDEBUG
   assert(Term->MovedFromCheck &&
          "Terminal object registered as callback was moved.");
-#endif
 
   static constexpr std::size_t ReadSize = 1 << 10;
   std::string Output = Client.getDataSocket()->read(ReadSize);
@@ -120,10 +119,8 @@ void Terminal::clientOutput(Terminal* Term, Client& Client)
 
 void Terminal::clientEventReady(Terminal* Term, Client& Client)
 {
-#ifndef NDEBUG
   assert(Term->MovedFromCheck &&
          "Terminal object registered as callback was moved.");
-#endif
 
   if (Term->WindowSizeChanged.get().load())
   {

@@ -68,7 +68,7 @@ void Server::loop()
     reapDeadChildren();
 
     const std::size_t NumTriggeredFDs = Poll->wait();
-    LOG(data) << NumTriggeredFDs << " events received!";
+    MONOMUX_TRACE_LOG(LOG(data) << NumTriggeredFDs << " events received!");
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
       if (Poll->fdAt(I) == Sock.raw())
@@ -112,7 +112,7 @@ void Server::loop()
       {
         // Event occured on another (connected client) socket.
         raw_fd FD = Poll->fdAt(I);
-        DEBUG(LOG(trace) << "Data on file descriptor " << FD);
+        MONOMUX_TRACE_LOG(LOG(trace) << "Data on file descriptor " << FD);
 
         LookupVariant* Entity = FDLookup.tryGet(FD);
         if (!Entity)
@@ -275,7 +275,8 @@ void Server::acceptCallback(ClientData& Client)
 void Server::controlCallback(ClientData& Client)
 {
   using namespace monomux::message;
-  DEBUG(LOG(trace) << "Client \"" << Client.id() << "\" sent CONTROL!");
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "Client \"" << Client.id() << "\" sent CONTROL!");
   Socket& ClientSock = Client.getControlSocket();
   std::string Data;
 
@@ -314,7 +315,8 @@ void Server::controlCallback(ClientData& Client)
       continue;
     }
 
-    DEBUG(LOG(data) << "Client \"" << Client.id() << "\"\n" << MB.RawData);
+    MONOMUX_TRACE_LOG(LOG(data) << "Client \"" << Client.id() << "\"\n"
+                                << MB.RawData);
     try
     {
       Action->second(*this, Client, MB.RawData);
@@ -335,7 +337,8 @@ void Server::dataCallback(ClientData& Client)
   // NOLINTNEXTLINE(readability-identifier-naming)
   static constexpr std::size_t BUFFER_SIZE = 1024;
 
-  DEBUG(LOG(trace) << "Client \"" << Client.id() << "\" sent DATA!");
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "Client \"" << Client.id() << "\" sent DATA!");
   std::string Data;
   try
   {
@@ -348,7 +351,8 @@ void Server::dataCallback(ClientData& Client)
     return;
   }
   Client.activity();
-  DEBUG(LOG(data) << "Client \"" << Client.id() << "\" data: " << Data);
+  MONOMUX_TRACE_LOG(LOG(data)
+                    << "Client \"" << Client.id() << "\" data: " << Data);
 
   if (SessionData* S = Client.getAttachedSession())
     S->sendInput(Data);
@@ -387,7 +391,8 @@ void Server::dataCallback(SessionData& Session)
   // NOLINTNEXTLINE(readability-identifier-naming)
   static constexpr std::size_t BUFFER_SIZE = 1024;
 
-  DEBUG(LOG(trace) << "Session \"" << Session.name() << "\" sent DATA!");
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "Session \"" << Session.name() << "\" sent DATA!");
   std::string Data;
   try
   {
@@ -400,7 +405,8 @@ void Server::dataCallback(SessionData& Session)
     return;
   }
   Session.activity();
-  DEBUG(LOG(data) << "Session \"" << Session.name() << "\" data: " << Data);
+  MONOMUX_TRACE_LOG(LOG(data)
+                    << "Session \"" << Session.name() << "\" data: " << Data);
 
   for (ClientData* C : Session.getAttachedClients())
     if (Socket* DS = C->getDataSocket())

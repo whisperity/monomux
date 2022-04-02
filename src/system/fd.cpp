@@ -27,7 +27,7 @@
 #include "monomux/Log.hpp"
 
 
-#define LOG(SEVERITY) monomux::log::SEVERITY("fd")
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/fd")
 
 namespace monomux
 {
@@ -48,9 +48,14 @@ fd::raw_fd fd::fileno(std::FILE* File)
   return CheckedPOSIXThrow([File] { return ::fileno(File); }, "fileno()", -1);
 }
 
+fd::fd(raw_fd Handle) noexcept : Handle(Handle)
+{
+  MONOMUX_TRACE_LOG(LOG(debug) << "FD #" << Handle << " opened.");
+}
+
 void fd::close(raw_fd FD) noexcept
 {
-  LOG(debug) << "Closing FD #" << FD << "...";
+  MONOMUX_TRACE_LOG(LOG(debug) << "Closing FD #" << FD << "...");
   CheckedPOSIX([FD] { return ::close(FD); }, -1);
 }
 

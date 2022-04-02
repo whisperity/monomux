@@ -61,7 +61,7 @@ void Server::sendRejectClient(ClientData& Client, std::string Reason)
   std::optional<TYPE> Msg = TYPE::decode(Message);                             \
   if (!Msg)                                                                    \
     return;                                                                    \
-  DEBUG(LOG(trace) << __PRETTY_FUNCTION__);
+  MONOMUX_TRACE_LOG(LOG(trace) << __PRETTY_FUNCTION__);
 
 HANDLER(requestClientID)
 {

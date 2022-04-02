@@ -40,10 +40,7 @@ public:
   fd() noexcept : Handle(Invalid) {}
 
   /// Wrap the raw platform resource handle into the RAII object.
-  fd(raw_fd Handle) noexcept : Handle(Handle)
-  {
-    log::debug("system/fd") << "FD #" << Handle << " opened.";
-  }
+  fd(raw_fd Handle) noexcept;
 
   fd(fd&& RHS) noexcept : Handle(RHS.release()) {}
   fd& operator=(fd&& RHS) noexcept

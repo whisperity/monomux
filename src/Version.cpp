@@ -28,17 +28,17 @@ namespace monomux
 Version getVersion()
 {
   Version V{};
-  V.Major = std::stoull(VERSION_MAJOR);
-  V.Minor = std::stoull(VERSION_MINOR);
-  V.Patch = std::stoull(VERSION_PATCH);
-  V.Build = std::stoull(VERSION_TWEAK);
+  V.Major = std::stoull(MONOMUX_VERSION_MAJOR);
+  V.Minor = std::stoull(MONOMUX_VERSION_MINOR);
+  V.Patch = std::stoull(MONOMUX_VERSION_PATCH);
+  V.Build = std::stoull(MONOMUX_VERSION_TWEAK);
   V.Offset = 0;
   V.IsDirty = false;
 
-#ifdef VERSION_HAS_EXTRAS
-  V.Offset = std::stoull(VERSION_OFFSET);
-  V.Commit = VERSION_COMMIT;
-  V.IsDirty = VERSION_DIRTY;
+#ifdef MONOMUX_VERSION_HAS_EXTRAS
+  V.Offset = std::stoull(MONOMUX_VERSION_OFFSET);
+  V.Commit = MONOMUX_VERSION_COMMIT;
+  V.IsDirty = MONOMUX_VERSION_DIRTY;
 #endif
 
   return V;

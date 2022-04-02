@@ -135,7 +135,7 @@ bool Process::reapIfDead()
 
   if (ChangedPID.get() == Handle)
   {
-    LOG(trace) << "Successfully reaped child PID " << Handle;
+    MONOMUX_TRACE_LOG(LOG(trace) << "Successfully reaped child PID " << Handle);
     return true;
   }
   if (ChangedPID.get() == 0)
@@ -150,7 +150,8 @@ void Process::signal(int Signal)
   if (Handle == Invalid)
     return;
 
-  LOG(trace) << "Sending signal " << Signal << " to PID " << Handle;
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "Sending signal " << Signal << " to PID " << Handle);
   CheckedPOSIX([PGroup = -Handle, Signal] { return ::kill(PGroup, Signal); },
                -1);
 }

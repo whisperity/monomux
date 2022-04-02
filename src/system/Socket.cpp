@@ -44,7 +44,7 @@ Socket Socket::create(std::string Path, bool InheritInChild)
     "socket()",
     -1);
 
-  DEBUG(LOG(trace) << "Anonymous socket created");
+  MONOMUX_TRACE_LOG(LOG(trace) << "Anonymous socket created");
 
   // TODO: Mask?
 
@@ -77,7 +77,7 @@ Socket Socket::connect(std::string Path, bool InheritInChild)
     "socket()",
     -1);
 
-  DEBUG(LOG(trace) << "Anonymous socket created");
+  MONOMUX_TRACE_LOG(LOG(trace) << "Anonymous socket created");
 
   POD<struct ::sockaddr_un> SocketAddr;
   SocketAddr->sun_family = AF_UNIX;
@@ -162,7 +162,7 @@ void Socket::listen(std::size_t QueueSize)
     [this, QueueSize] { return ::listen(Handle, static_cast<int>(QueueSize)); },
     "listen()",
     -1);
-  DEBUG(LOG(trace) << identifier() << ": Listening...");
+  MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Listening...");
   Listening = true;
 }
 
@@ -171,7 +171,7 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
   POD<struct ::sockaddr_un> SocketAddr;
   POD<::socklen_t> SocketAddrLen;
 
-  LOG(trace) << identifier() << ": Accepting client...";
+  MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Accepting client...");
 
   auto MaybeClient = CheckedPOSIX(
     [this, &SocketAddr, &SocketAddrLen] {

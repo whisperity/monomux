@@ -47,7 +47,7 @@ void Client::setUpDispatch()
   std::optional<TYPE> Msg = TYPE::decode(Message);                             \
   if (!Msg)                                                                    \
     return;                                                                    \
-  DEBUG(LOG(trace) << __PRETTY_FUNCTION__);
+  MONOMUX_TRACE_LOG(LOG(trace) << __PRETTY_FUNCTION__);
 
 HANDLER(responseClientID)
 {
@@ -56,8 +56,8 @@ HANDLER(responseClientID)
   Client.ClientID = Msg->Client.ID;
   Client.Nonce.emplace(Msg->Client.Nonce);
 
-  DEBUG(LOG(data) << "Client is \"" << Client.ClientID
-                  << "\" with nonce: " << *Client.Nonce);
+  MONOMUX_DEBUG(LOG(data) << "Client is \"" << Client.ClientID
+                          << "\" with nonce: " << *Client.Nonce);
 }
 
 HANDLER(receivedDetachNotification)

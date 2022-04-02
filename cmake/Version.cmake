@@ -138,6 +138,7 @@ if (NOT VERSIONING_FROM_TRAMPOLINE)
     COMMENT "Generating Version information"
     DEPENDS "${git_dir_path}/logs/HEAD"
       "${VERSION_GENERATOR_SCRIPT}"
+      "${VERSION_HEADER_TEMPLATE}"
     COMMAND ${CMAKE_COMMAND}
       -P "${VERSION_GENERATOR_SCRIPT}")
   add_custom_target(generate_version_h DEPENDS "${VERSION_HEADER_RESULT}")

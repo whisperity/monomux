@@ -101,12 +101,12 @@ public:
 
     if (ForkResult == 0)
     {
-      DEBUG(log::trace("system/Process") << "Forked, in child...");
+      MONOMUX_TRACE_LOG(log::trace("system/Process") << "Forked, in child...");
       ChildAction();
     }
     else
     {
-      DEBUG(log::trace("system/Process") << "Forked, in parent...");
+      MONOMUX_TRACE_LOG(log::trace("system/Process") << "Forked, in parent...");
       ParentAction();
     }
   }
