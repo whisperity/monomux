@@ -25,9 +25,10 @@
 #include <optional>
 #include <string>
 
+#include "monomux/adt/scope_guard.hpp"
+
 #include "SessionData.hpp"
 
-#include "adt/MemberFnScopeGuard.hpp"
 #include "adt/MovableAtomic.hpp"
 #include "adt/unique_scalar.hpp"
 #include "system/EPoll.hpp"
@@ -272,19 +273,11 @@ private:
   static void FUNCTION_NAME(Client& Client, std::string_view Message);
 #include "Dispatch.ipp"
 
-
   /// A pointer to a member function of this class which requires passing the
   /// \p this explicitly.
   using VoidMemFn = void (Client::*)();
 
-#define INHIBITOR_CLASS(NAME)                                                  \
-  friend class NAME##Inhibitor;                                                \
-  MONOMUX_MEMBER_FN_SCOPE_GUARD_0(NAME##Inhibitor, VoidMemFn, Client);
-
-  INHIBITOR_CLASS(Control);
-  INHIBITOR_CLASS(Data);
-  INHIBITOR_CLASS(Input);
-#undef INHIBITOR_CLASS
+  using Inhibitor = scope_guard<std::function<void()>, std::function<void()>>;
 
 public:
   /// If channel polling is initialised, adds \p ControlSocket to the list of
@@ -297,7 +290,7 @@ public:
   void disableControlResponse();
   /// A scope-guard version that calls \p disableControlResponse() and
   /// \p enableControlResponse() when entering and leaving scope.
-  ControlInhibitor inhibitControlResponse();
+  Inhibitor inhibitControlResponse();
 
   /// If channel polling is initialised, adds \p DataSocket to the list of
   /// channels to poll and handle incoming data.
@@ -308,7 +301,7 @@ public:
   void disableDataSocket();
   /// A scope-guard version that calls \p disableDataSocket() and
   /// \p enableDataSocket() when entering and leaving scope.
-  DataInhibitor inhibitDataSocket();
+  Inhibitor inhibitDataSocket();
 
   /// If channel polling is initialised, adds the input device to the list of
   /// channels to poll and handle incoming data from.
@@ -319,7 +312,7 @@ public:
   void disableInputFile();
   /// A scope-guard version that calls \p disableInputFile() and
   /// \p enableInputFile() when entering and leaving scope.
-  InputInhibitor inhibitInputFile();
+  Inhibitor inhibitInputFile();
 };
 
 } // namespace monomux::client

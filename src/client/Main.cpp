@@ -27,7 +27,6 @@
 
 #include "ExitCode.hpp"
 
-#include "adt/MemberFnScopeGuard.hpp"
 #include "system/Environment.hpp"
 #include "system/Signal.hpp"
 
@@ -107,17 +106,6 @@ connect(Options& Opts, bool Block, std::string* FailureReason)
 
   return C;
 }
-
-namespace
-{
-
-using TerminalFn = void (Terminal::*)();
-MONOMUX_MEMBER_FN_SCOPE_GUARD_0(TerminalGuard, TerminalFn, Terminal);
-
-using SignalHandlerFn = void (SignalHandling::*)();
-MONOMUX_MEMBER_FN_SCOPE_GUARD_0(SignalGuard, SignalHandlerFn, SignalHandling);
-
-} // namespace
 
 /// Handler for \p SIGWINCH (window size change) events produces by the terminal
 /// the program is running in.

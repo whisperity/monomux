@@ -510,22 +510,22 @@ void Client::disableInputFile()
   InputFileEnabled = false;
 }
 
-Client::ControlInhibitor Client::inhibitControlResponse()
+Client::Inhibitor Client::inhibitControlResponse()
 {
-  return ControlInhibitor{
-    &Client::disableControlResponse, &Client::enableControlResponse, this};
+  return Inhibitor{[this] { disableControlResponse(); },
+                   [this] { enableControlResponse(); }};
 }
 
-Client::DataInhibitor Client::inhibitDataSocket()
+Client::Inhibitor Client::inhibitDataSocket()
 {
-  return DataInhibitor{
-    &Client::disableDataSocket, &Client::enableDataSocket, this};
+  return Inhibitor{[this] { disableDataSocket(); },
+                   [this] { enableDataSocket(); }};
 }
 
-Client::InputInhibitor Client::inhibitInputFile()
+Client::Inhibitor Client::inhibitInputFile()
 {
-  return InputInhibitor{
-    &Client::disableInputFile, &Client::enableInputFile, this};
+  return Inhibitor{[this] { disableInputFile(); },
+                   [this] { enableInputFile(); }};
 }
 
 } // namespace client
