@@ -19,14 +19,14 @@
 #include <chrono>
 #include <thread>
 
-#include "Server.hpp"
+#include "monomux/adt/POD.hpp"
+#include "monomux/system/CheckedPOSIX.hpp"
 
 #include "control/Messaging.hpp"
-#include "system/CheckedPOSIX.hpp"
-#include "system/POD.hpp"
+
+#include "Server.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Server")
 
 namespace monomux::server

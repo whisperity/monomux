@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.15.0)
 list(APPEND CMAKE_MODULE_PATH
   "${CMAKE_SOURCE_DIR}/cmake"
   )
-include(Version)
+include(MonomuxVersion)
 
 project(monomux
   LANGUAGES CXX
@@ -50,6 +50,7 @@ include_directories(
   "${CMAKE_BINARY_DIR}/include"
   )
 
+add_subdirectory(include)
 add_subdirectory(src)
 
 include(MonomuxCPack)

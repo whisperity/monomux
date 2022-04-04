@@ -20,15 +20,15 @@
 #include <cstring>
 #include <sys/wait.h>
 
-#include "Process.hpp"
-
-#include "CheckedPOSIX.hpp"
-#include "Pty.hpp"
-#include "Signal.hpp"
-
-#include "monomux/Log.hpp"
+#include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/system/Pty.hpp"
 #include "monomux/unreachable.hpp"
 
+#include "Signal.hpp"
+
+#include "monomux/system/Process.hpp"
+
+#include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Process")
 
 namespace monomux

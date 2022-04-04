@@ -22,13 +22,12 @@
 #include <unistd.h>
 #include <utmp.h>
 
-#include "Pty.hpp"
+#include "monomux/adt/POD.hpp"
+#include "monomux/system/CheckedPOSIX.hpp"
 
-#include "CheckedPOSIX.hpp"
-#include "POD.hpp"
+#include "monomux/system/Pty.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Pty")
 
 namespace monomux

@@ -25,8 +25,6 @@
 #include <memory>
 #include <string>
 
-#include "POD.hpp"
-
 namespace monomux
 {
 

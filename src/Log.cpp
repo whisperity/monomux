@@ -16,10 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "monomux/Log.hpp"
+#include <iostream>
+
 #include "monomux/system/Time.hpp"
 
-#include <iostream>
+#include "monomux/Log.hpp"
 
 namespace monomux::log
 {

@@ -20,12 +20,13 @@
 #include <system_error>
 #include <type_traits>
 
-#include "CheckedPOSIX.hpp"
+#include "monomux/adt/POD.hpp"
+#include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/unreachable.hpp"
+
 #include "Signal.hpp"
 
 #include "monomux/Log.hpp"
-#include "monomux/unreachable.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Signal")
 
 namespace monomux

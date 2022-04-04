@@ -18,9 +18,9 @@
  */
 #include <cassert>
 
-#include "ClientData.hpp"
-
 #include "control/Messaging.hpp"
+
+#include "ClientData.hpp"
 
 namespace monomux::server
 {

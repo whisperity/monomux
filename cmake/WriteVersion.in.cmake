@@ -9,6 +9,6 @@ set(VERSION_HEADER_TEMPLATE    "${VERSION_HEADER_TEMPLATE}")
 set(VERSION_HEADER_RESULT      "${VERSION_HEADER_RESULT}")
 set(VERSION_TXT_RESULT         "${VERSION_TXT_RESULT}")
 
-include(Version)
+include(MonomuxVersion)
 
 write_version_header()

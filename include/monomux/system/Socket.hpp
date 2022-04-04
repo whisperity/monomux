@@ -21,8 +21,9 @@
 #include <string>
 #include <system_error>
 
-#include "CommunicationChannel.hpp"
-#include "fd.hpp"
+#include "monomux/adt/UniqueScalar.hpp"
+#include "monomux/system/CommunicationChannel.hpp"
+#include "monomux/system/fd.hpp"
 
 namespace monomux
 {
@@ -115,6 +116,8 @@ private:
   /// Whether the current instance is \e owning a socket, i.e. controlling it
   /// as a server.
   UniqueScalar<bool, false> Owning;
+  /// Whether the current instance is \e listening for incoming connections
+  /// via \p listen().
   UniqueScalar<bool, false> Listening;
 };
 

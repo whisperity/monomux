@@ -16,12 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "EPoll.hpp"
+#include "monomux/system/CheckedPOSIX.hpp"
 
-#include "CheckedPOSIX.hpp"
+#include "monomux/system/EPoll.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/epoll")
 
 namespace monomux

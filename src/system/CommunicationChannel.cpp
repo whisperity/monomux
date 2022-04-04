@@ -16,11 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "CommunicationChannel.hpp"
-#include "POD.hpp"
+#include "monomux/adt/POD.hpp"
+
+#include "monomux/system/CommunicationChannel.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/CommunicationChannel")
 
 namespace monomux

@@ -16,11 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Version.hpp"
+#include <sstream>
 
 #include "monomux/Version.h"
 
-#include <sstream>
+#include "monomux/Version.hpp"
 
 namespace monomux
 {

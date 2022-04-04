@@ -18,14 +18,14 @@
  */
 #include <utility>
 
-#include "Client.hpp"
+#include "monomux/system/Pipe.hpp"
 
 #include "control/Message.hpp"
 #include "control/Messaging.hpp"
-#include "system/Pipe.hpp"
+
+#include "Client.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/Client")
 
 namespace monomux

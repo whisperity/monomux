@@ -23,8 +23,8 @@
 
 #include <sys/epoll.h>
 
-#include "POD.hpp"
-#include "fd.hpp"
+#include "monomux/adt/POD.hpp"
+#include "monomux/system/fd.hpp"
 
 namespace monomux
 {

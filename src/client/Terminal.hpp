@@ -20,10 +20,9 @@
 #include <termios.h>
 
 #include "monomux/adt/Atomic.hpp"
+#include "monomux/adt/POD.hpp"
 #include "monomux/adt/UniqueScalar.hpp"
-
-#include "system/POD.hpp"
-#include "system/fd.hpp"
+#include "monomux/system/fd.hpp"
 
 namespace monomux::client
 {

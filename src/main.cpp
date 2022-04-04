@@ -24,6 +24,9 @@
 #include <getopt.h>
 #include <unistd.h>
 
+#include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/system/Process.hpp"
+
 #include "Config.hpp"
 #include "ExitCode.hpp"
 #include "Version.hpp"
@@ -31,12 +34,9 @@
 #include "client/Main.hpp"
 #include "server/Main.hpp"
 #include "server/Server.hpp"
-#include "system/CheckedPOSIX.hpp"
 #include "system/Environment.hpp"
-#include "system/Process.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("main")
 
 using namespace monomux;

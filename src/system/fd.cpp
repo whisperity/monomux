@@ -19,14 +19,12 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
-#include "fd.hpp"
+#include "monomux/adt/POD.hpp"
+#include "monomux/system/CheckedPOSIX.hpp"
 
-#include "CheckedPOSIX.hpp"
-#include "POD.hpp"
+#include "monomux/system/fd.hpp"
 
 #include "monomux/Log.hpp"
-
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/fd")
 
 namespace monomux

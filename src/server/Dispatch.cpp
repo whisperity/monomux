@@ -16,15 +16,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Server.hpp"
+#include "monomux/system/Process.hpp"
 
 #include "control/Message.hpp"
 #include "control/Messaging.hpp"
 #include "system/Environment.hpp"
-#include "system/Process.hpp"
+
+#include "Server.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Dispatch")
 
 using namespace monomux::message;

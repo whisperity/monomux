@@ -21,8 +21,9 @@
 
 #include <fcntl.h>
 
-#include "CommunicationChannel.hpp"
-#include "fd.hpp"
+#include "monomux/adt/UniqueScalar.hpp"
+#include "monomux/system/CommunicationChannel.hpp"
+#include "monomux/system/fd.hpp"
 
 namespace monomux
 {

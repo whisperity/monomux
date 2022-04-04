@@ -18,18 +18,18 @@
  */
 #include <thread>
 
+#include "monomux/adt/ScopeGuard.hpp"
+#include "monomux/system/Process.hpp"
+#include "monomux/unreachable.hpp"
+
 #include "Main.hpp"
 
 #include "ExitCode.hpp"
 #include "Server.hpp"
 #include "system/Environment.hpp"
-#include "system/Process.hpp"
 #include "system/Signal.hpp"
 
 #include "monomux/Log.hpp"
-#include "monomux/adt/ScopeGuard.hpp"
-#include "monomux/unreachable.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Main")
 
 namespace monomux::server

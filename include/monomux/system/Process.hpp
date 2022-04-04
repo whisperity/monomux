@@ -24,8 +24,8 @@
 
 #include <unistd.h>
 
-#include "CheckedPOSIX.hpp"
-#include "Pty.hpp"
+#include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/system/Pty.hpp"
 
 #include "monomux/Log.hpp"
 
@@ -111,5 +111,7 @@ public:
     }
   }
 };
+
+using raw_pid = Process::raw_handle;
 
 } // namespace monomux
