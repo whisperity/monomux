@@ -72,17 +72,22 @@ set_target_properties(monomux PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
+install(TARGETS monomuxCore
+  COMPONENT "${MONOMUX_CORE_LIBRARY_DEV_NAME}"
+  )
+install(TARGETS monomuxImplementation
+  COMPONENT "${MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME}"
+  )
+
 if (NOT MONOMUX_BUILD_SHARED_LIBS)
+  # If we are using static libs, the main target only needs the binary that
+  # got the static library linked in.
   install(TARGETS monomux
     COMPONENT "${MONOMUX_NAME}"
     )
-  install(TARGETS monomuxCore
-    COMPONENT "${MONOMUX_CORE_LIBRARY_DEV_NAME}"
-    )
-  install(TARGETS monomuxImplementation
-    COMPONENT "${MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME}"
-    )
 else()
+  # If we are using SHARED libs, the main install target needs the shared libs
+  # too!
   install(TARGETS monomux monomuxCore monomuxImplementation
     COMPONENT "${MONOMUX_NAME}")
 endif()

@@ -52,10 +52,13 @@ jobs:
           cmake -S . -B Build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.lib-type == 'static' && 'ON' || 'OFF' }}
+            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.library-type == 'static' && 'ON' || 'OFF' }}
       - name: "Build"
         run: |
           cmake --build ./Build -- -j
+      - name: "Self-check the binary"
+        run: |
+          ./monomux -VV
       - name: "Test"
         run: |
           cmake --build ./Build -- -j check
@@ -73,14 +76,16 @@ jobs:
           cpack -V -G DEB
           echo "::endgroup::"
 
+          ls -alh
+
           cd ..
 
           echo "::set-output name=PACKAGE_VERSION::$(cat Build/Version.txt)"
-          mv -v Build/MonoMux-*-Linux.tar.gz \
+          mv -v Build/MonoMux-*-Linux-MonomuxUserGroup.tar.gz \
             "./monomux-$(cat Build/Version.txt)-${{ matrix.compiler }}.tgz"
-          mv -v Build/MonoMux-*-Linux*.deb \
+          mv -v Build/MonoMux-*-Linux-MonomuxUserGroup.deb \
             "./monomux-$(cat Build/Version.txt)-${{ matrix.compiler }}.deb"
-          mv -v Build/MonoMux-*-Linux*.ddeb \
+          mv -v Build/MonoMux-*-Linux-MonomuxUserGroup-dbgsym.ddeb \
             "./monomux-dbgsym-$(cat Build/Version.txt)-${{ matrix.compiler }}.ddeb"
       - name: "Check whether the Debian package is installable"
         id: deb-install

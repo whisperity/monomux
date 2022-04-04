@@ -149,8 +149,10 @@ if (NOT VERSIONING_FROM_TRAMPOLINE)
     )
 
   install(FILES "${VERSION_HEADER_RESULT}"
+    # NOTE: Needs GNUInstallDirs!
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/monomux"
-    COMPONENT "${MONOMUX_CORE_LIBRARY_DEV_NAME}"
+    # MONOMUX_CORE_LIBRARY_DEV_NAME from MonomuxConfig.cmake
+    COMPONENT "MonomuxCoreLibraryDevelopoment"
     )
 
   unset(VERSION_GENERATOR_SCRIPT)

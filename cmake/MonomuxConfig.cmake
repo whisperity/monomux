@@ -1,11 +1,12 @@
-set(MONOMUX_CORE_LIBRARY_NAME "MonomuxCoreLibrary")
+
+# set(MONOMUX_CORE_LIBRARY_NAME "MonomuxCoreLibrary")
 set(MONOMUX_CORE_LIBRARY_DEV_NAME "MonomuxCoreLibraryDevelopoment")
 
-set(MONOMUX_IMPLEMENTATION_LIBRARY_NAME "MonomuxLibrary")
+# set(MONOMUX_IMPLEMENTATION_LIBRARY_NAME "MonomuxLibrary")
 set(MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME "MonomuxLibraryDevelopment")
 
 set(MONOMUX_NAME "Monomux")
-set(MONOMUX_DEV_NAME "MonomuxDevelopment")
+# set(MONOMUX_DEV_NAME "MonomuxDevelopment")
 
 
 set(MONOMUX_BUILD_SHARED_LIBS OFF CACHE BOOL
