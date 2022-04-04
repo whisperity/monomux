@@ -28,7 +28,15 @@ std::string getHumanReadableConfiguration()
 {
   std::ostringstream Buf;
 
-#ifdef MONOMUX_NON_ESSENTIAL_LOGS
+#ifndef MONOMUX_BUILD_SHARED_LIBS
+  Buf << " * STATIC library for implementation core\n";
+#else
+  Buf << " * SHARED (dynamic) library for implementation core\n";
+#endif
+
+#ifndef MONOMUX_NON_ESSENTIAL_LOGS
+  Buf << " - Non-essential trace logs\n";
+#else
   Buf << " + Non-essential trace logs\n";
 #endif
 

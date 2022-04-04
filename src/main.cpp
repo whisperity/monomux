@@ -24,12 +24,12 @@
 #include <getopt.h>
 #include <unistd.h>
 
+#include "monomux/Version.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
 #include "monomux/system/Process.hpp"
 
 #include "Config.hpp"
 #include "ExitCode.hpp"
-#include "Version.hpp"
 
 #include "client/Main.hpp"
 #include "server/Main.hpp"

@@ -12,13 +12,13 @@ list(APPEND libmonomuxCore_SOURCES
   )
 set(libmonomuxCore_SOURCES "${libmonomuxCore_SOURCES}" PARENT_SCOPE)
 
-list(APPEND libmonomuxMain_HEADERS
+list(APPEND libmonomuxImplementation_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/Main.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Terminal.hpp
   )
-set(libmonomuxMain_HEADERS "${libmonomuxMain_HEADERS}" PARENT_SCOPE)
-list(APPEND libmonomuxMain_SOURCES
+set(libmonomuxImplementation_HEADERS "${libmonomuxImplementation_HEADERS}" PARENT_SCOPE)
+list(APPEND libmonomuxImplementation_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Main.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Terminal.cpp
   )
-set(libmonomuxMain_SOURCES "${libmonomuxMain_SOURCES}" PARENT_SCOPE)
+set(libmonomuxImplementation_SOURCES "${libmonomuxImplementation_SOURCES}" PARENT_SCOPE)

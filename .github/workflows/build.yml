@@ -27,7 +27,11 @@ jobs:
           "gcc",
           "clang"
         ]
-    name: "${{ matrix.distribution }} LTS, ${{ matrix.compiler }}"
+        library-type: [
+          "static",
+          "shared"
+        ]
+    name: "${{ matrix.distribution }}, ${{ matrix.compiler }}, ${{ matrix.library-type }} libs"
     runs-on: ${{ matrix.distribution }}
     steps:
       - uses: actions/checkout@v2
@@ -47,7 +51,8 @@ jobs:
 
           cmake -S . -B Build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.lib-type == 'static' && 'ON' || 'OFF' }}
       - name: "Build"
         run: |
           cmake --build ./Build -- -j
@@ -92,7 +97,7 @@ jobs:
             echo "::warning title=Debian Package self-check skipped::The package failed to assemble and thus wasn't tested."
           fi
       - name: "Upload binary package artefacts: Tarball"
-        if: steps.binary-package.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang'
+        if: steps.binary-package.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
         uses: actions/upload-artifact@v2
         with:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
@@ -100,7 +105,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: "Upload binary package artefacts: Debian package"
-        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang'
+        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
         uses: actions/upload-artifact@v2
         with:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
@@ -108,7 +113,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: "Upload binary package artefacts: Debian package (debug symbols)"
-        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang'
+        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
         uses: actions/upload-artifact@v2
         with:
           path: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.ddeb"

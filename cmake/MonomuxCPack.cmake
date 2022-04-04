@@ -23,8 +23,6 @@ if (UNIX)
   set(CPACK_DEBIAN_DEBUGINFO_PACKAGE ON)
 
   include(GNUInstallDirs)
-  install(TARGETS monomux
-    DESTINATION bin)
   install(FILES
       "${CMAKE_SOURCE_DIR}/README.md"
       "${CMAKE_SOURCE_DIR}/LICENSE"

@@ -24,8 +24,6 @@
 #include "monomux/system/Pty.hpp"
 #include "monomux/unreachable.hpp"
 
-#include "Signal.hpp"
-
 #include "monomux/system/Process.hpp"
 
 #include "monomux/Log.hpp"
@@ -109,7 +107,6 @@ Process Process::spawn(const SpawnOptions& Opts)
   }
 
   // We are in the child.
-  SignalHandling::get().reset();
   CheckedPOSIXThrow([] { return ::setsid(); }, "setsid()", -1);
   if (PTY)
     PTY->setupChildrenSide();
