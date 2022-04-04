@@ -114,8 +114,8 @@ protected:
 private:
   /// Whether the current instance is \e owning a socket, i.e. controlling it
   /// as a server.
-  unique_scalar<bool, false> Owning;
-  unique_scalar<bool, false> Listening;
+  UniqueScalar<bool, false> Owning;
+  UniqueScalar<bool, false> Listening;
 };
 
 } // namespace monomux

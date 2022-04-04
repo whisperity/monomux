@@ -24,7 +24,6 @@ set(monomux_SOURCES
   )
 set(monomux_HEADERS)
 
-add_subdirectory(adt)
 add_subdirectory(client)
 add_subdirectory(control)
 add_subdirectory(server)

@@ -122,7 +122,7 @@ protected:
 
 private:
   Mode OpenedAs;
-  unique_scalar<bool, false> Nonblock;
+  UniqueScalar<bool, false> Nonblock;
 };
 
 } // namespace monomux

@@ -25,12 +25,13 @@
 #include <optional>
 #include <variant>
 
+#include "monomux/adt/Atomic.hpp"
+#include "monomux/adt/SmallIndexMap.hpp"
+#include "monomux/adt/Tagged.hpp"
+
 #include "ClientData.hpp"
 #include "SessionData.hpp"
 
-#include "adt/MovableAtomic.hpp"
-#include "adt/SmallIndexMap.hpp"
-#include "adt/TaggedPointer.hpp"
 #include "system/EPoll.hpp"
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
@@ -112,9 +113,9 @@ private:
     CT_Session = 4
   };
 
-  using ClientControlConnection = TaggedPointer<CT_ClientControl, ClientData>;
-  using ClientDataConnection = TaggedPointer<CT_ClientData, ClientData>;
-  using SessionConnection = TaggedPointer<CT_Session, SessionData>;
+  using ClientControlConnection = Tagged<CT_ClientControl, ClientData>;
+  using ClientDataConnection = Tagged<CT_ClientData, ClientData>;
+  using SessionConnection = Tagged<CT_Session, SessionData>;
   using LookupVariant = std::variant<std::monostate,
                                      ClientControlConnection,
                                      ClientDataConnection,
@@ -147,7 +148,7 @@ private:
   /// A list of process handles that were signalle
   mutable std::array<Process::raw_handle, DeadChildrenVecSize> DeadChildren;
 
-  mutable MovableAtomic<bool> TerminateLoop;
+  mutable Atomic<bool> TerminateLoop;
   bool ExitIfNoMoreSessions;
   std::unique_ptr<EPoll> Poll;
 

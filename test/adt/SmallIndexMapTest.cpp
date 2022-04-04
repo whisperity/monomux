@@ -19,7 +19,7 @@
  */
 #include <gtest/gtest.h>
 
-#include "adt/SmallIndexMap.hpp"
+#include "monomux/adt/SmallIndexMap.hpp"
 
 using namespace monomux;
 

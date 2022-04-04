@@ -25,12 +25,12 @@
 #include <optional>
 #include <string>
 
-#include "monomux/adt/scope_guard.hpp"
+#include "monomux/adt/Atomic.hpp"
+#include "monomux/adt/ScopeGuard.hpp"
+#include "monomux/adt/UniqueScalar.hpp"
 
 #include "SessionData.hpp"
 
-#include "adt/MovableAtomic.hpp"
-#include "adt/unique_scalar.hpp"
 #include "system/EPoll.hpp"
 #include "system/Process.hpp"
 #include "system/Socket.hpp"
@@ -221,10 +221,10 @@ private:
 
   /// Whether continuous \e handling of data on the \p DataSocket (if connected)
   /// via \p Poll is enabled.
-  unique_scalar<bool, false> DataSocketEnabled;
+  UniqueScalar<bool, false> DataSocketEnabled;
 
   /// Whether the client successfully attached to a session on the server.
-  unique_scalar<bool, false> Attached;
+  UniqueScalar<bool, false> Attached;
 
   /// Information about the session the client attached to.
   std::optional<SessionData> AttachedSession;
@@ -240,18 +240,18 @@ private:
 
   /// Weak file handle for the stream that is considered the user-facing input
   /// of the client.
-  unique_scalar<raw_fd, fd::Invalid> InputFile;
+  UniqueScalar<raw_fd, fd::Invalid> InputFile;
 
   /// Whether continuous \e handling of inputs on the \p InputFile (if set) via
   /// \p Poll is enabled.
-  unique_scalar<bool, false> InputFileEnabled;
+  UniqueScalar<bool, false> InputFileEnabled;
 
   ExitReason Exit;
   /// Terminate the handling \p loop() of the client and set the exit status to
   /// \p E.
   void exit(ExitReason E);
 
-  mutable MovableAtomic<bool> TerminateLoop = false;
+  mutable Atomic<bool> TerminateLoop = false;
   std::unique_ptr<EPoll> Poll;
 
   /// A unique identifier of the current \p Client, as returned by the server.
@@ -277,7 +277,7 @@ private:
   /// \p this explicitly.
   using VoidMemFn = void (Client::*)();
 
-  using Inhibitor = scope_guard<std::function<void()>, std::function<void()>>;
+  using Inhibitor = ScopeGuard<std::function<void()>, std::function<void()>>;
 
 public:
   /// If channel polling is initialised, adds \p ControlSocket to the list of

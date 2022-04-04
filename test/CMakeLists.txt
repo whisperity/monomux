@@ -24,6 +24,7 @@ add_executable(monomux_tests
   control/MessageSerialisationTest.cpp
   )
 target_include_directories(monomux_tests PUBLIC
+  ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/src
   )
 target_link_libraries(monomux_tests PRIVATE

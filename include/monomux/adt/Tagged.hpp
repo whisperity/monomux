@@ -17,29 +17,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
+#include <cassert>
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 
 namespace monomux
 {
 
+/// Tags a type at compile-time with a scalar value that is only descript to
+/// clients consuming this object. Otherwise, behaves the same as \p T.
 /// Tags a pointer pointing to any type with an indicatory numeric value
 /// statically.
-template <std::size_t N, typename T> class TaggedPointer
+template <std::size_t N, typename T> class Tagged
 {
   static constexpr std::size_t Kind = N;
   T* Ptr;
 
 public:
-  TaggedPointer(T* Ptr) : Ptr(Ptr) {}
+  Tagged(T* P) noexcept : Ptr(P) {}
+
+  /// Retrieve the raw tag value.
   std::size_t kind() const noexcept { return Kind; }
+  /// Retrieve the tag value cast to the enum type \p E.
   template <typename E> E kindAs() const noexcept
   {
     return static_cast<E>(Kind);
   }
 
-  bool operator==(TaggedPointer RHS) const { return Ptr == RHS.Ptr; }
-  bool operator!=(TaggedPointer RHS) const { return Ptr != RHS.Ptr; }
+  bool operator==(Tagged RHS) const { return Ptr == RHS.Ptr; }
+  bool operator!=(Tagged RHS) const { return Ptr != RHS.Ptr; }
 
   T* operator->() noexcept { return Ptr; }
   const T* operator->() const noexcept { return Ptr; }
@@ -53,7 +60,6 @@ public:
     assert(Ptr);
     return *Ptr;
   }
-
   T* get() noexcept { return Ptr; }
   const T* get() const noexcept { return Ptr; }
 };

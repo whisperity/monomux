@@ -17,8 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-
-#include "adt/unique_scalar.hpp"
+#include "monomux/adt/UniqueScalar.hpp"
 
 namespace monomux
 {
@@ -29,26 +28,25 @@ namespace monomux
 /// Example:
 ///
 ///     scope_guard RAII{[] { enter(); }, [] { exit(); }};
-template <typename EnterFunction, typename ExitFunction>
-struct scope_guard // NOLINT(readability-identifier-naming)
+template <typename EnterFunction, typename ExitFunction> struct ScopeGuard
 {
-  scope_guard(EnterFunction&& Enter, ExitFunction&& Exit) : Exit(Exit)
+  ScopeGuard(EnterFunction&& Enter, ExitFunction&& Exit) : Exit(Exit)
   {
     Enter();
     Alive = true;
   }
 
-  ~scope_guard()
+  ~ScopeGuard()
   {
     if (Alive)
       Exit();
   }
 
-  scope_guard() = delete;
-  scope_guard(const scope_guard&) = delete;
-  scope_guard(scope_guard&&) = delete;
-  scope_guard& operator=(const scope_guard&) = delete;
-  scope_guard& operator=(scope_guard&&) = delete;
+  ScopeGuard() = delete;
+  ScopeGuard(const ScopeGuard&) = delete;
+  ScopeGuard(ScopeGuard&&) = delete;
+  ScopeGuard& operator=(const ScopeGuard&) = delete;
+  ScopeGuard& operator=(ScopeGuard&&) = delete;
 
 private:
   bool Alive;

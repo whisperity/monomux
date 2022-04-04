@@ -19,9 +19,9 @@
 #pragma once
 #include <optional>
 
-#include "fd.hpp"
+#include "monomux/adt/UniqueScalar.hpp"
 
-#include "adt/unique_scalar.hpp"
+#include "fd.hpp"
 
 namespace monomux
 {
@@ -31,7 +31,7 @@ namespace monomux
 /// physical typewriter and printer machines were connected to computers.
 class Pty
 {
-  unique_scalar<bool, false> IsMaster;
+  UniqueScalar<bool, false> IsMaster;
   fd Master;
   fd Slave;
   std::string Name;

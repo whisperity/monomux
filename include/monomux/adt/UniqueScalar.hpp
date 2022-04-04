@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <type_traits>
 #include <utility>
 
 namespace monomux
@@ -24,22 +25,30 @@ namespace monomux
 
 /// Wraps a movable scalar type which resets to the default value when
 /// moved-from. Unlike \p unique_ptr, the value is allocated in-place.
-template <typename T, T Default>
-// NOLINTNEXTLINE(readability-identifier-naming): Mimicking unique_ptr.
-struct unique_scalar
+template <typename T, T Default> struct UniqueScalar
 {
   /// Initialises the object with the default value.
-  unique_scalar() noexcept : Value(Default) {}
+  UniqueScalar() noexcept(std::is_nothrow_default_constructible_v<T>)
+    : Value(Default)
+  {
+    static_assert(sizeof(*this) == sizeof(T), "Extra padding is forbidden!");
+  }
   /// Initialises the object with the specified value
-  unique_scalar(T Value) : Value(Value) {}
+  UniqueScalar(T Value) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    : Value(Value)
+  {}
   /// Move-initialises the value from \p RHS, and resets \p RHS to the
   /// \p Default.
-  unique_scalar(unique_scalar&& RHS) noexcept : Value(std::move(RHS.Value))
+  UniqueScalar(UniqueScalar&& RHS) noexcept(
+    std::is_nothrow_move_constructible_v<T>&&
+      std::is_nothrow_move_assignable_v<T>)
+    : Value(std::move(RHS.Value))
   {
     RHS.Value = Default;
   }
   /// Move-assigns the value from \p RHS, and resets \p RHS to the \p Default.
-  unique_scalar& operator=(unique_scalar&& RHS) noexcept
+  UniqueScalar&
+  operator=(UniqueScalar&& RHS) noexcept(std::is_nothrow_move_assignable_v<T>)
   {
     if (this == &RHS)
       return *this;
@@ -48,15 +57,16 @@ struct unique_scalar
     RHS.Value = Default;
     return *this;
   }
-  ~unique_scalar() = default;
+  ~UniqueScalar() noexcept = default;
 
   /// Converts to the stored value.
-  operator T&() { return Value; }
+  operator T&() noexcept { return Value; }
   /// Converts to the stored value.
-  operator const T&() const { return Value; }
+  operator const T&() const noexcept { return Value; }
 
   /// Sets \p NewValue into the wrapped object.
-  unique_scalar& operator=(T&& NewValue) noexcept
+  UniqueScalar&
+  operator=(T&& NewValue) noexcept(std::is_nothrow_move_assignable_v<T>)
   {
     Value = std::forward<T>(NewValue);
     return *this;

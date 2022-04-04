@@ -20,7 +20,8 @@
 #include <string>
 #include <vector>
 
-#include "adt/unique_scalar.hpp"
+#include "monomux/adt/UniqueScalar.hpp"
+
 #include "fd.hpp"
 
 namespace monomux
@@ -103,8 +104,8 @@ protected:
   std::vector<char> WriteBuffer;
 
 private:
-  unique_scalar<bool, false> EntityCleanup;
-  unique_scalar<bool, false> Failed;
+  UniqueScalar<bool, false> EntityCleanup;
+  UniqueScalar<bool, false> Failed;
 };
 
 } // namespace monomux

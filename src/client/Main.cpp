@@ -31,7 +31,7 @@
 #include "system/Signal.hpp"
 
 #include "monomux/Log.hpp"
-#include "monomux/adt/scope_guard.hpp"
+#include "monomux/adt/ScopeGuard.hpp"
 #include "monomux/system/Time.hpp"
 
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/Main")
@@ -363,20 +363,20 @@ int main(Options& Opts)
   }
 
   {
-    scope_guard TerminalSetup{[&Term, &Client] { Term.setupClient(Client); },
-                              [&Term] { Term.releaseClient(); }};
-    scope_guard Signal{[&Term] {
-                         SignalHandling& Sig = SignalHandling::get();
-                         Sig.registerObject("Terminal", &Term);
-                         Sig.registerCallback(SIGWINCH, &windowSizeChange);
-                         Sig.enable();
-                       },
-                       [] {
-                         SignalHandling& Sig = SignalHandling::get();
-                         Sig.clearCallback(SIGWINCH);
-                         Sig.deleteObject("Terminal");
-                         Sig.disable();
-                       }};
+    ScopeGuard TerminalSetup{[&Term, &Client] { Term.setupClient(Client); },
+                             [&Term] { Term.releaseClient(); }};
+    ScopeGuard Signal{[&Term] {
+                        SignalHandling& Sig = SignalHandling::get();
+                        Sig.registerObject("Terminal", &Term);
+                        Sig.registerCallback(SIGWINCH, &windowSizeChange);
+                        Sig.enable();
+                      },
+                      [] {
+                        SignalHandling& Sig = SignalHandling::get();
+                        Sig.clearCallback(SIGWINCH);
+                        Sig.deleteObject("Terminal");
+                        Sig.disable();
+                      }};
 
     LOG(trace) << "Starting client...";
 
@@ -384,15 +384,15 @@ int main(Options& Opts)
     // randomly printing log to stdout would garble the terminal printouts.
     using namespace monomux::log;
     Severity LogLevel;
-    scope_guard Loglevel{[&LogLevel] {
-                           Logger& L = Logger::get();
-                           LogLevel = L.getLimit();
-                           L.setLimit(None);
-                         },
-                         [&LogLevel] { Logger::get().setLimit(LogLevel); }};
+    ScopeGuard Loglevel{[&LogLevel] {
+                          Logger& L = Logger::get();
+                          LogLevel = L.getLimit();
+                          L.setLimit(None);
+                        },
+                        [&LogLevel] { Logger::get().setLimit(LogLevel); }};
 
-    scope_guard TermIO{[&Term] { Term.engage(); },
-                       [&Term] { Term.disengage(); }};
+    ScopeGuard TermIO{[&Term] { Term.engage(); },
+                      [&Term] { Term.disengage(); }};
 
     Client.loop();
   }

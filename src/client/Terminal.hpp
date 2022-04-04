@@ -19,8 +19,9 @@
 #pragma once
 #include <termios.h>
 
-#include "adt/MovableAtomic.hpp"
-#include "adt/unique_scalar.hpp"
+#include "monomux/adt/Atomic.hpp"
+#include "monomux/adt/UniqueScalar.hpp"
+
 #include "system/POD.hpp"
 #include "system/fd.hpp"
 
@@ -73,22 +74,22 @@ public:
   void notifySizeChanged() const noexcept;
 
 private:
-  unique_scalar<raw_fd, fd::Invalid> In;
-  unique_scalar<raw_fd, fd::Invalid> Out;
-  unique_scalar<Client*, nullptr> AssociatedClient;
-  unique_scalar<bool, false> Engaged;
+  UniqueScalar<raw_fd, fd::Invalid> In;
+  UniqueScalar<raw_fd, fd::Invalid> Out;
+  UniqueScalar<Client*, nullptr> AssociatedClient;
+  UniqueScalar<bool, false> Engaged;
   POD<struct ::termios> OriginalTerminalSettings;
 
   /// Whether a signal interrupt indicated that the window size of the client
   /// had changed.
-  mutable MovableAtomic<bool> WindowSizeChanged;
+  mutable Atomic<bool> WindowSizeChanged;
 
 #ifndef NDEBUG
   /// The handler callbacks in the client receive a \p Terminal instance's
   /// pointer bound. If the object is moved from, the moved-from will reset
   /// this value to \p false, with which we can track the access of an invalid
   /// object with sanitisers.
-  unique_scalar<bool, false> MovedFromCheck;
+  UniqueScalar<bool, false> MovedFromCheck;
 #endif
 
   /// Callback function fired when the client reports available input.

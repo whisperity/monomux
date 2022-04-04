@@ -27,7 +27,7 @@
 #include "system/Signal.hpp"
 
 #include "monomux/Log.hpp"
-#include "monomux/adt/scope_guard.hpp"
+#include "monomux/adt/ScopeGuard.hpp"
 #include "monomux/unreachable.hpp"
 
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Main")
@@ -104,27 +104,27 @@ int main(Options& Opts)
   Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));
   S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
-  scope_guard Signal{[&S] {
-                       SignalHandling& Sig = SignalHandling::get();
-                       Sig.registerObject("Server", &S);
-                       Sig.registerCallback(SIGINT, &serverShutdown);
-                       Sig.registerCallback(SIGTERM, &serverShutdown);
-                       Sig.registerCallback(SIGCHLD, &childExited);
-                       Sig.ignore(SIGPIPE);
-                       Sig.enable();
-                     },
-                     [] {
-                       SignalHandling& Sig = SignalHandling::get();
-                       Sig.disable();
-                       Sig.unignore(SIGPIPE);
-                       Sig.clearCallback(SIGCHLD);
-                       Sig.clearCallback(SIGTERM);
-                       Sig.clearCallback(SIGINT);
-                       Sig.deleteObject("Server");
-                     }};
+  ScopeGuard Signal{[&S] {
+                      SignalHandling& Sig = SignalHandling::get();
+                      Sig.registerObject("Server", &S);
+                      Sig.registerCallback(SIGINT, &serverShutdown);
+                      Sig.registerCallback(SIGTERM, &serverShutdown);
+                      Sig.registerCallback(SIGCHLD, &childExited);
+                      Sig.ignore(SIGPIPE);
+                      Sig.enable();
+                    },
+                    [] {
+                      SignalHandling& Sig = SignalHandling::get();
+                      Sig.disable();
+                      Sig.unignore(SIGPIPE);
+                      Sig.clearCallback(SIGCHLD);
+                      Sig.clearCallback(SIGTERM);
+                      Sig.clearCallback(SIGINT);
+                      Sig.deleteObject("Server");
+                    }};
 
   LOG(info) << "Starting Monomux Server";
-  scope_guard Server{[&S] { S.loop(); }, [&S] { S.shutdown(); }};
+  ScopeGuard Server{[&S] { S.loop(); }, [&S] { S.shutdown(); }};
   LOG(info) << "Monomux Server stopped";
   return EXIT_Success;
 }
