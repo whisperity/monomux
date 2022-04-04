@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.15.0)
-include(GNUInstallDirs)
 
 list(APPEND CMAKE_MODULE_PATH
   "${CMAKE_SOURCE_DIR}/cmake"
@@ -16,6 +15,7 @@ if (NOT UNIX)
   message(FATAL_ERROR "This project supports only POSIX Unix/Linux platforms!")
 endif()
 
+include(GNUInstallDirs)
 include(MonomuxConfig)
 
 set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "Monomux")
@@ -43,6 +43,15 @@ if ( (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "
   check_add_compile_option(-Wall)
   check_add_compile_option(-Wextra)
 endif()
+
+message(STATUS "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - ")
+message(STATUS "        MonoMux (v${MONOMUX_VERSION_STRING})")
+message(STATUS "------------------------------------------------------------------------------")
+message(STATUS "System:                                             ${CMAKE_SYSTEM_PROCESSOR} (${CMAKE_SYSTEM_NAME})")
+message(STATUS "C++ standard:                                       C++${CMAKE_CXX_STANDARD}")
+message(STATUS "Library type:                                       ${MONOMUX_LIBRARY_TYPE}")
+message(STATUS "Non-essential log output:                           ${MONOMUX_NON_ESSENTIAL_LOGS}")
+message(STATUS "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - ")
 
 # TODO: Add -UNDEBUG so #ifndef NDEBUG and asserts are there for RelWithDebInfo.
 

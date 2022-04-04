@@ -32,10 +32,10 @@ function(write_version_header)
 
   if (NOT VERSION_HAS_EXTRAS)
     file(WRITE "${VERSION_TXT_RESULT}"
-      "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}")
+      "${MONOMUX_VERSION_STRING}")
   else()
     file(WRITE "${VERSION_TXT_RESULT}"
-      "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}-${VERSION_OFFSET}-${VERSION_COMMIT}${VERSION_DIRTY}")
+      "${MONOMUX_VERSION_STRING}")
   endif()
 endfunction()
 
@@ -119,6 +119,14 @@ if (DEFINED ENV{GITHUB_RUN_NUMBER})
   message(STATUS "[Version] Currently executing build $ENV{GITHUB_RUN_NUMBER}")
 endif()
 
+if (NOT VERSION_HAS_EXTRAS)
+  set(MONOMUX_VERSION_STRING
+    "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}")
+else()
+  set(MONOMUX_VERSION_STRING
+    "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}-${VERSION_OFFSET}-${VERSION_COMMIT}${VERSION_DIRTY}")
+endif()
+
 # Generate a trampoline script from a template which will be executed to write
 # the version information into a generated header every time Git logs change.
 if (NOT VERSIONING_FROM_TRAMPOLINE)
@@ -146,13 +154,6 @@ if (NOT VERSIONING_FROM_TRAMPOLINE)
   set_source_files_properties("${VERSION_HEADER_RESULT}"
     PROPERTIES GENERATED TRUE
                HEADER_FILE_ONLY TRUE
-    )
-
-  install(FILES "${VERSION_HEADER_RESULT}"
-    # NOTE: Needs GNUInstallDirs!
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/monomux"
-    # MONOMUX_CORE_LIBRARY_DEV_NAME from MonomuxConfig.cmake
-    COMPONENT "MonomuxCoreLibraryDevelopoment"
     )
 
   unset(VERSION_GENERATOR_SCRIPT)

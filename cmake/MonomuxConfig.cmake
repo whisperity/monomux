@@ -23,7 +23,9 @@ set(MONOMUX_NON_ESSENTIAL_LOGS ON CACHE BOOL
   )
 
 configure_file(cmake/Config.in.h include/monomux/Config.h)
-install(FILES "${CMAKE_BINARY_DIR}/include/monomux/Config.h"
+install(FILES
+    "${CMAKE_BINARY_DIR}/include/monomux/Config.h"
+    "${CMAKE_BINARY_DIR}/include/monomux/Version.h"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/monomux"
   COMPONENT "${MONOMUX_CORE_LIBRARY_DEV_NAME}"
   )

@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cstring>
 #include <sstream>
 
 #include "monomux/Version.h"
@@ -38,7 +39,7 @@ Version getVersion()
 #ifdef MONOMUX_VERSION_HAS_EXTRAS
   V.Offset = std::stoull(MONOMUX_VERSION_OFFSET);
   V.Commit = MONOMUX_VERSION_COMMIT;
-  V.IsDirty = MONOMUX_VERSION_DIRTY;
+  V.IsDirty = std::strlen(MONOMUX_VERSION_DIRTY) > 0;
 #endif
 
   return V;

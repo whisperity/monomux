@@ -28,9 +28,12 @@ jobs:
           "clang"
         ]
         library-type: [
-          "static",
-          "shared"
+          "static"
         ]
+        include:
+          - distribution: "ubuntu-18.04"
+            compiler: "gcc"
+            library-type: "shared"
     name: "${{ matrix.distribution }}, ${{ matrix.compiler }}, ${{ matrix.library-type }} libs"
     runs-on: ${{ matrix.distribution }}
     steps:
@@ -52,13 +55,18 @@ jobs:
           cmake -S . -B Build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.library-type == 'static' && 'ON' || 'OFF' }}
+            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.library-type == 'static' && 'OFF' || 'ON' }}
       - name: "Build"
         run: |
           cmake --build ./Build -- -j
-      - name: "Self-check the binary"
+      - name: "Self-check the feature set of the binary"
         run: |
-          ./monomux -VV
+          ./Build/monomux -VV
+          echo
+
+          echo "?> Are we the right library type..."
+          ./Build/monomux -VV | grep "library for implementation core" | \
+            grep -i "${{ matrix.library-type }}"
       - name: "Test"
         run: |
           cmake --build ./Build -- -j check
@@ -101,6 +109,14 @@ jobs:
           else
             echo "::warning title=Debian Package self-check skipped::The package failed to assemble and thus wasn't tested."
           fi
+      - name: "Upload packaging errors for triage"
+        if: steps.binary-package.outcome == 'failure' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
+        uses: actions/upload-artifact@v2
+        with:
+          path: "Build/_CPack_Packages"
+          name: "${{ matrix.distribution }}-${{ matrix.compiler }} packaging fail"
+          if-no-files-found: ignore
+          retention-days: 1
       - name: "Upload binary package artefacts: Tarball"
         if: steps.binary-package.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
         uses: actions/upload-artifact@v2
