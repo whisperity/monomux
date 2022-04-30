@@ -20,10 +20,9 @@
 
 #include "monomux/control/Message.hpp"
 #include "monomux/control/PascalString.hpp"
+#include "monomux/system/Environment.hpp"
 
-#include "system/Environment.hpp"
-
-#include "Server.hpp"
+#include "monomux/server/Server.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Dispatch")
@@ -38,7 +37,7 @@ void Server::setUpDispatch()
 #define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
 #define MEMBER(NAME) &Server::NAME
 #define DISPATCH(K, FUNCTION) registerMessageHandler(KIND(K), MEMBER(FUNCTION));
-#include "Dispatch.ipp"
+#include "monomux/server/Dispatch.ipp"
 #undef MEMBER
 #undef KIND
 }

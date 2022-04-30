@@ -27,7 +27,7 @@
 #include "monomux/adt/POD.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
 
-#include "Environment.hpp"
+#include "monomux/system/Environment.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Environment")

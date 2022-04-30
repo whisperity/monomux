@@ -20,7 +20,7 @@
 
 #include "monomux/control/PascalString.hpp"
 
-#include "ClientData.hpp"
+#include "monomux/server/ClientData.hpp"
 
 namespace monomux::server
 {

@@ -22,7 +22,7 @@
 #include "monomux/control/PascalString.hpp"
 #include "monomux/system/Pipe.hpp"
 
-#include "Client.hpp"
+#include "monomux/client/Client.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/Client")

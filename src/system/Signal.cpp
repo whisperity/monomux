@@ -24,7 +24,7 @@
 #include "monomux/system/CheckedPOSIX.hpp"
 #include "monomux/unreachable.hpp"
 
-#include "Signal.hpp"
+#include "monomux/system/Signal.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Signal")

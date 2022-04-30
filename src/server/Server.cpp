@@ -23,7 +23,7 @@
 #include "monomux/control/PascalString.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
 
-#include "Server.hpp"
+#include "monomux/server/Server.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Server")

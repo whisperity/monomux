@@ -19,15 +19,14 @@
 #include <thread>
 
 #include "monomux/adt/ScopeGuard.hpp"
+#include "monomux/server/Server.hpp"
+#include "monomux/system/Environment.hpp"
 #include "monomux/system/Process.hpp"
+#include "monomux/system/Signal.hpp"
 #include "monomux/unreachable.hpp"
 
-#include "Main.hpp"
-
 #include "ExitCode.hpp"
-#include "Server.hpp"
-#include "system/Environment.hpp"
-#include "system/Signal.hpp"
+#include "Main.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Main")

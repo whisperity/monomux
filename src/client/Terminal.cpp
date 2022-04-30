@@ -22,12 +22,11 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
+#include "monomux/client/Client.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
 #include "monomux/system/Pipe.hpp"
 
-#include "Client.hpp"
-
-#include "Terminal.hpp"
+#include "monomux/client/Terminal.hpp"
 
 namespace monomux::client
 {

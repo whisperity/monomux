@@ -20,20 +20,18 @@
 #include <iostream>
 #include <thread>
 
-#include "Client.hpp"
-#include "ControlClient.hpp"
-#include "Main.hpp"
-#include "Terminal.hpp"
-
-#include "ExitCode.hpp"
-
-#include "system/Environment.hpp"
-#include "system/Signal.hpp"
-
-#include "monomux/Log.hpp"
 #include "monomux/adt/ScopeGuard.hpp"
+#include "monomux/client/Client.hpp"
+#include "monomux/client/ControlClient.hpp"
+#include "monomux/client/Terminal.hpp"
+#include "monomux/system/Environment.hpp"
+#include "monomux/system/Signal.hpp"
 #include "monomux/system/Time.hpp"
 
+#include "ExitCode.hpp"
+#include "Main.hpp"
+
+#include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/Main")
 
 namespace monomux::client

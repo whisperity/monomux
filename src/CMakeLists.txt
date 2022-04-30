@@ -15,17 +15,12 @@ set(libmonomuxCore_SOURCES
 set(libmonomuxImplementation_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Config.cpp
   )
-set(libmonomuxImplementation_HEADERS
-  ${CMAKE_CURRENT_SOURCE_DIR}/Config.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ExitCode.hpp
-  )
 
 # Create variables to store the filenames that are only needed for the
 # user-facing entry point.
 set(monomux_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   )
-set(monomux_HEADERS)
 
 add_subdirectory(client)
 add_subdirectory(control)
@@ -49,7 +44,6 @@ target_link_libraries(monomuxCore PUBLIC
 # application state (signals, terminal, etc.) is done here.
 add_library(monomuxImplementation ${MONOMUX_LIBRARY_TYPE}
   ${libmonomuxImplementation_SOURCES}
-  ${libmonomuxImplementation_HEADERS}
   )
 target_link_libraries(monomuxImplementation PUBLIC
   monomuxCore
@@ -60,7 +54,6 @@ target_link_libraries(monomuxImplementation PUBLIC
 # creating a proper executable.
 add_executable(monomux
   ${monomux_SOURCES}
-  ${monomux_HEADERS}
   )
 target_link_libraries(monomux PUBLIC
   monomuxImplementation

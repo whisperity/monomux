@@ -1,7 +1,3 @@
-list(APPEND libmonomuxCore_HEADERS
-  ${CMAKE_CURRENT_SOURCE_DIR}/Environment.hpp
-  )
-set(libmonomuxCore_HEADERS "${libmonomuxCore_HEADERS}" PARENT_SCOPE)
 list(APPEND libmonomuxCore_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/CommunicationChannel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Environment.cpp
@@ -14,10 +10,6 @@ list(APPEND libmonomuxCore_SOURCES
   )
 set(libmonomuxCore_SOURCES "${libmonomuxCore_SOURCES}" PARENT_SCOPE)
 
-list(APPEND libmonomuxImplementation_HEADERS
-  ${CMAKE_CURRENT_SOURCE_DIR}/Signal.hpp
-  )
-set(libmonomuxImplementation_HEADERS "${libmonomuxImplementation_HEADERS}" PARENT_SCOPE)
 list(APPEND libmonomuxImplementation_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Signal.cpp
   )

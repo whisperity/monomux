@@ -16,9 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "Client.hpp"
-
 #include "monomux/Log.hpp"
+#include "monomux/client/Client.hpp"
 #include "monomux/control/Message.hpp"
 #include "monomux/unreachable.hpp"
 
@@ -34,7 +33,7 @@ void Client::setUpDispatch()
 #define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
 #define MEMBER(NAME) &Client::NAME
 #define DISPATCH(K, FUNCTION) registerMessageHandler(KIND(K), MEMBER(FUNCTION));
-#include "Dispatch.ipp"
+#include "monomux/client/Dispatch.ipp"
 #undef MEMBER
 #undef KIND
 }

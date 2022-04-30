@@ -21,9 +21,8 @@
 #include <string>
 #include <vector>
 
-#include "Client.hpp"
-
-#include "system/Environment.hpp"
+#include "monomux/client/Client.hpp"
+#include "monomux/system/Environment.hpp"
 
 namespace monomux::client
 {

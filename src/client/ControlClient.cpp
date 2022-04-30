@@ -16,10 +16,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "ControlClient.hpp"
-
 #include "monomux/control/Message.hpp"
 #include "monomux/control/PascalString.hpp"
+
+#include "monomux/client/ControlClient.hpp"
 
 namespace monomux::client
 {

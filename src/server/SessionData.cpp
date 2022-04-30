@@ -18,12 +18,11 @@
  */
 #include <algorithm>
 
+#include "monomux/server/ClientData.hpp"
 #include "monomux/system/Pipe.hpp"
 #include "monomux/system/Time.hpp"
 
-#include "ClientData.hpp"
-
-#include "SessionData.hpp"
+#include "monomux/server/SessionData.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/SessionData")

@@ -26,15 +26,13 @@
 
 #include "monomux/Version.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/system/Environment.hpp"
 #include "monomux/system/Process.hpp"
 
 #include "Config.hpp"
 #include "ExitCode.hpp"
-
 #include "client/Main.hpp"
 #include "server/Main.hpp"
-#include "server/Server.hpp"
-#include "system/Environment.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("main")
