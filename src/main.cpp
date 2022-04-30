@@ -25,14 +25,14 @@
 #include <unistd.h>
 
 #include "monomux/Version.hpp"
+#include "monomux/client/Main.hpp"
+#include "monomux/server/Main.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
 #include "monomux/system/Environment.hpp"
 #include "monomux/system/Process.hpp"
 
 #include "Config.hpp"
 #include "ExitCode.hpp"
-#include "client/Main.hpp"
-#include "server/Main.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("main")
@@ -60,13 +60,13 @@ struct ::option LongOptions[] = {
 
 struct MainOptions
 {
-  /// -h
+  /// \p -h
   bool ShowHelp : 1;
 
-  /// -V
+  /// \p -V
   bool ShowVersion : 1;
 
-  /// -V a second time
+  /// \p -V a second time
   bool ShowElaborateBuildInformation : 1;
 };
 

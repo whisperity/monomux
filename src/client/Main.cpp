@@ -29,7 +29,7 @@
 #include "monomux/system/Time.hpp"
 
 #include "ExitCode.hpp"
-#include "Main.hpp"
+#include "monomux/client/Main.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/Main")

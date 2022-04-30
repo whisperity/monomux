@@ -17,11 +17,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <cassert>
-#include <climits>
 #include <cstdlib>
 #include <sstream>
 
 #include <libgen.h>
+#include <linux/limits.h>
 #include <sys/stat.h>
 
 #include "monomux/adt/POD.hpp"

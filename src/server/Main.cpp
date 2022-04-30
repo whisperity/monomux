@@ -26,7 +26,7 @@
 #include "monomux/unreachable.hpp"
 
 #include "ExitCode.hpp"
-#include "Main.hpp"
+#include "monomux/server/Main.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("server/Main")
