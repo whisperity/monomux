@@ -54,6 +54,22 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
   return P;
 }
 
+Pipe::AnonymousPipe Pipe::create(bool InheritInChild)
+{
+  POD<raw_fd[2]> PipeFDs;
+  fd::flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
+
+  CheckedPOSIXThrow(
+    [&PipeFDs, ExtraFlags] { return ::pipe2(PipeFDs, ExtraFlags); },
+    "pipe2()",
+    -1);
+
+  AnonymousPipe PipePair;
+  PipePair.Read = std::make_unique<Pipe>(Pipe::wrap(PipeFDs[0], Read, {}));
+  PipePair.Write = std::make_unique<Pipe>(Pipe::wrap(PipeFDs[1], Write, {}));
+  return PipePair;
+}
+
 Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
 {
   fd::flag_t ExtraFlags = InheritInChild ? 0 : O_CLOEXEC;
@@ -276,6 +292,26 @@ std::size_t Pipe::writeImpl(std::string_view Buffer, bool& Continue)
     Continue = false;
   }
   return Bytes;
+}
+
+std::unique_ptr<Pipe> Pipe::AnonymousPipe::takeRead()
+{
+  if (!Read)
+    throw std::system_error{std::make_error_code(std::errc::io_error),
+                            "Read end of pipe already taken."};
+  if (Write)
+    Write.reset();
+  return std::move(Read);
+}
+
+std::unique_ptr<Pipe> Pipe::AnonymousPipe::takeWrite()
+{
+  if (!Write)
+    throw std::system_error{std::make_error_code(std::errc::io_error),
+                            "Write end of pipe already taken."};
+  if (Read)
+    Read.reset();
+  return std::move(Write);
 }
 
 } // namespace monomux

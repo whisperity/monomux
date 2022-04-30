@@ -59,6 +59,19 @@ CommunicationChannel::operator=(CommunicationChannel&& RHS) noexcept
   return *this;
 }
 
+fd CommunicationChannel::release() &&
+{
+  Identifier = "<gc:";
+  Identifier.append(std::to_string(Handle.get()));
+  Identifier.push_back('>');
+  ReadBuffer.clear();
+  WriteBuffer.clear();
+  EntityCleanup = false;
+  setFailed();
+
+  return std::move(Handle);
+}
+
 std::string CommunicationChannel::read(const std::size_t Bytes)
 {
   if (failed())

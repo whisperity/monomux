@@ -55,7 +55,7 @@ public:
 
   /// The number of objects that might be registered into the configuration
   /// for use in signal handlers.
-  static constexpr std::size_t ObjectCount = 4;
+  static constexpr std::size_t ObjectCount = 8;
 
   /// The type of the user-implemented signal handlers that can be registered
   /// as a callback.
@@ -81,6 +81,10 @@ public:
   using KernelSignalHandler = void(Signal SigNum,
                                    ::siginfo_t* Info,
                                    void* Context);
+
+  /// \returns A human-friendly name for the signal \p SigNum, as specified by
+  /// the standard.
+  static const char* signalName(Signal SigNum) noexcept;
 
 private:
   /// The signal handler callback required by the low-level interface.
@@ -136,6 +140,10 @@ public:
   /// the kernel.
   void enable();
 
+  /// \returns whether signal handling (through this object) for \p SigNum had
+  /// been enabled.
+  bool enabled(Signal SigNum) const noexcept;
+
   /// Perform the low-level functions that remove the effects of \p enable().
   ///
   /// \note Only signals that are \b NOT ignored with \p ignore will be
@@ -171,6 +179,14 @@ public:
 
   /// Remove all callbacks.
   void clearCallbacks() noexcept;
+
+  /// Remove the callback of \p SigNum and if signal handling had been
+  /// \p enabled() for the signal beforehand, reset the default handler.
+  void defaultCallback(Signal SigNum);
+
+  /// \returns the callback registered for \p SigNum, or an empty \p function()
+  /// if none are registered.
+  std::function<SignalCallback> getCallback(Signal SigNum) const;
 
   /// Register the \p Object with \p Name in the global object storage of the
   /// signal handler.

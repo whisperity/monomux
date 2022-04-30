@@ -25,11 +25,14 @@
 #include <unistd.h>
 
 #include "monomux/Version.hpp"
+#include "monomux/adt/Lazy.hpp"
 #include "monomux/client/Main.hpp"
 #include "monomux/server/Main.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/system/Crash.hpp"
 #include "monomux/system/Environment.hpp"
 #include "monomux/system/Process.hpp"
+#include "monomux/system/Signal.hpp"
 
 #include "Config.hpp"
 #include "ExitCode.hpp"
@@ -170,10 +173,87 @@ void printFeatures()
   std::cout << "Features:\n" << getHumanReadableConfiguration() << std::endl;
 }
 
+void coreDumped(SignalHandling::Signal SigNum,
+                ::siginfo_t* /* Info */,
+                const SignalHandling* Handling)
+{
+  const volatile auto* ModulePtr =
+    std::any_cast<const char*>(Handling->getObject("Module"));
+  const char* Module = ModulePtr ? *ModulePtr : "<Unknown>";
+  LOG(fatal) << "in '" << Module << "' - FATAL SIGNAL " << SigNum << " '"
+             << SignalHandling::signalName(SigNum) << "'' RECEIVED!";
+
+  Backtrace BT;
+  BT.prettify();
+
+  std::cerr << "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - "
+               "* - * - * - * - * - * - * - * - * - * - * - * -\n";
+  std::cerr << "    Monomux (v" << getFullVersion() << ") has crashed!\n";
+  std::cerr << "---------------------------------------------------------------"
+               "-----------------------------------------------\n";
+  std::cerr << '\n';
+  std::cerr << getHumanReadableConfiguration() << '\n';
+  std::cerr << "---------------------------------------------------------------"
+               "-----------------------------------------------\n";
+  for (const Backtrace::Frame& F : BT.getFrames())
+  {
+    std::cerr << '#' << F.Index << " - " << F.SymbolData << "\n";
+    if (!F.Pretty.empty())
+    {
+      auto LengthOfIndex = [](std::size_t Index) {
+        std::size_t C = 0;
+        while (Index)
+        {
+          Index /= 10; // NOLINT(readability-magic-numbers)
+          ++C;
+        }
+        return C;
+      }(F.Index);
+      const std::size_t PrintOffset = 1 + LengthOfIndex + 3;
+      std::cerr << std::string(PrintOffset, ' ') << F.Pretty;
+    }
+    std::cerr << std::endl;
+  }
+  std::cerr << "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - "
+               "* - * - * - * - * - * - * - * - * - * - * - * -\n";
+}
+
+// NOLINTNEXTLINE(cert-err58-cpp)
+auto TerminateHandler = makeLazy([]() -> std::terminate_handler {
+  std::terminate_handler Addr = std::get_terminate();
+  MONOMUX_TRACE_LOG(LOG(debug) << "std::terminate handler queried, and is at "
+                               << reinterpret_cast<void*>(Addr));
+  return Addr;
+});
+static_assert(
+  std::is_same_v<decltype(TerminateHandler.get()), std::terminate_handler&>,
+  "Type deduction error?!");
+
 } // namespace
 
 int main(int ArgC, char* ArgV[])
 {
+  {
+    SignalHandling Sig = SignalHandling::get();
+    Sig.registerCallback(SIGILL, &coreDumped);
+    Sig.registerCallback(SIGABRT, &coreDumped);
+    Sig.registerCallback(SIGSEGV, &coreDumped);
+    Sig.registerCallback(SIGSYS, &coreDumped);
+    Sig.registerCallback(SIGSTKFLT, &coreDumped);
+    Sig.registerObject("Module", "main");
+
+    // Initialise the saved terminate handler with the default value, because
+    // we override it.
+    TerminateHandler.get();
+    std::set_terminate([]() {
+      coreDumped(SIGABRT, nullptr, &SignalHandling::get());
+      // Call the previously saved terminate handler -- the default one.
+      TerminateHandler.get()();
+    });
+
+    Sig.enable();
+  }
+
   server::Options ServerOpts{};
   client::Options ClientOpts{};
 

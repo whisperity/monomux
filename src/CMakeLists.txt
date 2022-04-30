@@ -47,6 +47,7 @@ add_library(monomuxImplementation ${MONOMUX_LIBRARY_TYPE}
   )
 target_link_libraries(monomuxImplementation PUBLIC
   monomuxCore
+  dl
   util
   )
 

@@ -20,6 +20,7 @@
 #include <iostream>
 #include <thread>
 
+#include "monomux/adt/Lazy.hpp"
 #include "monomux/adt/ScopeGuard.hpp"
 #include "monomux/client/Client.hpp"
 #include "monomux/client/ControlClient.hpp"
@@ -105,6 +106,13 @@ connect(Options& Opts, bool Block, std::string* FailureReason)
   return C;
 }
 
+static constexpr char TerminalObjName[] = "Terminal";
+static constexpr char MasterAborterName[] = "Master-Aborter";
+
+// NOLINTNEXTLINE(cert-err58-cpp)
+static auto OriginalLogLevel =
+  makeLazy([]() -> log::Severity { return log::Logger::get().getLimit(); });
+
 /// Handler for \p SIGWINCH (window size change) events produces by the terminal
 /// the program is running in.
 static void windowSizeChange(SignalHandling::Signal /* SigNum */,
@@ -112,11 +120,46 @@ static void windowSizeChange(SignalHandling::Signal /* SigNum */,
                              const SignalHandling* Handling)
 {
   const volatile auto* Term =
-    std::any_cast<Terminal*>(Handling->getObject("Terminal"));
+    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
   if (!Term)
     return;
   (*Term)->notifySizeChanged();
 }
+
+/// Custom handler for \p SIGABRT. This is even more custom than the handler in
+/// the global \p main() as it deals with resetting the terminal to sensible
+/// defaults first.
+static void coreDumped(SignalHandling::Signal SigNum,
+                       ::siginfo_t* Info,
+                       const SignalHandling* Handling)
+{
+  // Reset the loglevel so all messages that might appear appear as needed.
+  log::Logger::get().setLimit(OriginalLogLevel.get());
+
+  // Reset the terminal so we don't get weird output if the client crashed in
+  // the middle of a formatting sequence.
+  const volatile auto* Term =
+    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
+  if (Term)
+  {
+    (*Term)->disengage();
+    (*Term)->releaseClient();
+  }
+
+  // Fallback to the master handler that main.cpp should've installed.
+  const auto* MasterAborter =
+    std::any_cast<std::function<SignalHandling::SignalCallback>>(
+      Handling->getObject(MasterAborterName));
+  if (MasterAborter)
+    (*MasterAborter)(SigNum, Info, Handling);
+  else
+  {
+    LOG(fatal) << "In Client, " << SignalHandling::signalName(SigNum)
+               << " FATAL SIGNAL received, but local handler did not find the "
+                  "appropriate master one.";
+  }
+}
+
 
 namespace
 {
@@ -365,29 +408,45 @@ int main(Options& Opts)
                              [&Term] { Term.releaseClient(); }};
     ScopeGuard Signal{[&Term] {
                         SignalHandling& Sig = SignalHandling::get();
-                        Sig.registerObject("Terminal", &Term);
+                        Sig.registerObject("Module", "Client");
+                        Sig.registerObject(TerminalObjName, &Term);
                         Sig.registerCallback(SIGWINCH, &windowSizeChange);
+
+                        // Override the SIGABRT handler with a custom one that
+                        // resets the terminal during a crash.
+                        Sig.registerObject(MasterAborterName,
+                                           Sig.getCallback(SIGABRT));
+                        Sig.registerCallback(SIGILL, &coreDumped);
+                        Sig.registerCallback(SIGABRT, &coreDumped);
+                        Sig.registerCallback(SIGSEGV, &coreDumped);
+                        Sig.registerCallback(SIGSYS, &coreDumped);
+                        Sig.registerCallback(SIGSTKFLT, &coreDumped);
                         Sig.enable();
                       },
                       [] {
                         SignalHandling& Sig = SignalHandling::get();
-                        Sig.clearCallback(SIGWINCH);
-                        Sig.deleteObject("Terminal");
-                        Sig.disable();
+                        Sig.defaultCallback(SIGWINCH);
+                        Sig.deleteObject(TerminalObjName);
+
+                        auto MasterAborter = *std::any_cast<
+                          std::function<SignalHandling::SignalCallback>>(
+                          Sig.getObject(MasterAborterName));
+                        Sig.registerCallback(SIGILL, MasterAborter);
+                        Sig.registerCallback(SIGABRT, MasterAborter);
+                        Sig.registerCallback(SIGSEGV, MasterAborter);
+                        Sig.registerCallback(SIGSYS, MasterAborter);
+                        Sig.registerCallback(SIGSTKFLT, MasterAborter);
+                        Sig.deleteObject(MasterAborterName);
                       }};
 
     LOG(trace) << "Starting client...";
 
     // Turn off all logging from this point now on, because the attached client
     // randomly printing log to stdout would garble the terminal printouts.
-    using namespace monomux::log;
-    Severity LogLevel;
-    ScopeGuard Loglevel{[&LogLevel] {
-                          Logger& L = Logger::get();
-                          LogLevel = L.getLimit();
-                          L.setLimit(None);
-                        },
-                        [&LogLevel] { Logger::get().setLimit(LogLevel); }};
+    OriginalLogLevel.get(); // Load it in.
+    ScopeGuard Loglevel{
+      [] { log::Logger::get().setLimit(log::None); },
+      [] { log::Logger::get().setLimit(OriginalLogLevel.get()); }};
 
     ScopeGuard TermIO{[&Term] { Term.engage(); },
                       [&Term] { Term.disengage(); }};

@@ -36,6 +36,10 @@ public:
   /// \returns the raw, unmanaged file descriptor for the underlying resource.
   raw_fd raw() const noexcept { return Handle.get(); }
 
+  /// Steal the \p Handle file descriptor from the current communication channel
+  /// marking it failed and preventing the cleanup of the resource.
+  fd release() &&;
+
   /// \returns the user-friendly identifier of the communication channel. This
   /// might be empty, a transient label, or sometimes a path on the filesystem.
   const std::string& identifier() const noexcept { return Identifier; }

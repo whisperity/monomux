@@ -49,6 +49,27 @@ public:
     Write = O_WRONLY
   };
 
+  /// Wrapper for the return type of \p create() which creates an anonymous
+  /// pipe that only exists as file descriptors.
+  struct AnonymousPipe
+  {
+    /// \returns the pipe for the read end.
+    Pipe* getRead() const noexcept { return Read.get(); }
+    /// \returns the pipe for the write end.
+    Pipe* getWrite() const noexcept { return Write.get(); }
+
+    /// Take ownership for the read end of the pipe, and close the write end.
+    std::unique_ptr<Pipe> takeRead();
+    /// Take ownership for the write end of the pipe, and close the read end.
+    std::unique_ptr<Pipe> takeWrite();
+
+  private:
+    friend class Pipe;
+
+    std::unique_ptr<Pipe> Read;
+    std::unique_ptr<Pipe> Write;
+  };
+
   /// Creates a new named pipe (\e FIFO) which will be owned by the current
   /// instance, and cleaned up on exit.
   ///
@@ -59,6 +80,10 @@ public:
   ///
   /// \see mkfifo(3)
   static Pipe create(std::string Path, bool InheritInChild = false);
+
+  /// Creates a new unnamed pipe which will be owned by the current instance,
+  /// and cleaned up on exit.
+  static AnonymousPipe create(bool InheritInChild = false);
 
   /// Opens a connection to the named pipe (\e FIFO) existing at \p Path. The
   /// connection will be cleaned up during destruction, but no attempts will be
@@ -93,6 +118,9 @@ public:
 
   bool isBlocking() const noexcept { return !Nonblock; }
   bool isNonblocking() const noexcept { return Nonblock; }
+
+  using CommunicationChannel::read;
+  using CommunicationChannel::write;
 
   /// Directly read and consume at most \p Bytes of data from the given file
   /// descriptor \p FD.

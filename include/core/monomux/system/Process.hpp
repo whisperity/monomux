@@ -48,7 +48,14 @@ public:
     std::vector<std::string> Arguments;
     std::map<std::string, std::optional<std::string>> Environment;
 
+    /// Whether to create a pseudoterminal device when creating the process.
     bool CreatePTY = false;
+    /// Override the standard streams of the spawned process to the
+    /// file descriptors specified. If \p fd::Invalid is given, the potentially
+    /// inherited standard stream will be closed.
+    ///
+    /// This option has no effect if \p CreatePTY is \p true.
+    std::optional<raw_fd> StandardInput, StandardOutput, StandardError;
   };
 
   raw_handle raw() const noexcept { return Handle; }
@@ -61,6 +68,9 @@ public:
   /// \b MAY remove associated information at the invocation of this call.
   bool reapIfDead();
 
+  /// Blocks until the current process instance has terminated.
+  void wait();
+
   /// Send the \p Signal to the underlying process.
   void signal(int Signal);
 
@@ -71,6 +81,10 @@ private:
   std::optional<Pty> PTY;
 
 public:
+  /// \returns the address of the currently executing binary, queried from the
+  /// kernel.
+  static std::string thisProcessPath();
+
   /// Replaces the current process (as if by calling the \p exec() family) in
   /// the system with the started one. This is a low-level operation that
   /// performs no additional meaningful setup of process state.

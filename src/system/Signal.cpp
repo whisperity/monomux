@@ -32,9 +32,9 @@
 namespace monomux
 {
 
-#ifdef MONOMUX_NON_ESSENTIAL_LOGS
-static const char* signalName(SignalHandling::Signal S)
+const char* SignalHandling::signalName(SignalHandling::Signal S) noexcept
 {
+#ifdef MONOMUX_NON_ESSENTIAL_LOGS
   switch (S)
   {
     case SIGINT:
@@ -100,10 +100,10 @@ static const char* signalName(SignalHandling::Signal S)
     case SIGPWR:
       return "SIGPWR (Power failure)";
   }
-
-  return "?";
-}
 #endif
+
+  return "<Signal?>";
+}
 
 void SignalHandling::handler(Signal SigNum,
                              ::siginfo_t* Info,
@@ -157,7 +157,8 @@ static void handleSignal(SignalHandling::Signal S,
                     "sigaction(" + std::to_string(S) + ")",
                     -1);
 
-  MONOMUX_TRACE_LOG(LOG(trace) << signalName(S) << " set to handle");
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << SignalHandling::signalName(S) << " set to handle");
 }
 
 static void defaultSignal(SignalHandling::Signal S)
@@ -169,7 +170,8 @@ static void defaultSignal(SignalHandling::Signal S)
                     "sigaction(" + std::to_string(S) + ", SIG_DFL)",
                     -1);
 
-  MONOMUX_TRACE_LOG(LOG(trace) << signalName(S) << " set to default");
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << SignalHandling::signalName(S) << " set to default");
 }
 
 static void ignoreSignal(SignalHandling::Signal S)
@@ -181,7 +183,8 @@ static void ignoreSignal(SignalHandling::Signal S)
                     "sigaction(" + std::to_string(S) + ", SIG_IGN)",
                     -1);
 
-  MONOMUX_TRACE_LOG(LOG(trace) << signalName(S) << " set to ignore");
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << SignalHandling::signalName(S) << " set to ignore");
 }
 
 void SignalHandling::enable()
@@ -217,6 +220,11 @@ void SignalHandling::disable()
     defaultSignal(S);
     RegisteredSignals.at(S) = false;
   }
+}
+
+bool SignalHandling::enabled(Signal SigNum) const noexcept
+{
+  return RegisteredSignals.at(SigNum) || MaskedSignals.at(SigNum);
 }
 
 void SignalHandling::reset()
@@ -269,10 +277,6 @@ void SignalHandling::registerCallback(Signal SigNum,
   if (static_cast<std::size_t>(SigNum) > SignalCount)
     throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
 
-  if (SigNum == SIGKILL || SigNum == SIGSTOP || SigNum == SIGSEGV)
-    throw std::invalid_argument{"Signal " + std::to_string(SigNum) +
-                                " cannot be handled!"};
-
   Callbacks.at(SigNum) = std::move(Callback);
   MONOMUX_TRACE_LOG(LOG(data)
                     << "Callback registered for " << signalName(SigNum));
@@ -298,6 +302,28 @@ void SignalHandling::clearCallbacks() noexcept
     Callbacks.at(S).swap(Empty);
   }
   MONOMUX_TRACE_LOG(LOG(data) << "All callbacks cleared");
+}
+
+void SignalHandling::defaultCallback(Signal SigNum)
+{
+  clearCallback(SigNum);
+
+  if (RegisteredSignals.at(SigNum) || MaskedSignals.at(SigNum))
+  {
+    // Reset the default behaviour if the signal is currently being handled.
+    RegisteredSignals.at(SigNum) = false;
+    MaskedSignals.at(SigNum) = false;
+
+    defaultSignal(SigNum);
+  }
+}
+
+std::function<SignalHandling::SignalCallback>
+SignalHandling::getCallback(Signal SigNum) const
+{
+  if (static_cast<std::size_t>(SigNum) > SignalCount)
+    throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
+  return Callbacks.at(SigNum);
 }
 
 void SignalHandling::registerObject(std::string Name, std::any Object)

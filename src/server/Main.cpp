@@ -69,13 +69,15 @@ std::vector<std::string> Options::toArgv() const
   unreachable("[[noreturn]]");
 }
 
+static constexpr char ServerObjName[] = "Server";
+
 /// Handler for request to terinate the server.
 static void serverShutdown(SignalHandling::Signal /* SigNum */,
                            ::siginfo_t* /* Info */,
                            const SignalHandling* Handling)
 {
   const volatile auto* Srv =
-    std::any_cast<Server*>(Handling->getObject("Server"));
+    std::any_cast<Server*>(Handling->getObject(ServerObjName));
   if (!Srv)
     return;
   (*Srv)->interrupt();
@@ -88,7 +90,7 @@ static void childExited(SignalHandling::Signal /* SigNum */,
 {
   Process::raw_handle CPID = Info->si_pid;
   const volatile auto* Srv =
-    std::any_cast<Server*>(Handling->getObject("Server"));
+    std::any_cast<Server*>(Handling->getObject(ServerObjName));
   if (!Srv)
     return;
   (*Srv)->registerDeadChild(CPID);
@@ -105,7 +107,8 @@ int main(Options& Opts)
   S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
   ScopeGuard Signal{[&S] {
                       SignalHandling& Sig = SignalHandling::get();
-                      Sig.registerObject("Server", &S);
+                      Sig.registerObject("Module", "Server");
+                      Sig.registerObject(ServerObjName, &S);
                       Sig.registerCallback(SIGINT, &serverShutdown);
                       Sig.registerCallback(SIGTERM, &serverShutdown);
                       Sig.registerCallback(SIGCHLD, &childExited);
@@ -114,12 +117,11 @@ int main(Options& Opts)
                     },
                     [] {
                       SignalHandling& Sig = SignalHandling::get();
-                      Sig.disable();
                       Sig.unignore(SIGPIPE);
-                      Sig.clearCallback(SIGCHLD);
-                      Sig.clearCallback(SIGTERM);
-                      Sig.clearCallback(SIGINT);
-                      Sig.deleteObject("Server");
+                      Sig.defaultCallback(SIGCHLD);
+                      Sig.defaultCallback(SIGTERM);
+                      Sig.defaultCallback(SIGINT);
+                      Sig.deleteObject(ServerObjName);
                     }};
 
   LOG(info) << "Starting Monomux Server";

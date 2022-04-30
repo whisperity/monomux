@@ -17,9 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <csignal>
+#include <cstdio>
 #include <cstring>
+
+#include <linux/limits.h>
 #include <sys/wait.h>
 
+#include "monomux/adt/POD.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
 #include "monomux/system/Pty.hpp"
 #include "monomux/unreachable.hpp"
@@ -40,6 +44,16 @@ static void allocCopyString(const std::string& Source,
     reinterpret_cast<char*>(std::calloc(Source.size() + 1, 1));
   std::strncpy(
     DestinationStringArray[Index], Source.c_str(), Source.size() + 1);
+}
+
+std::string Process::thisProcessPath()
+{
+  POD<char[PATH_MAX]> Binary;
+  CheckedPOSIXThrow(
+    [&Binary] { return ::readlink("/proc/self/exe", Binary, PATH_MAX); },
+    "readlink(\"/proc/self/exe\")",
+    -1);
+  return {Binary};
 }
 
 [[noreturn]] void Process::exec(const SpawnOptions& Opts)
@@ -75,6 +89,38 @@ static void allocCopyString(const std::string& Source,
   }
 
   LOG(debug) << "----- Process::exec() firing -----";
+
+  if (!Opts.CreatePTY)
+  {
+    // Replaces the "Original" file descriptor with the new "With" one.
+    auto ReplaceFD = [](raw_fd Original, raw_fd With) {
+      if (With == fd::Invalid)
+        CheckedPOSIX([Original] { return ::close(Original); }, -1);
+      else
+      {
+        CheckedPOSIXThrow([=] { return ::dup2(With, Original); }, "dup2()", -1);
+        CheckedPOSIX([With] { return ::close(With); }, -1);
+      }
+    };
+    if (Opts.StandardInput)
+    {
+      MONOMUX_TRACE_LOG(LOG(trace) << "    Process will use STDIN: "
+                                   << *Opts.StandardInput);
+      ReplaceFD(fd::fileno(stdin), *Opts.StandardInput);
+    }
+    if (Opts.StandardError)
+    {
+      MONOMUX_TRACE_LOG(LOG(trace) << "    Process will use STDERR: "
+                                   << *Opts.StandardError);
+      ReplaceFD(fd::fileno(stderr), *Opts.StandardError);
+    }
+    if (Opts.StandardOutput)
+    {
+      MONOMUX_TRACE_LOG(LOG(trace) << "    Process will use STDOUT: "
+                                   << *Opts.StandardOutput);
+      ReplaceFD(fd::fileno(stdout), *Opts.StandardOutput);
+    }
+  }
 
   CheckedPOSIXThrow([NewArgv] { return ::execvp(NewArgv[0], NewArgv); },
                     "Executing process failed",
@@ -139,6 +185,28 @@ bool Process::reapIfDead()
     return false;
 
   return false;
+}
+
+void Process::wait()
+{
+  if (Handle == Invalid)
+    return;
+
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "Waiting on child PID " << Handle << " to exit");
+  POD<int> WaitStatus;
+  auto ChangedPID = CheckedPOSIX(
+    [this, &WaitStatus] { return ::waitpid(Handle, &WaitStatus, 0); }, -1);
+  if (!ChangedPID)
+  {
+    std::error_code EC = ChangedPID.getError();
+    if (EC == std::errc::no_child_process /* ECHILD */)
+      return;
+    throw std::system_error{EC, "waitpid(" + std::to_string(Handle) + ")"};
+  }
+
+  if (ChangedPID.get() == Handle)
+    MONOMUX_TRACE_LOG(LOG(trace) << "Successfully reaped child PID " << Handle);
 }
 
 // NOLINTNEXTLINE(readability-make-member-function-const)

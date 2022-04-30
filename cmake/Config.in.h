@@ -16,4 +16,7 @@
  */
 #cmakedefine MONOMUX_NON_ESSENTIAL_LOGS
 
+/* The build type for the current build. */
+#define MONOMUX_BUILD_TYPE "${CMAKE_BUILD_TYPE}"
+
 #endif /* MONOMUX_CONFIG_H */

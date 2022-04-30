@@ -32,6 +32,8 @@ std::string getHumanReadableConfiguration()
   Buf << " * Implementing messaging API version: "
       << std::to_string((MONOMUX_MESSAGING_API_VERSION)) << '\n';
 
+  Buf << " * " << MONOMUX_BUILD_TYPE << " build\n";
+
 #ifndef MONOMUX_BUILD_SHARED_LIBS
   Buf << " * STATIC library\n";
 #else
