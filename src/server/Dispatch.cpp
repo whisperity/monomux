@@ -18,8 +18,9 @@
  */
 #include "monomux/system/Process.hpp"
 
-#include "control/Message.hpp"
-#include "control/Messaging.hpp"
+#include "monomux/control/Message.hpp"
+#include "monomux/control/PascalString.hpp"
+
 #include "system/Environment.hpp"
 
 #include "Server.hpp"

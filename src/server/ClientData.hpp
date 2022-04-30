@@ -21,9 +21,8 @@
 #include <memory>
 #include <optional>
 
+#include "monomux/control/Message.hpp"
 #include "monomux/system/Socket.hpp"
-
-#include "control/Message.hpp"
 
 namespace monomux::server
 {

@@ -18,9 +18,8 @@
  */
 #include "Client.hpp"
 
-#include "control/Message.hpp"
-
 #include "monomux/Log.hpp"
+#include "monomux/control/Message.hpp"
 #include "monomux/unreachable.hpp"
 
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/Dispatch")

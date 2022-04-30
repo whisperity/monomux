@@ -18,7 +18,7 @@
  */
 #include <cassert>
 
-#include "control/Messaging.hpp"
+#include "monomux/control/PascalString.hpp"
 
 #include "ClientData.hpp"
 

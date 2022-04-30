@@ -56,7 +56,8 @@ message(STATUS "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * 
 # TODO: Add -UNDEBUG so #ifndef NDEBUG and asserts are there for RelWithDebInfo.
 
 include_directories(
-  "${CMAKE_SOURCE_DIR}/include"
+  "${CMAKE_SOURCE_DIR}/include/core"
+  "${CMAKE_SOURCE_DIR}/include/implementation"
   "${CMAKE_BINARY_DIR}/include"
   )
 

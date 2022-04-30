@@ -19,11 +19,10 @@
 #include <cstring>
 #include <sstream>
 
-#include "Message.hpp"
-#include "Messaging.hpp"
+#include "monomux/control/Message.hpp"
+#include "monomux/control/PascalString.hpp"
 
 #include "monomux/Log.hpp"
-
 #define LOG(SEVERITY) monomux::log::SEVERITY("control/Message")
 
 #define DECODE(NAME) std::optional<NAME> NAME::decode(std::string_view Buffer)

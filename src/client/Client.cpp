@@ -18,19 +18,16 @@
  */
 #include <utility>
 
+#include "monomux/control/Message.hpp"
+#include "monomux/control/PascalString.hpp"
 #include "monomux/system/Pipe.hpp"
-
-#include "control/Message.hpp"
-#include "control/Messaging.hpp"
 
 #include "Client.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/Client")
 
-namespace monomux
-{
-namespace client
+namespace monomux::client
 {
 
 std::optional<Client> Client::create(std::string SocketPath,
@@ -528,5 +525,4 @@ Client::Inhibitor Client::inhibitInputFile()
                    [this] { enableInputFile(); }};
 }
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

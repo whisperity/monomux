@@ -1,4 +1,2 @@
-install(DIRECTORY "monomux"
-  TYPE INCLUDE
-  COMPONENT "${MONOMUX_CORE_LIBRARY_DEV_NAME}"
-  )
+add_subdirectory(core)
+add_subdirectory(implementation)

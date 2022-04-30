@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "Config.hpp"
+#include "monomux/control/MessageBase.hpp"
 
 namespace monomux
 {
@@ -28,10 +29,13 @@ std::string getHumanReadableConfiguration()
 {
   std::ostringstream Buf;
 
+  Buf << " * Implementing messaging API version: "
+      << std::to_string((MONOMUX_MESSAGING_API_VERSION)) << '\n';
+
 #ifndef MONOMUX_BUILD_SHARED_LIBS
-  Buf << " * STATIC library for implementation core\n";
+  Buf << " * STATIC library\n";
 #else
-  Buf << " * SHARED (dynamic) library for implementation core\n";
+  Buf << " * SHARED (dynamic) library\n";
 #endif
 
 #ifndef MONOMUX_NON_ESSENTIAL_LOGS

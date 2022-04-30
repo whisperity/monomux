@@ -18,12 +18,10 @@
  */
 #include "ControlClient.hpp"
 
-#include "control/Message.hpp"
-#include "control/Messaging.hpp"
+#include "monomux/control/Message.hpp"
+#include "monomux/control/PascalString.hpp"
 
-namespace monomux
-{
-namespace client
+namespace monomux::client
 {
 
 ControlClient::ControlClient(Client& C, std::string Session)
@@ -56,5 +54,4 @@ void ControlClient::requestDetachAllClients()
   receiveMessage<response::Detach>(BackingClient.getControlSocket());
 }
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

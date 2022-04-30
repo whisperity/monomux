@@ -21,7 +21,7 @@
 #include <chrono>
 #include <ctime>
 
-#include "control/Message.hpp"
+#include "monomux/control/Message.hpp"
 
 /// Helper function for removing the explicit terminator from the created buffer
 /// for ease of testing.
