@@ -339,9 +339,9 @@ int main(int ArgC, char* ArgV[])
     catch (...)
     {}
 
-    if (!ToServer)
+    if (!ToServer && !ClientOpts.isControlMode())
     {
-      LOG(debug) << "No running server found, starting one automatically...";
+      LOG(info) << "No running server found, starting one automatically...";
       ServerOpts.ServerMode = true;
       Process::fork(
         [] {         /* In the parent, continue. */
@@ -368,7 +368,7 @@ int main(int ArgC, char* ArgV[])
     if (!ToServer)
     {
       std::cerr << "FATAL: Connecting to the server failed:\n\t"
-                << FailureReason;
+                << FailureReason << std::endl;
       return EXIT_SystemError;
     }
 
