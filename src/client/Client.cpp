@@ -344,7 +344,7 @@ void Client::exit(ExitReason E)
 std::size_t Client::consumeNonce() noexcept
 {
   assert(Nonce.has_value());
-  auto R = Nonce.value();
+  auto R = *Nonce;
   Nonce.reset();
   return R;
 }

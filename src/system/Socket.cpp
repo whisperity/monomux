@@ -125,7 +125,8 @@ Socket& Socket::operator=(Socket&& RHS) noexcept
   if (this == &RHS)
     return *this;
 
-  CommunicationChannel::operator=(std::move(RHS));
+  CommunicationChannel::operator=(
+    std::move(static_cast<CommunicationChannel&&>(RHS)));
 
   Owning = std::move(RHS.Owning);
   Listening = std::move(RHS.Listening);

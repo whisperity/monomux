@@ -34,10 +34,10 @@ struct ClientID
   MONOMUX_MESSAGE_BASE(ClientID);
 
   /// The identity number of the client on the server it has connected to.
-  std::size_t ID;
+  std::size_t ID{};
   /// A single-use number the client can use in other unassociated requests
   /// to prove its identity.
-  std::size_t Nonce;
+  std::size_t Nonce{};
 };
 
 /// A view of the \p Process::SpawnOptions data structure that is sufficient for
@@ -75,7 +75,7 @@ struct SessionData
   std::string Name;
 
   /// \see server::SessionData::Created.
-  std::time_t Created;
+  std::time_t Created{};
 };
 
 /// A base class for responding boolean values consistently.
@@ -90,7 +90,7 @@ struct Boolean
     return *this;
   }
 
-  bool Value;
+  bool Value{};
 };
 
 namespace request
@@ -160,7 +160,7 @@ struct Detach
     /// Detach every client from the session.
     All
   };
-  DetachMode Mode;
+  DetachMode Mode = Latest;
 };
 
 /// A request from the client to the server to deliver a process signal to the
@@ -169,7 +169,7 @@ struct Signal
 {
   MONOMUX_MESSAGE(SignalRequest, Signal);
   /// \see signal(7)
-  int SigNum;
+  int SigNum{};
 };
 
 } // namespace request
@@ -258,7 +258,7 @@ struct Detached
     /// The server shut down.
     ServerShutdown
   };
-  DetachMode Mode;
+  DetachMode Mode = Detach;
 };
 
 /// A notification send by the client to the server indicating that its terminal
@@ -269,8 +269,8 @@ struct Detached
 struct Redraw
 {
   MONOMUX_MESSAGE(RedrawNotification, Redraw);
-  unsigned short Rows;
-  unsigned short Columns;
+  unsigned short Rows{};
+  unsigned short Columns{};
 };
 
 } // namespace notification

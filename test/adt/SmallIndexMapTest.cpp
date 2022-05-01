@@ -23,6 +23,14 @@
 
 using namespace monomux;
 
+static constexpr int Magic32 = 32;
+static constexpr int Magic64 = 64;
+static constexpr int Magic128 = 128;
+static constexpr int Magic256 = 256;
+static constexpr int Magic2048 = 2048;
+static constexpr int Magic4096 = 4096;
+static constexpr int Magic8192 = 8192;
+
 TEST(SmallIndexMap, Integral)
 {
   SmallIndexMap<int, 4> M;
@@ -40,8 +48,8 @@ TEST(SmallIndexMap, Integral)
   EXPECT_EQ(M.get(2), 3);
   EXPECT_EQ(M.get(3), 4);
 
-  M[32] = 64;
-  M[64] = 128;
+  M[Magic32] = Magic64;
+  M[Magic64] = Magic128;
   ASSERT_EQ(M.size(), 6);
   ASSERT_TRUE(M.isLarge());
 
@@ -58,17 +66,17 @@ TEST(SmallIndexMap, Integral)
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(256);
+  M.erase(Magic256);
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(32);
+  M.erase(Magic32);
   // Even though size 2 would allow going back to small size, the index does
   // not.
   ASSERT_EQ(M.size(), 2);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(64);
+  M.erase(Magic64);
   ASSERT_EQ(M.size(), 1);
   ASSERT_TRUE(M.isSmall());
 }
@@ -95,11 +103,11 @@ TEST(SmallIndexMap, Pointer)
   EXPECT_EQ(*M.get(2), 3);
   EXPECT_EQ(*M.get(3), 4);
 
-  int* I64 = new int(64);
-  int* I128 = new int(128);
+  int* I64 = new int(Magic64);
+  int* I128 = new int(Magic128);
 
-  M[32] = I64;
-  M[64] = I128;
+  M[Magic32] = I64;
+  M[Magic64] = I128;
   ASSERT_EQ(M.size(), 6);
   ASSERT_TRUE(M.isLarge());
 
@@ -117,17 +125,17 @@ TEST(SmallIndexMap, Pointer)
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(256);
+  M.erase(Magic256);
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(32);
+  M.erase(Magic32);
   // Even though size 2 would allow going back to small size, the index does
   // not.
   ASSERT_EQ(M.size(), 2);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(64);
+  M.erase(Magic64);
   ASSERT_EQ(M.size(), 1);
   ASSERT_TRUE(M.isSmall());
 
@@ -143,8 +151,8 @@ TEST(SmallIndexMap, ClassWithDefaultCtor)
 {
   struct S
   {
-    int I;
-    S() : I(0) {}
+    int I{};
+    S() = default;
     S(int I) : I(I) {}
   };
 
@@ -165,8 +173,8 @@ TEST(SmallIndexMap, ClassWithDefaultCtor)
 
   S* SPtrOrig = M.tryGet(3);
 
-  M[32] = 64;
-  M[64] = 128;
+  M[Magic32] = Magic64;
+  M[Magic64] = Magic128;
   ASSERT_EQ(M.size(), 6);
   ASSERT_TRUE(M.isLarge());
 
@@ -187,17 +195,17 @@ TEST(SmallIndexMap, ClassWithDefaultCtor)
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(256);
+  M.erase(Magic256);
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(32);
+  M.erase(Magic32);
   // Even though size 2 would allow going back to small size, the index does
   // not.
   ASSERT_EQ(M.size(), 2);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(64);
+  M.erase(Magic64);
   ASSERT_EQ(M.size(), 1);
   ASSERT_TRUE(M.isSmall());
 
@@ -209,8 +217,8 @@ TEST(SmallIndexMap, ClassWithDefaultCtorStoreOnHeap)
 {
   struct S
   {
-    int I;
-    S() : I(0) {}
+    int I{};
+    S() = default;
     S(int I) : I(I) {}
   };
 
@@ -231,8 +239,8 @@ TEST(SmallIndexMap, ClassWithDefaultCtorStoreOnHeap)
 
   S* SPtrOrig = M.tryGet(3);
 
-  M[32] = 64;
-  M[64] = 128;
+  M[Magic32] = Magic64;
+  M[Magic64] = Magic128;
   ASSERT_EQ(M.size(), 6);
   ASSERT_TRUE(M.isLarge());
 
@@ -253,17 +261,17 @@ TEST(SmallIndexMap, ClassWithDefaultCtorStoreOnHeap)
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(256);
+  M.erase(Magic256);
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(32);
+  M.erase(Magic32);
   // Even though size 2 would allow going back to small size, the index does
   // not.
   ASSERT_EQ(M.size(), 2);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(64);
+  M.erase(Magic64);
   ASSERT_EQ(M.size(), 1);
   ASSERT_TRUE(M.isSmall());
 
@@ -296,8 +304,8 @@ TEST(SmallIndexMap, ClassNoDefaultCtor)
 
   S* SPtrOrig = M.tryGet(3);
 
-  M.set(32, 64);
-  M.set(64, 128);
+  M.set(Magic32, Magic64);
+  M.set(Magic64, Magic128);
   ASSERT_EQ(M.size(), 6);
   ASSERT_TRUE(M.isLarge());
 
@@ -318,17 +326,17 @@ TEST(SmallIndexMap, ClassNoDefaultCtor)
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(256);
+  M.erase(Magic256);
   ASSERT_EQ(M.size(), 3);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(32);
+  M.erase(Magic32);
   // Even though size 2 would allow going back to small size, the index does
   // not.
   ASSERT_EQ(M.size(), 2);
   ASSERT_TRUE(M.isLarge());
 
-  M.erase(64);
+  M.erase(Magic64);
   ASSERT_EQ(M.size(), 1);
   ASSERT_TRUE(M.isSmall());
 
@@ -340,8 +348,8 @@ TEST(SmallIndexMap, IntrusiveDefaultSentinel)
 {
   struct S
   {
-    int I;
-    S() : I(0) {}
+    int I{};
+    S() = default;
     S(int I) : I(I) {}
 
     // Sentinel check requires equality.
@@ -371,42 +379,42 @@ TEST(SmallIndexMap, LargeMap)
 {
   struct S
   {
-    int I;
-    S() : I(0) {}
+    int I{};
+    S() = default;
     S(int I) : I(I) {}
   };
 
-  SmallIndexMap<S, 4096, /* StoreInPlace =*/false> M;
+  SmallIndexMap<S, Magic4096, /* StoreInPlace =*/false> M;
   EXPECT_EQ(M.size(), 0);
   EXPECT_TRUE(M.isSmall());
 
-  M[4096] = -4096;
+  M[Magic4096] = -Magic4096;
   EXPECT_EQ(M.size(), 1);
   EXPECT_TRUE(M.isLarge());
 
-  for (std::size_t I = 0; I < 4096; ++I)
+  for (std::size_t I = 0; I < Magic4096; ++I)
     M[I] = -I;
   EXPECT_EQ(M.size(), 4096 + 1);
   EXPECT_TRUE(M.isLarge());
 
-  M[8192] = -8192;
+  M[Magic8192] = -Magic8192;
   EXPECT_EQ(M.size(), 4096 + 1 + 1);
   EXPECT_TRUE(M.isLarge());
 
-  M[2048] = -20480; // Overwriting existing element!
+  M[Magic2048] = -Magic2048; // Overwriting existing element!
   EXPECT_EQ(M.size(), 4096 + 1 + 1);
   EXPECT_TRUE(M.isLarge());
 
-  M.erase(8192);
+  M.erase(Magic8192);
   EXPECT_EQ(M.size(), 4096 + 1);
   EXPECT_TRUE(M.isLarge());
 
-  for (std::size_t I = 0; I < 4096 / 2; ++I)
+  for (std::size_t I = 0; I < Magic4096 / 2; ++I)
     M.erase(I);
   EXPECT_EQ(M.size(), 4096 / 2 + 1);
   EXPECT_TRUE(M.isLarge());
 
-  M.erase(4096);
+  M.erase(Magic4096);
   EXPECT_EQ(M.size(), 4096 / 2);
   EXPECT_TRUE(M.isSmall());
 }

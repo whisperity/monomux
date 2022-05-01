@@ -116,7 +116,7 @@ std::string CommunicationChannel::read(const std::size_t Bytes)
     if (!ReadBytes)
     {
       MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": No further data read");
-      ContinueReading = false;
+      /* ContinueReading = false; */ // Not needed because the loop breaks.
       break;
     }
     MONOMUX_TRACE_LOG(LOG(trace)

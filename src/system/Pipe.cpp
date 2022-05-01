@@ -119,7 +119,8 @@ Pipe& Pipe::operator=(Pipe&& RHS) noexcept
   if (this == &RHS)
     return *this;
 
-  CommunicationChannel::operator=(std::move(RHS));
+  CommunicationChannel::operator=(
+    std::move(static_cast<CommunicationChannel&&>(RHS)));
 
   OpenedAs = std::move(RHS.OpenedAs);
   Nonblock = std::move(RHS.Nonblock);
