@@ -406,38 +406,38 @@ int main(Options& Opts)
   {
     ScopeGuard TerminalSetup{[&Term, &Client] { Term.setupClient(Client); },
                              [&Term] { Term.releaseClient(); }};
-    ScopeGuard Signal{[&Term] {
-                        SignalHandling& Sig = SignalHandling::get();
-                        Sig.registerObject("Module", "Client");
-                        Sig.registerObject(TerminalObjName, &Term);
-                        Sig.registerCallback(SIGWINCH, &windowSizeChange);
+    ScopeGuard Signal{
+      [&Term] {
+        SignalHandling& Sig = SignalHandling::get();
+        Sig.registerObject("Module", "Client");
+        Sig.registerObject(TerminalObjName, &Term);
+        Sig.registerCallback(SIGWINCH, &windowSizeChange);
 
-                        // Override the SIGABRT handler with a custom one that
-                        // resets the terminal during a crash.
-                        Sig.registerObject(MasterAborterName,
-                                           Sig.getCallback(SIGABRT));
-                        Sig.registerCallback(SIGILL, &coreDumped);
-                        Sig.registerCallback(SIGABRT, &coreDumped);
-                        Sig.registerCallback(SIGSEGV, &coreDumped);
-                        Sig.registerCallback(SIGSYS, &coreDumped);
-                        Sig.registerCallback(SIGSTKFLT, &coreDumped);
-                        Sig.enable();
-                      },
-                      [] {
-                        SignalHandling& Sig = SignalHandling::get();
-                        Sig.defaultCallback(SIGWINCH);
-                        Sig.deleteObject(TerminalObjName);
+        // Override the SIGABRT handler with a custom one that
+        // resets the terminal during a crash.
+        Sig.registerObject(MasterAborterName, Sig.getCallback(SIGABRT));
+        Sig.registerCallback(SIGILL, &coreDumped);
+        Sig.registerCallback(SIGABRT, &coreDumped);
+        Sig.registerCallback(SIGSEGV, &coreDumped);
+        Sig.registerCallback(SIGSYS, &coreDumped);
+        Sig.registerCallback(SIGSTKFLT, &coreDumped);
+        Sig.enable();
+      },
+      [] {
+        SignalHandling& Sig = SignalHandling::get();
+        Sig.defaultCallback(SIGWINCH);
+        Sig.deleteObject(TerminalObjName);
 
-                        auto MasterAborter = *std::any_cast<
-                          std::function<SignalHandling::SignalCallback>>(
-                          Sig.getObject(MasterAborterName));
-                        Sig.registerCallback(SIGILL, MasterAborter);
-                        Sig.registerCallback(SIGABRT, MasterAborter);
-                        Sig.registerCallback(SIGSEGV, MasterAborter);
-                        Sig.registerCallback(SIGSYS, MasterAborter);
-                        Sig.registerCallback(SIGSTKFLT, MasterAborter);
-                        Sig.deleteObject(MasterAborterName);
-                      }};
+        auto MasterAborter =
+          *std::any_cast<std::function<SignalHandling::SignalCallback>>(
+            Sig.getObject(MasterAborterName));
+        Sig.registerCallback(SIGILL, MasterAborter);
+        Sig.registerCallback(SIGABRT, MasterAborter);
+        Sig.registerCallback(SIGSEGV, MasterAborter);
+        Sig.registerCallback(SIGSYS, MasterAborter);
+        Sig.registerCallback(SIGSTKFLT, MasterAborter);
+        Sig.deleteObject(MasterAborterName);
+      }};
 
     LOG(trace) << "Starting client...";
 

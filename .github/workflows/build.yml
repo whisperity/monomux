@@ -65,7 +65,7 @@ jobs:
           echo
 
           echo "?> Are we the right library type..."
-          ./Build/monomux -VV | grep "library for implementation core" | \
+          ./Build/monomux -VV | grep "^ \* " | grep "library$" | \
             grep -i "${{ matrix.library-type }}"
       - name: "Test"
         run: |
