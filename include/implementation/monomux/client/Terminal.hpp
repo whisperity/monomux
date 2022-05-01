@@ -22,7 +22,7 @@
 #include "monomux/adt/Atomic.hpp"
 #include "monomux/adt/POD.hpp"
 #include "monomux/adt/UniqueScalar.hpp"
-#include "monomux/system/fd.hpp"
+#include "monomux/system/Pipe.hpp"
 
 namespace monomux::client
 {
@@ -66,15 +66,17 @@ public:
   /// \see setupClient
   void releaseClient();
 
-  raw_fd input() const noexcept { return In; }
-  raw_fd output() const noexcept { return Out; }
+  Pipe* input() noexcept { return In.get(); }
+  const Pipe* input() const noexcept { return In.get(); }
+  Pipe* output() noexcept { return Out.get(); }
+  const Pipe* output() const noexcept { return Out.get(); }
 
   Size getSize() const;
   void notifySizeChanged() const noexcept;
 
 private:
-  UniqueScalar<raw_fd, fd::Invalid> In;
-  UniqueScalar<raw_fd, fd::Invalid> Out;
+  std::unique_ptr<Pipe> In;
+  std::unique_ptr<Pipe> Out;
   UniqueScalar<Client*, nullptr> AssociatedClient;
   UniqueScalar<bool, false> Engaged;
   POD<struct ::termios> OriginalTerminalSettings;

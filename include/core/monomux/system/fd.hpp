@@ -42,6 +42,12 @@ public:
   /// Wrap the raw platform resource handle into the RAII object.
   fd(raw_fd Handle) noexcept;
 
+  /// Duplicates the file descriptor \p Handle and wraps it into the RAII
+  /// object.
+  ///
+  /// \see dup(2)
+  static fd dup(raw_fd Handle);
+
   fd(fd&& RHS) noexcept : Handle(RHS.release()) {}
   fd& operator=(fd&& RHS) noexcept
   {

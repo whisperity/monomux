@@ -237,20 +237,28 @@ void Client::loop()
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
       raw_fd EventFD = Poll->fdAt(I);
-      if (EventFD == DataSocket->raw() && DataHandler)
+      try
       {
-        DataHandler(*this);
-        continue;
+        if (EventFD == DataSocket->raw() && DataHandler)
+        {
+          DataHandler(*this);
+          continue;
+        }
+        if (InputFile != fd::Invalid && EventFD == InputFile && InputHandler)
+        {
+          InputHandler(*this);
+          continue;
+        }
+        if (EventFD == ControlSocket.raw())
+        {
+          controlCallback();
+          continue;
+        }
       }
-      if (InputFile != fd::Invalid && EventFD == InputFile && InputHandler)
+      catch (const std::system_error&)
       {
-        InputHandler(*this);
-        continue;
-      }
-      if (EventFD == ControlSocket.raw())
-      {
-        controlCallback();
-        continue;
+        // Ignore the error on the sockets and pipes, and do not tear the
+        // client down just because of them.
       }
     }
   }

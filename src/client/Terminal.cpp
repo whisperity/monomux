@@ -18,6 +18,7 @@
  */
 #include <cassert>
 #include <functional>
+#include <sstream>
 
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -33,11 +34,21 @@ namespace monomux::client
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 Terminal::Terminal(raw_fd InputStream, raw_fd OutputStream)
-  : In(InputStream), Out(OutputStream), AssociatedClient(nullptr)
+  : AssociatedClient(nullptr)
 {
 #ifndef NDEBUG
   MovedFromCheck = true;
 #endif
+
+  std::ostringstream InName;
+  std::ostringstream OutName;
+  InName << "<terminal/input> dup:" << InputStream;
+  OutName << "<terminal/output> dup:" << OutputStream;
+
+  In = std::make_unique<Pipe>(
+    Pipe::wrap(fd::dup(InputStream), Pipe::Read, InName.str()));
+  Out = std::make_unique<Pipe>(
+    Pipe::wrap(fd::dup(OutputStream), Pipe::Write, OutName.str()));
 }
 
 void Terminal::engage()
@@ -47,11 +58,11 @@ void Terminal::engage()
 
   OriginalTerminalSettings.reset();
   CheckedPOSIXThrow(
-    [this] { return ::tcgetattr(In, &OriginalTerminalSettings); },
+    [this] { return ::tcgetattr(In->raw(), &OriginalTerminalSettings); },
     "tcgetattr(): I/O is not a TTY?",
     -1);
 
-  fd::addStatusFlag(In, O_NONBLOCK);
+  In->setNonblocking();
 
   POD<struct ::termios> NewSettings = OriginalTerminalSettings;
   NewSettings->c_iflag &=
@@ -64,7 +75,9 @@ void Terminal::engage()
   NewSettings->c_cc[VTIME] = 0;
 
   CheckedPOSIXThrow(
-    [this, &NewSettings] { return ::tcsetattr(In, TCSANOW, &NewSettings); },
+    [this, &NewSettings] {
+      return ::tcsetattr(In->raw(), TCSANOW, &NewSettings);
+    },
     "tcsetattr()",
     -1);
 
@@ -78,10 +91,12 @@ void Terminal::disengage()
   if (!engaged())
     return;
 
-  fd::removeStatusFlag(In, O_NONBLOCK);
+  In->setBlocking();
 
   CheckedPOSIXThrow(
-    [this] { return ::tcsetattr(In, TCSADRAIN, &OriginalTerminalSettings); },
+    [this] {
+      return ::tcsetattr(In->raw(), TCSADRAIN, &OriginalTerminalSettings);
+    },
     "tcsetattr()",
     -1);
 
@@ -95,13 +110,12 @@ void Terminal::clientInput(Terminal* Term, Client& Client)
   assert(Term->MovedFromCheck &&
          "Terminal object registered as callback was moved.");
 
-  if (Client.getInputFile() != Term->input())
+  if (Client.getInputFile() != Term->input()->raw())
     throw std::invalid_argument{"Client InputFD != Terminal input"};
 
   static constexpr std::size_t ReadSize = 1 << 10;
-  bool Success;
-  std::string Input = Pipe::read(Term->input(), ReadSize, &Success);
-  if (!Success || Input.empty())
+  std::string Input = Term->input()->read(ReadSize);
+  if (Input.empty())
     return;
 
   Client.sendData(Input);
@@ -114,7 +128,7 @@ void Terminal::clientOutput(Terminal* Term, Client& Client)
 
   static constexpr std::size_t ReadSize = 1 << 10;
   std::string Output = Client.getDataSocket()->read(ReadSize);
-  Pipe::write(Term->output(), Output);
+  Term->output()->write(Output);
 }
 
 void Terminal::clientEventReady(Terminal* Term, Client& Client)
@@ -135,7 +149,7 @@ void Terminal::setupClient(Client& Client)
   if (AssociatedClient)
     releaseClient();
 
-  Client.setInputFile(input());
+  Client.setInputFile(In->raw());
   Client.setInputCallback(
     // NOLINTNEXTLINE(modernize-avoid-bind)
     std::bind(&Terminal::clientInput, this, std::placeholders::_1));
@@ -165,9 +179,10 @@ void Terminal::releaseClient()
 Terminal::Size Terminal::getSize() const
 {
   POD<struct ::winsize> Raw;
-  CheckedPOSIXThrow([this, &Raw] { return ::ioctl(In, TIOCGWINSZ, &Raw); },
-                    "ioctl(0, TIOCGWINSZ /* get window size */);",
-                    -1);
+  CheckedPOSIXThrow(
+    [this, &Raw] { return ::ioctl(In->raw(), TIOCGWINSZ, &Raw); },
+    "ioctl(0, TIOCGWINSZ /* get window size */);",
+    -1);
   Size S;
   S.Rows = Raw->ws_row;
   S.Columns = Raw->ws_col;

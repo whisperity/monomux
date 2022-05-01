@@ -51,6 +51,13 @@ fd::fd(raw_fd Handle) noexcept : Handle(Handle)
   MONOMUX_TRACE_LOG(LOG(debug) << "FD #" << Handle << " opened.");
 }
 
+fd fd::dup(raw_fd Handle)
+{
+  raw_fd DupHandle =
+    CheckedPOSIXThrow([Handle] { return ::dup(Handle); }, "dup()", -1);
+  return fd{DupHandle};
+}
+
 void fd::close(raw_fd FD) noexcept
 {
   MONOMUX_TRACE_LOG(LOG(debug) << "Closing FD #" << FD << "...");
