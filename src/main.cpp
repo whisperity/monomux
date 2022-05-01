@@ -18,6 +18,7 @@
  */
 #include <chrono>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <system_error>
 #include <thread>
@@ -214,8 +215,10 @@ int main(int ArgC, char* ArgV[])
     {
       using namespace monomux::log;
 
+#ifdef MONOMUX_NON_ESSENTIAL_LOGS
       std::size_t VerbosityPositiveSizeT =
         std::abs(MainOpts.VerbosityQuietnessDifferential);
+#endif
       if (MainOpts.VerbosityQuietnessDifferential > MaximumVerbosity)
       {
         MONOMUX_TRACE_LOG(
@@ -234,11 +237,13 @@ int main(int ArgC, char* ArgV[])
                     << std::endl);
         MainOpts.VerbosityQuietnessDifferential = -MinimumVerbosity;
       }
-      VerbosityPositiveSizeT =
-        std::abs(MainOpts.VerbosityQuietnessDifferential);
       MainOpts.Severity = static_cast<Severity>(
         Default + MainOpts.VerbosityQuietnessDifferential);
 
+#ifdef MONOMUX_NON_ESSENTIAL_LOGS
+      VerbosityPositiveSizeT =
+        std::abs(MainOpts.VerbosityQuietnessDifferential);
+#endif
       MONOMUX_TRACE_LOG(
         std::cerr << "Debug: Loading logger and setting lowest verbosity to '-"
                   << (std::string(
@@ -485,11 +490,25 @@ void coreDumped(SignalHandling::Signal SigNum,
                 ::siginfo_t* /* Info */,
                 const SignalHandling* Handling)
 {
+  static std::sig_atomic_t AlreadyTerminatingOnSigNum;
+
   const volatile auto* ModulePtr = std::any_cast<const char*>(
     Handling->getObject(SignalHandling::ModuleObjName));
   const char* Module = ModulePtr ? *ModulePtr : "<Unknown>";
   LOG(fatal) << "in '" << Module << "' - FATAL SIGNAL " << SigNum << " '"
              << SignalHandling::signalName(SigNum) << "' RECEIVED!";
+
+  if (AlreadyTerminatingOnSigNum)
+  {
+    LOG(fatal) << "Already handling another fatal signal "
+               << AlreadyTerminatingOnSigNum << " '"
+               << SignalHandling::signalName(
+                    static_cast<SignalHandling::Signal>(
+                      AlreadyTerminatingOnSigNum))
+               << "'! Self-destructing...";
+    std::_Exit(-SigNum);
+  }
+  AlreadyTerminatingOnSigNum = SigNum;
 
   Backtrace BT;
   BT.prettify();
@@ -503,9 +522,19 @@ void coreDumped(SignalHandling::Signal SigNum,
   std::cerr << getHumanReadableConfiguration() << '\n';
   std::cerr << "---------------------------------------------------------------"
                "-----------------------------------------------\n";
-  for (const Backtrace::Frame& F : BT.getFrames())
+  const auto& Frames = BT.getFrames();
+  std::size_t LenIndex = 1;
   {
-    std::cerr << '#' << F.Index << " - ";
+    std::size_t IndexDigits = Frames.size();
+    while (IndexDigits > 0)
+    {
+      IndexDigits /= 10; // NOLINT(readability-magic-numbers)
+      ++LenIndex;
+    }
+  }
+  for (const Backtrace::Frame& F : Frames)
+  {
+    std::cerr << '#' << std::setw(LenIndex) << F.Index << " - ";
     if (F.Pretty.empty())
       std::cerr << F.SymbolData;
     else

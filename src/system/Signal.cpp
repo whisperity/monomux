@@ -100,9 +100,11 @@ const char* SignalHandling::signalName(SignalHandling::Signal S) noexcept
     case SIGPWR:
       return "SIGPWR (Power failure)";
   }
+#else
+  (void)S;
 #endif
 
-  return "<Signal?>";
+  return "<unknown signal>";
 }
 
 void SignalHandling::handler(Signal SigNum,

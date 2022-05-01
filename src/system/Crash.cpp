@@ -265,11 +265,15 @@ Addr2Line::symbolise(const std::string& Object,
 
   for (Backtrace::Frame* F : Frames)
   {
-    std::ostringstream OS;
-    OS << F->ImageOffset;
-    // Strip "0x"
-    std::string OffsetStrNoHexPrefix = OS.str().substr(2);
-    SO.Arguments.emplace_back(OffsetStrNoHexPrefix);
+    if (F->ImageOffset)
+    {
+      std::ostringstream OS;
+      OS << F->ImageOffset;
+      // Strip "0x"
+      SO.Arguments.emplace_back(OS.str().substr(2));
+    }
+    else
+      SO.Arguments.emplace_back("0x0");
   }
 
   Pipe::AnonymousPipe OutPipe = Pipe::create(true);
@@ -318,11 +322,15 @@ LLVMSymbolizer::symbolise(const std::string& Object,
 
   for (Backtrace::Frame* F : Frames)
   {
-    std::ostringstream OS;
-    OS << F->ImageOffset;
-    // llvm-symbolizer eats hex addresses with "0x" prefix like no problem.
-    std::string OffsetStr = OS.str();
-    SO.Arguments.emplace_back(OffsetStr);
+    if (F->ImageOffset)
+    {
+      std::ostringstream OS;
+      OS << F->ImageOffset;
+      // llvm-symbolizer eats hex addresses with "0x" prefix like no problem.
+      SO.Arguments.emplace_back(OS.str());
+    }
+    else
+      SO.Arguments.emplace_back("0x0");
   }
 
   Pipe::AnonymousPipe OutPipe = Pipe::create(true);
