@@ -34,6 +34,12 @@ static constexpr const char* SeverityName[Min + 1] = {"",
                                                       " >> TRACE",
                                                       ">>> DATA"};
 
+const char* Logger::levelName(Severity S) noexcept
+{
+  assert(S <= log::Min && S >= log::Max && "Invalid severity?");
+  return SeverityName[S];
+}
+
 Logger::OutputBuffer::OutputBuffer(std::ostream& OS,
                                    bool Discard,
                                    std::string_view Prefix)
@@ -55,9 +61,7 @@ Logger& Logger::get()
 {
   if (!Singleton)
   {
-    // FIXME: Use the default loglevel here and implement verbosity on the
-    // commandline.
-    Singleton = std::make_unique<Logger>(Min, std::clog);
+    Singleton = std::make_unique<Logger>(Default, std::clog);
     MONOMUX_TRACE_LOG(Singleton->operator()(log::Debug, "logger")
                       << "Logger initialised at address " << Singleton.get());
   }

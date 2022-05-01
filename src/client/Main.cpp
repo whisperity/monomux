@@ -409,7 +409,7 @@ int main(Options& Opts)
     ScopeGuard Signal{
       [&Term] {
         SignalHandling& Sig = SignalHandling::get();
-        Sig.registerObject("Module", "Client");
+        Sig.registerObject(SignalHandling::ModuleObjName, "Client");
         Sig.registerObject(TerminalObjName, &Term);
         Sig.registerCallback(SIGWINCH, &windowSizeChange);
 

@@ -170,7 +170,7 @@ getSharedObjectOffsets(const std::vector<Backtrace::Frame*>& Frames)
     {
       // The first is statically linked into (usually) the current binary, in
       // which case addr2line can natively resolve it properly.
-      MONOMUX_TRACE_LOG(LOG(trace)
+      MONOMUX_TRACE_LOG(LOG(data)
                         << '#' << F->Index << ": Empty 'Offset' field.");
       std::istringstream AddressBuf;
       AddressBuf.str(std::string{F->HexAddress});
@@ -207,8 +207,8 @@ getSharedObjectOffsets(const std::vector<Backtrace::Frame*>& Frames)
           continue;
         }
         Address = MaybeAddr.get();
-        MONOMUX_TRACE_LOG(LOG(trace) << "Address of '" << F->Symbol
-                                     << "' in memory is " << Address);
+        MONOMUX_TRACE_LOG(LOG(data) << "Address of '" << F->Symbol
+                                    << "' in memory is " << Address);
 
         POD<::Dl_info> SymbolInfo;
         {
@@ -228,12 +228,12 @@ getSharedObjectOffsets(const std::vector<Backtrace::Frame*>& Frames)
           (reinterpret_cast<std::uintptr_t>(SymbolInfo->dli_saddr) -
            reinterpret_cast<std::uintptr_t>(SymbolInfo->dli_fbase)) +
           reinterpret_cast<std::uintptr_t>(Offset));
-        MONOMUX_TRACE_LOG(LOG(trace) << "Offset of ' " << F->Symbol
-                                     << "' in shared library is " << Offset);
+        MONOMUX_TRACE_LOG(LOG(data) << "Offset of ' " << F->Symbol
+                                    << "' in shared library is " << Offset);
       }
       else
       {
-        MONOMUX_TRACE_LOG(LOG(trace)
+        MONOMUX_TRACE_LOG(LOG(data)
                           << "Offset " << Offset << " without a symbol name.");
       }
     }
@@ -363,12 +363,12 @@ void Backtrace::prettify()
   std::string Symboliser;
   if (Symboliser.empty() && tryBinary("llvm-symbolizer"))
   {
-    MONOMUX_TRACE_LOG(LOG(info) << "Using symboliser: LLVM symbolizer");
+    MONOMUX_TRACE_LOG(LOG(debug) << "Using symboliser: LLVM symbolizer");
     Symboliser = "llvm-symbolizer";
   }
   if (Symboliser.empty() && tryBinary("addr2line"))
   {
-    MONOMUX_TRACE_LOG(LOG(info) << "Using symboliser: GNU addr2line");
+    MONOMUX_TRACE_LOG(LOG(debug) << "Using symboliser: GNU addr2line");
     Symboliser = "addr2line";
   }
   if (Symboliser.empty())
@@ -398,8 +398,8 @@ void Backtrace::prettify()
 
   for (auto& P : FramesPerBinary)
   {
-    MONOMUX_TRACE_LOG(LOG(trace) << "Prettifying " << P.second.size()
-                                 << " stack frames from '" << P.first << "'");
+    MONOMUX_TRACE_LOG(LOG(data) << "Prettifying " << P.second.size()
+                                << " stack frames from '" << P.first << "'");
     std::vector<std::string> Pretties;
     if (Symboliser == "llvm-symbolizer")
       Pretties = llvm_symbolizer(P.first, P.second);

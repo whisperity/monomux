@@ -127,11 +127,16 @@ SignalHandling& SignalHandling::get()
 {
   if (!Singleton)
   {
-    Singleton = std::make_unique<SignalHandling>();
+    Singleton = SignalHandling::create();
     MONOMUX_TRACE_LOG(LOG(debug) << "SignalHandling initialised at address "
                                  << Singleton.get());
   }
   return *Singleton;
+}
+
+std::unique_ptr<SignalHandling> SignalHandling::create()
+{
+  return std::unique_ptr<SignalHandling>(new SignalHandling());
 }
 
 SignalHandling::SignalHandling()

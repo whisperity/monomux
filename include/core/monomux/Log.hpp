@@ -64,6 +64,11 @@ enum Severity
   Min = Data,
 };
 
+/// The largest verbosity the user can request an increase to.
+constexpr std::int8_t MaximumVerbosity = log::Min - log::Default;
+/// The smallest verbosity (largest quietness) the user can decrease to.
+constexpr std::int8_t MinimumVerbosity = log::Default - log::Max - 1;
+
 /// The \p Logger class handles emitting log messages to an output device.
 ///
 /// \note This object is \b NOT thread-safe!
@@ -98,6 +103,9 @@ private:
   static std::unique_ptr<Logger> Singleton;
 
 public:
+  /// \returns a human-readable tag for the specified severity.
+  static const char* levelName(Severity S) noexcept;
+
   /// Retrieve the logging instance for the current application.
   static Logger& get();
 

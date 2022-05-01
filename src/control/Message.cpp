@@ -140,6 +140,8 @@ std::string_view consume(std::string_view Data, const std::string_view Literal)
   return Data;
 }
 
+#if 0
+// Superseded by takeUntilAndConsume and splice.
 /// Returns the \p string_view into \p Data until the first occurrence of
 /// \p Literal.
 std::string_view takeUntil(std::string_view Data,
@@ -150,6 +152,7 @@ std::string_view takeUntil(std::string_view Data,
     return {};
   return Data.substr(0, Pos);
 }
+#endif
 
 /// Returns \p N characters spliced from the beginning of \p Data and modifies
 /// \p Data to point after the removed characters.

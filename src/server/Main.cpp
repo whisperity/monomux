@@ -107,7 +107,8 @@ int main(Options& Opts)
   S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
   ScopeGuard Signal{[&S] {
                       SignalHandling& Sig = SignalHandling::get();
-                      Sig.registerObject("Module", "Server");
+                      Sig.registerObject(SignalHandling::ModuleObjName,
+                                         "Server");
                       Sig.registerObject(ServerObjName, &S);
                       Sig.registerCallback(SIGINT, &serverShutdown);
                       Sig.registerCallback(SIGTERM, &serverShutdown);

@@ -44,6 +44,10 @@ class SignalHandling
 public:
   using Signal = int;
 
+  /// Helper key for registering the current module's name with
+  /// \p registerObject().
+  static constexpr char ModuleObjName[] = "Module";
+
   /// The number of normal (non-realtime) signals available with the current
   /// implementation.
   ///
@@ -55,7 +59,7 @@ public:
 
   /// The number of objects that might be registered into the configuration
   /// for use in signal handlers.
-  static constexpr std::size_t ObjectCount = 8;
+  static constexpr std::size_t ObjectCount = 4;
 
   /// The type of the user-implemented signal handlers that can be registered
   /// as a callback.
@@ -87,6 +91,8 @@ public:
   static const char* signalName(Signal SigNum) noexcept;
 
 private:
+  SignalHandling();
+
   /// The signal handler callback required by the low-level interface.
   /// This function dispatches to the user-facing registered handlers.
   ///
@@ -126,7 +132,12 @@ public:
   /// should not construct this class directly!
   ///
   /// \see get()
-  SignalHandling();
+  static std::unique_ptr<SignalHandling> create();
+
+  SignalHandling(const SignalHandling&) = delete;
+  SignalHandling(SignalHandling&&) = delete;
+  SignalHandling& operator=(const SignalHandling&) = delete;
+  SignalHandling& operator=(SignalHandling&&) = delete;
 
   /// Perform the low-level functions that registers the handler callback of
   /// \p SignalHandling in the kernel for the process, effectively \e enabling
