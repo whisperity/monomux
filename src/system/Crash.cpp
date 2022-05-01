@@ -20,6 +20,7 @@
 #include <cassert>
 #include <map>
 #include <sstream>
+#include <vector>
 
 #include <dlfcn.h>
 #include <execinfo.h>
@@ -36,6 +37,324 @@
 
 namespace monomux
 {
+
+namespace
+{
+
+constexpr std::size_t BinaryPipeCommunicationSize = 4096;
+
+/// Performs the mental gymnastics required to map the locations of where a
+/// stack frame is loaded into memory (and thus available in a backtrace) to
+/// locations in the image of shared library found on the disk and read in situ.
+void putSharedObjectOffsets(const std::vector<Backtrace::Frame*>& Frames)
+{
+  if (Frames.empty())
+    return;
+
+  std::string BinaryStr{Frames.front()->Binary};
+  auto MaybeObj = CheckedPOSIX(
+    [&BinaryStr] { return ::dlopen(BinaryStr.c_str(), RTLD_LAZY); }, nullptr);
+  if (!MaybeObj)
+  {
+    MONOMUX_TRACE_LOG(LOG(debug)
+                      << "dlopen(): failed to generate symbol info for '"
+                      << BinaryStr << "': " << dlerror());
+  }
+
+  std::vector<void*> OffsetPtrs;
+  OffsetPtrs.reserve(Frames.size());
+  for (Backtrace::Frame* F : Frames)
+  {
+    void* Offset = nullptr;
+    // There can be two kinds of symbols in the dump.
+    if (F->Offset.empty())
+    {
+      // The first is statically linked into (usually) the current binary, in
+      // which case addr2line can natively resolve it properly.
+      MONOMUX_TRACE_LOG(LOG(data)
+                        << '#' << F->Index << ": Empty 'Offset' field.");
+      std::istringstream AddressBuf;
+      AddressBuf.str(std::string{F->HexAddress});
+      AddressBuf >> Offset;
+    }
+    else
+    {
+      // The other kind of symbols come from shared libraries and must be
+      // resolved via first figuring out where the shared library and the
+      // symbol is loaded, because the hex address is only valid for the current
+      // binary (where the dynamic image is loaded), and not for someone
+      // accessing the object from the outside.
+      if (!MaybeObj)
+        continue;
+
+      {
+        std::istringstream OffsetBuf;
+        OffsetBuf.str(std::string{F->Offset});
+        OffsetBuf >> Offset;
+      }
+
+      const void* Address = nullptr;
+      if (!F->Symbol.empty())
+      {
+        std::string SymbolStr{F->Symbol};
+        auto MaybeAddr =
+          CheckedPOSIX([Obj = MaybeObj.get(),
+                        &SymbolStr] { return ::dlsym(Obj, SymbolStr.c_str()); },
+                       nullptr);
+        if (!MaybeAddr)
+        {
+          MONOMUX_TRACE_LOG(LOG(debug)
+                            << "dlsym(): failed to generate symbol info for #"
+                            << F->Index << ": " << dlerror());
+          continue;
+        }
+        Address = MaybeAddr.get();
+        MONOMUX_TRACE_LOG(LOG(data) << "Address of '" << F->Symbol
+                                    << "' in memory is " << Address);
+
+        POD<::Dl_info> SymbolInfo;
+        {
+          auto SymInfoError = CheckedPOSIX(
+            [Address, &SymbolInfo] { return ::dladdr(Address, &SymbolInfo); },
+            0);
+          if (!SymInfoError)
+          {
+            MONOMUX_TRACE_LOG(
+              LOG(debug) << "dladdr(): failed to generate symbol info for #"
+                         << F->Index << ": " << dlerror());
+            continue;
+          }
+        }
+
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        Offset = reinterpret_cast<void*>(
+          (reinterpret_cast<std::uintptr_t>(SymbolInfo->dli_saddr) -
+           reinterpret_cast<std::uintptr_t>(SymbolInfo->dli_fbase)) +
+          reinterpret_cast<std::uintptr_t>(Offset));
+        MONOMUX_TRACE_LOG(LOG(data) << "Offset of '" << F->Symbol
+                                    << "' in shared library is " << Offset);
+      }
+      else
+      {
+        MONOMUX_TRACE_LOG(LOG(data)
+                          << "Offset " << Offset << " without a symbol name.");
+      }
+    }
+
+    F->ImageOffset = Offset;
+  }
+
+  if (MaybeObj)
+    CheckedPOSIX([DLObj = MaybeObj.get()](bool& CloseError) {
+      CloseError = (::dlclose(DLObj) != 0);
+    });
+}
+
+struct Symboliser
+{
+  const std::string& name() const noexcept { return Binary; }
+
+  bool check() const;
+
+  virtual std::vector<std::string>
+  symbolise(const std::string& Object,
+            const std::vector<Backtrace::Frame*>& Frames) = 0;
+
+  virtual bool
+  isInvalidSymbolisationResult(const std::string& S) const noexcept = 0;
+
+  virtual ~Symboliser() = default;
+
+  static void noSymbolisersMessage();
+
+protected:
+  std::string Binary;
+  Symboliser(std::string Binary) : Binary(std::move(Binary)) {}
+};
+
+struct Addr2Line : public Symboliser
+{
+  Addr2Line() : Symboliser("addr2line") {}
+
+  std::vector<std::string>
+  symbolise(const std::string& Object,
+            const std::vector<Backtrace::Frame*>& Frames) override;
+
+  bool
+  isInvalidSymbolisationResult(const std::string& S) const noexcept override
+  {
+    return S == "?? ??:0";
+  }
+};
+
+struct LLVMSymbolizer : public Symboliser
+{
+  LLVMSymbolizer() : Symboliser("llvm-symbolizer") {}
+
+  std::vector<std::string>
+  symbolise(const std::string& Object,
+            const std::vector<Backtrace::Frame*>& Frames) override;
+
+  bool
+  isInvalidSymbolisationResult(const std::string& S) const noexcept override
+  {
+    return S == "?? at ??:0:0";
+  }
+};
+
+auto makeSymbolisers()
+{
+  std::vector<std::unique_ptr<Symboliser>> R;
+
+#define SYMBOLISER(NAME)                                                       \
+  {                                                                            \
+    auto NAME##Ptr = std::make_unique<NAME>();                                 \
+    if (NAME##Ptr->check())                                                    \
+      R.emplace_back(std::move(NAME##Ptr));                                    \
+  }
+
+  SYMBOLISER(Addr2Line);
+  SYMBOLISER(LLVMSymbolizer);
+
+#undef SYMBOLISER
+
+  return R;
+}
+
+void Symboliser::noSymbolisersMessage()
+{
+  MONOMUX_TRACE_LOG(
+    LOG(warn) << "No symboliser found. Please install 'binutils' for addr2line "
+                 "or 'llvm-symbolizer', or ensure they are in the PATH!");
+}
+
+bool Symboliser::check() const
+{
+  Process::SpawnOptions SO;
+  SO.Program = Binary;
+  SO.Arguments.emplace_back("--help");
+
+  Pipe::AnonymousPipe Pipe = Pipe::create(true);
+  Pipe::AnonymousPipe PipeErr = Pipe::create(true);
+  Pipe.getRead()->setNonblocking();
+  SO.StandardInput.emplace(fd::Invalid);
+  SO.StandardOutput.emplace(Pipe.getWrite()->raw());
+  SO.StandardError.emplace(PipeErr.getWrite()->raw());
+
+  Process P = Process::spawn(SO);
+  P.wait();
+
+  std::string Out = Pipe.getRead()->read(BinaryPipeCommunicationSize);
+  return !Out.empty();
+}
+
+std::vector<std::string>
+Addr2Line::symbolise(const std::string& Object,
+                     const std::vector<Backtrace::Frame*>& Frames)
+{
+  std::vector<std::string> Result;
+  Result.reserve(Frames.size());
+
+  Process::SpawnOptions SO;
+  SO.Program = name();
+  SO.Arguments.emplace_back("-e"); // Specify binary to read.
+  SO.Arguments.emplace_back(Object);
+  SO.Arguments.emplace_back("--pretty-print");
+  SO.Arguments.emplace_back("--functions");
+  SO.Arguments.emplace_back("--demangle");
+
+  for (Backtrace::Frame* F : Frames)
+  {
+    std::ostringstream OS;
+    OS << F->ImageOffset;
+    // Strip "0x"
+    std::string OffsetStrNoHexPrefix = OS.str().substr(2);
+    SO.Arguments.emplace_back(OffsetStrNoHexPrefix);
+  }
+
+  Pipe::AnonymousPipe OutPipe = Pipe::create(true);
+  Pipe::AnonymousPipe ErrPipe = Pipe::create(true);
+  OutPipe.getRead()->setNonblocking();
+  SO.StandardInput.emplace(fd::Invalid);
+  SO.StandardOutput.emplace(OutPipe.getWrite()->raw());
+  SO.StandardError.emplace(ErrPipe.getWrite()->raw());
+
+  Process P = Process::spawn(SO);
+  P.wait();
+
+  std::string Output;
+  do
+  {
+    Output.append(OutPipe.getRead()->read(BinaryPipeCommunicationSize));
+
+    auto Pos = std::string::npos;
+    do
+    {
+      Pos = Output.find('\n');
+      if (Pos == std::string::npos)
+        break;
+      Result.emplace_back(Output.substr(0, Pos));
+      Output.erase(0, Pos + 1);
+    } while (Pos != std::string::npos);
+  } while (!Output.empty());
+
+  return Result;
+}
+
+std::vector<std::string>
+LLVMSymbolizer::symbolise(const std::string& Object,
+                          const std::vector<Backtrace::Frame*>& Frames)
+{
+  std::vector<std::string> Result;
+  Result.reserve(Frames.size());
+
+  Process::SpawnOptions SO;
+  SO.Program = name();
+  SO.Arguments.emplace_back("--obj");
+  SO.Arguments.emplace_back(Object);
+  SO.Arguments.emplace_back("--pretty-print");
+  SO.Arguments.emplace_back("--functions");
+  SO.Arguments.emplace_back("--demangle");
+
+  for (Backtrace::Frame* F : Frames)
+  {
+    std::ostringstream OS;
+    OS << F->ImageOffset;
+    // llvm-symbolizer eats hex addresses with "0x" prefix like no problem.
+    std::string OffsetStr = OS.str();
+    SO.Arguments.emplace_back(OffsetStr);
+  }
+
+  Pipe::AnonymousPipe OutPipe = Pipe::create(true);
+  Pipe::AnonymousPipe ErrPipe = Pipe::create(true);
+  OutPipe.getRead()->setNonblocking();
+  SO.StandardInput.emplace(fd::Invalid);
+  SO.StandardOutput.emplace(OutPipe.getWrite()->raw());
+  SO.StandardError.emplace(ErrPipe.getWrite()->raw());
+
+  Process P = Process::spawn(SO);
+  P.wait();
+
+  std::string Output;
+  do
+  {
+    Output.append(OutPipe.getRead()->read(BinaryPipeCommunicationSize));
+
+    auto Pos = std::string::npos;
+    do
+    {
+      Pos = Output.find("\n\n");
+      if (Pos == std::string::npos)
+        break;
+      Result.emplace_back(Output.substr(0, Pos));
+      Output.erase(0, Pos + 2);
+    } while (Pos != std::string::npos);
+  } while (!Output.empty());
+
+  return Result;
+}
+
+} // namespace
 
 Backtrace::Backtrace(std::size_t Depth, std::size_t Ignored)
   : SymbolDataBuffer(nullptr)
@@ -112,271 +431,25 @@ Backtrace::~Backtrace()
   {
 #ifndef NDEBUG
     // Freeing the buffer for the symbol data invalidates the views into it.
-    std::for_each(
-      Frames.begin(), Frames.end(), [](Frame& F) { F.SymbolData = {}; });
+    std::for_each(Frames.begin(), Frames.end(), [](Frame& F) {
+      F.SymbolData = {};
+      F.HexAddress = {};
+      F.Binary = {};
+      F.Symbol = {};
+      F.Offset = {};
+    });
 #endif
     std::free(const_cast<char**>(SymbolDataBuffer));
     SymbolDataBuffer = nullptr;
   }
 }
 
-static constexpr std::size_t BinaryPipeCommunicationSize = 4096;
-
-static bool tryBinary(const std::string& Binary)
-{
-  Process::SpawnOptions SO;
-  SO.Program = Binary;
-  SO.Arguments.emplace_back("--help");
-
-  Pipe::AnonymousPipe Pipe = Pipe::create(true);
-  Pipe::AnonymousPipe PipeErr = Pipe::create(true);
-  Pipe.getRead()->setNonblocking();
-  SO.StandardInput.emplace(fd::Invalid);
-  SO.StandardOutput.emplace(Pipe.getWrite()->raw());
-  SO.StandardError.emplace(PipeErr.getWrite()->raw());
-
-  Process P = Process::spawn(SO);
-  P.wait();
-
-  std::string Out = Pipe.getRead()->read(BinaryPipeCommunicationSize);
-  return !Out.empty();
-}
-
-/// Performs the mental gymnastics required to map the locations of where a
-/// stack frame is loaded into memory (and thus available in a backtrace) to
-/// locations in the image of shared library found on the disk and read in situ.
-static std::vector<void*>
-getSharedObjectOffsets(const std::vector<Backtrace::Frame*>& Frames)
-{
-  if (Frames.empty())
-    return {};
-
-  std::string BinaryStr{Frames.front()->Binary};
-  auto MaybeObj = CheckedPOSIX(
-    [&BinaryStr] { return ::dlopen(BinaryStr.c_str(), RTLD_LAZY); }, nullptr);
-  if (!MaybeObj)
-  {
-    LOG(warn) << "dlopen(): failed to generate symbol info for '" << BinaryStr
-              << "': " << dlerror();
-  }
-
-  std::vector<void*> OffsetPtrs;
-  OffsetPtrs.reserve(Frames.size());
-  for (Backtrace::Frame* F : Frames)
-  {
-    void* Offset = nullptr;
-    // There can be two kinds of symbols in the dump.
-    if (F->Offset.empty())
-    {
-      // The first is statically linked into (usually) the current binary, in
-      // which case addr2line can natively resolve it properly.
-      MONOMUX_TRACE_LOG(LOG(data)
-                        << '#' << F->Index << ": Empty 'Offset' field.");
-      std::istringstream AddressBuf;
-      AddressBuf.str(std::string{F->HexAddress});
-      AddressBuf >> Offset;
-    }
-    else
-    {
-      // The other kind of symbols come from shared libraries and must be
-      // resolved via first figuring out where the shared library and the
-      // symbol is loaded, because the hex address is only valid for the current
-      // binary (where the dynamic image is loaded), and not for someone
-      // accessing the object from the outside.
-      if (!MaybeObj)
-        continue;
-
-      {
-        std::istringstream OffsetBuf;
-        OffsetBuf.str(std::string{F->Offset});
-        OffsetBuf >> Offset;
-      }
-
-      const void* Address = nullptr;
-      if (!F->Symbol.empty())
-      {
-        std::string SymbolStr{F->Symbol};
-        auto MaybeAddr =
-          CheckedPOSIX([Obj = MaybeObj.get(),
-                        &SymbolStr] { return ::dlsym(Obj, SymbolStr.c_str()); },
-                       nullptr);
-        if (!MaybeAddr)
-        {
-          LOG(warn) << "dlsym(): failed to generate symbol info for #"
-                    << F->Index << ": " << dlerror();
-          continue;
-        }
-        Address = MaybeAddr.get();
-        MONOMUX_TRACE_LOG(LOG(data) << "Address of '" << F->Symbol
-                                    << "' in memory is " << Address);
-
-        POD<::Dl_info> SymbolInfo;
-        {
-          auto SymInfoError = CheckedPOSIX(
-            [Address, &SymbolInfo] { return ::dladdr(Address, &SymbolInfo); },
-            0);
-          if (!SymInfoError)
-          {
-            LOG(warn) << "dladdr(): failed to generate symbol info for #"
-                      << F->Index << ": " << dlerror();
-            continue;
-          }
-        }
-
-        // NOLINTNEXTLINE(performance-no-int-to-ptr)
-        Offset = reinterpret_cast<void*>(
-          (reinterpret_cast<std::uintptr_t>(SymbolInfo->dli_saddr) -
-           reinterpret_cast<std::uintptr_t>(SymbolInfo->dli_fbase)) +
-          reinterpret_cast<std::uintptr_t>(Offset));
-        MONOMUX_TRACE_LOG(LOG(data) << "Offset of ' " << F->Symbol
-                                    << "' in shared library is " << Offset);
-      }
-      else
-      {
-        MONOMUX_TRACE_LOG(LOG(data)
-                          << "Offset " << Offset << " without a symbol name.");
-      }
-    }
-
-    OffsetPtrs.emplace_back(Offset);
-  }
-
-  if (MaybeObj)
-    CheckedPOSIX([DLObj = MaybeObj.get()](bool& CloseError) {
-      CloseError = (::dlclose(DLObj) != 0);
-    });
-
-  return OffsetPtrs;
-}
-
-static std::vector<std::string>
-addr2line(const std::string& Binary,
-          const std::vector<Backtrace::Frame*>& Frames)
-{
-  std::vector<void*> FrameOffsets = getSharedObjectOffsets(Frames);
-  std::vector<std::string> Result;
-  Result.reserve(Frames.size());
-
-  Process::SpawnOptions SO;
-  SO.Program = "addr2line";
-  SO.Arguments.emplace_back("-e"); // Specify binary to read.
-  SO.Arguments.emplace_back(Binary);
-  SO.Arguments.emplace_back("-p"); // Pretty printer.
-  SO.Arguments.emplace_back("-f"); // Print functions.
-  SO.Arguments.emplace_back("-C"); // Demangle.
-
-  for (std::size_t I = 0; I < Frames.size(); ++I)
-  {
-    std::ostringstream OS;
-    OS << FrameOffsets.at(I);
-    // Strip "0x"
-    std::string OffsetStrNoHexPrefix = OS.str().substr(2);
-    SO.Arguments.emplace_back(OffsetStrNoHexPrefix);
-  }
-
-  Pipe::AnonymousPipe OutPipe = Pipe::create(true);
-  Pipe::AnonymousPipe ErrPipe = Pipe::create(true);
-  OutPipe.getRead()->setNonblocking();
-  SO.StandardInput.emplace(fd::Invalid);
-  SO.StandardOutput.emplace(OutPipe.getWrite()->raw());
-  SO.StandardError.emplace(ErrPipe.getWrite()->raw());
-
-  Process P = Process::spawn(SO);
-  P.wait();
-
-  std::string Output;
-  do
-  {
-    Output.append(OutPipe.getRead()->read(BinaryPipeCommunicationSize));
-
-    auto Pos = std::string::npos;
-    do
-    {
-      Pos = Output.find('\n');
-      if (Pos == std::string::npos)
-        break;
-      Result.emplace_back(Output.substr(0, Pos));
-      Output.erase(0, Pos + 1);
-    } while (Pos != std::string::npos);
-  } while (!Output.empty());
-
-  return Result;
-}
-
-static std::vector<std::string>
-// NOLINTNEXTLINE(readability-identifier-naming)
-llvm_symbolizer(const std::string& Binary,
-                const std::vector<Backtrace::Frame*>& Frames)
-{
-  std::vector<void*> FrameOffsets = getSharedObjectOffsets(Frames);
-  std::vector<std::string> Result;
-  Result.reserve(Frames.size());
-
-  Process::SpawnOptions SO;
-  SO.Program = "llvm-symbolizer";
-  SO.Arguments.emplace_back("-e"); // Specify binary to read.
-  SO.Arguments.emplace_back(Binary);
-  SO.Arguments.emplace_back("-p"); // Pretty printer.
-  SO.Arguments.emplace_back("-f"); // Print functions.
-  SO.Arguments.emplace_back("-C"); // Demangle.
-
-  for (std::size_t I = 0; I < Frames.size(); ++I)
-  {
-    std::ostringstream OS;
-    OS << FrameOffsets.at(I);
-    // llvm-symbolizer eats hex addresses with "0x" prefix like no problem.
-    std::string OffsetStr = OS.str();
-    SO.Arguments.emplace_back(OffsetStr);
-  }
-
-  Pipe::AnonymousPipe OutPipe = Pipe::create(true);
-  Pipe::AnonymousPipe ErrPipe = Pipe::create(true);
-  OutPipe.getRead()->setNonblocking();
-  SO.StandardInput.emplace(fd::Invalid);
-  SO.StandardOutput.emplace(OutPipe.getWrite()->raw());
-  SO.StandardError.emplace(ErrPipe.getWrite()->raw());
-
-  Process P = Process::spawn(SO);
-  P.wait();
-
-  std::string Output;
-  do
-  {
-    Output.append(OutPipe.getRead()->read(BinaryPipeCommunicationSize));
-
-    auto Pos = std::string::npos;
-    do
-    {
-      Pos = Output.find("\n\n");
-      if (Pos == std::string::npos)
-        break;
-      Result.emplace_back(Output.substr(0, Pos));
-      Output.erase(0, Pos + 2);
-    } while (Pos != std::string::npos);
-  } while (!Output.empty());
-
-  return Result;
-}
-
 void Backtrace::prettify()
 {
-  std::string Symboliser;
-  if (Symboliser.empty() && tryBinary("llvm-symbolizer"))
+  std::vector<std::unique_ptr<Symboliser>> Symbolisers = makeSymbolisers();
+  if (Symbolisers.empty())
   {
-    MONOMUX_TRACE_LOG(LOG(debug) << "Using symboliser: LLVM symbolizer");
-    Symboliser = "llvm-symbolizer";
-  }
-  if (Symboliser.empty() && tryBinary("addr2line"))
-  {
-    MONOMUX_TRACE_LOG(LOG(debug) << "Using symboliser: GNU addr2line");
-    Symboliser = "addr2line";
-  }
-  if (Symboliser.empty())
-  {
-    MONOMUX_TRACE_LOG(
-      LOG(warn)
-      << "No symboliser found. Please install 'binutils' for addr2line or "
-         "'llvm-symbolizer', or ensure they are in the PATH!");
+    MONOMUX_TRACE_LOG(Symboliser::noSymbolisersMessage());
     return;
   }
 
@@ -400,15 +473,48 @@ void Backtrace::prettify()
   {
     MONOMUX_TRACE_LOG(LOG(data) << "Prettifying " << P.second.size()
                                 << " stack frames from '" << P.first << "'");
-    std::vector<std::string> Pretties;
-    if (Symboliser == "llvm-symbolizer")
-      Pretties = llvm_symbolizer(P.first, P.second);
-    else if (Symboliser == "addr2line")
-      Pretties = addr2line(P.first, P.second);
-    for (std::size_t I = 0; I < P.second.size(); ++I)
+    const std::string& Object = P.first;
+    const auto& Frames = P.second;
+    putSharedObjectOffsets(Frames);
+
+    auto SymbolisersForThisObject = [&Symbolisers] {
+      std::vector<Symboliser*> SymbPtrs;
+      std::transform(Symbolisers.begin(),
+                     Symbolisers.end(),
+                     std::back_inserter(SymbPtrs),
+                     [](auto&& SPtr) { return SPtr.get(); });
+      return SymbPtrs;
+    }();
+    bool NeedsAnotherRoundOfSymbolisation = true;
+    while (!SymbolisersForThisObject.empty() &&
+           NeedsAnotherRoundOfSymbolisation)
     {
-      if (I < Pretties.size())
-        P.second.at(I)->Pretty = std::move(Pretties.at(I));
+      Symboliser* Symboliser = SymbolisersForThisObject.back();
+      MONOMUX_TRACE_LOG(LOG(trace)
+                        << "Trying symboliser '" << Symboliser->name()
+                        << "' for '" << Object << "'...");
+
+      std::vector<std::string> Pretties = Symboliser->symbolise(Object, Frames);
+      NeedsAnotherRoundOfSymbolisation = false; // Assume this round succeeds.
+      for (std::size_t I = 0; I < Frames.size(); ++I)
+      {
+        if (I >= Pretties.size() || !Frames.at(I)->Pretty.empty())
+          continue;
+        if (!Symboliser->isInvalidSymbolisationResult(Pretties.at(I)))
+        {
+          Frames.at(I)->Pretty = std::move(Pretties.at(I));
+          continue;
+        }
+
+        // Some symbolisers, like 'llvm-symbolizer' might be unable to symbolize
+        // certain GLIBC or LIBSTDC++ constructs which others, like 'addr2line'
+        // has been observed to handle properly.
+        // In case we find that it could not, let's try the next symboliser.
+        Frames.at(I)->Pretty.clear();
+        NeedsAnotherRoundOfSymbolisation = true;
+      }
+
+      SymbolisersForThisObject.pop_back();
     }
   }
 }

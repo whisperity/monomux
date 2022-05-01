@@ -37,6 +37,14 @@ public:
     /// Each item in the array pointed to by \p buffer is of type \p void*, and
     /// is the return address from the corresponding stack frame.
     const void* Address;
+
+    /// The offset in the raw image (as opposed to its memory-loaded version)
+    /// for the symbol's address. This value is used during symbolisation to
+    /// find the appropriate symbol data.
+    ///
+    /// \see prettify()
+    const void* ImageOffset;
+
     /// The symbolic representation of each address consists of the function
     /// name (if this can be determined), a hexademical offset into the
     /// function, and the actual return address (in hexadecimal).
@@ -52,7 +60,7 @@ public:
     /// from the start of the image) for the instruction of the stack frame.
     std::string_view Offset;
 
-    /// The prettified version of the raw \p SymbolData, returned by prettifiers
+    /// The prettified version of the raw \p SymbolData, returned by symbolisers
     /// such as \p addr2line or \p llvm-symbolizer.
     std::string Pretty;
   };

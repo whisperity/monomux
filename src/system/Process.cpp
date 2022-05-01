@@ -122,9 +122,15 @@ std::string Process::thisProcessPath()
     }
   }
 
-  CheckedPOSIXThrow([NewArgv] { return ::execvp(NewArgv[0], NewArgv); },
-                    "Executing process failed",
-                    -1);
+  auto ExecSuccessful =
+    CheckedPOSIX([NewArgv] { return ::execvp(NewArgv[0], NewArgv); }, -1);
+  if (!ExecSuccessful)
+  {
+    MONOMUX_TRACE_LOG(LOG(fatal)
+                      << "'exec()' failed: " << ExecSuccessful.getError()
+                      << "\nThis process cannot continue.");
+    std::_Exit(-SIGCHLD);
+  }
   unreachable("::exec() should've started a new process");
 }
 

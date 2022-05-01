@@ -26,7 +26,6 @@
 #include <unistd.h>
 
 #include "monomux/Version.hpp"
-#include "monomux/adt/Lazy.hpp"
 #include "monomux/client/Main.hpp"
 #include "monomux/server/Main.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
@@ -490,7 +489,7 @@ void coreDumped(SignalHandling::Signal SigNum,
     Handling->getObject(SignalHandling::ModuleObjName));
   const char* Module = ModulePtr ? *ModulePtr : "<Unknown>";
   LOG(fatal) << "in '" << Module << "' - FATAL SIGNAL " << SigNum << " '"
-             << SignalHandling::signalName(SigNum) << "'' RECEIVED!";
+             << SignalHandling::signalName(SigNum) << "' RECEIVED!";
 
   Backtrace BT;
   BT.prettify();
@@ -506,21 +505,11 @@ void coreDumped(SignalHandling::Signal SigNum,
                "-----------------------------------------------\n";
   for (const Backtrace::Frame& F : BT.getFrames())
   {
-    std::cerr << '#' << F.Index << " - " << F.SymbolData << "\n";
-    if (!F.Pretty.empty())
-    {
-      auto LengthOfIndex = [](std::size_t Index) {
-        std::size_t C = 0;
-        while (Index)
-        {
-          Index /= 10; // NOLINT(readability-magic-numbers)
-          ++C;
-        }
-        return C;
-      }(F.Index);
-      const std::size_t PrintOffset = 1 + LengthOfIndex + 3;
-      std::cerr << std::string(PrintOffset, ' ') << F.Pretty;
-    }
+    std::cerr << '#' << F.Index << " - ";
+    if (F.Pretty.empty())
+      std::cerr << F.SymbolData;
+    else
+      std::cerr << F.Pretty;
     std::cerr << std::endl;
   }
   std::cerr << "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - "
