@@ -259,6 +259,10 @@ struct Detached
     ServerShutdown
   };
   DetachMode Mode = Detach;
+
+  /// The exit code of the process running in the session that exited.
+  /// Only meaningful if \p Mode is \p Exit.
+  int ExitCode{};
 };
 
 /// A notification send by the client to the server indicating that its terminal

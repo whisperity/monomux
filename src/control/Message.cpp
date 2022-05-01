@@ -769,6 +769,7 @@ ENCODE(Detached)
 {
   std::ostringstream Buf;
   Buf << "<DETACHED>";
+  Buf << "<MODE>";
   switch (Object.Mode)
   {
     case Detach:
@@ -781,6 +782,9 @@ ENCODE(Detached)
       Buf << "Server";
       break;
   }
+  Buf << "</MODE>";
+  if (Object.Mode == Exit)
+    Buf << "<CODE>" << Object.ExitCode << "</CODE>";
   Buf << "</DETACHED>";
   return Buf.str();
 }
@@ -788,8 +792,9 @@ DECODE(Detached)
 {
   Detached Ret;
   HEADER_OR_NONE("<DETACHED>");
+  CONSUME_OR_NONE("<MODE>");
 
-  EXTRACT_OR_NONE(Mode, "<");
+  EXTRACT_OR_NONE(Mode, "</MODE>");
   if (Mode == "Detach")
     Ret.Mode = Detach;
   else if (Mode == "Exit")
@@ -799,7 +804,14 @@ DECODE(Detached)
   else
     return std::nullopt;
 
-  FOOTER_OR_NONE("/DETACHED>");
+  if (Ret.Mode == Exit)
+  {
+    CONSUME_OR_NONE("<CODE>");
+    EXTRACT_OR_NONE(ExitCode, "</CODE>");
+    Ret.ExitCode = std::stoi(std::string{ExitCode});
+  }
+
+  FOOTER_OR_NONE("</DETACHED>");
   return Ret;
 }
 

@@ -481,15 +481,18 @@ void Server::reapDeadChildren()
       });
     if (SessionForProc == Sessions.end())
       continue;
+    Process& Proc = SessionForProc->second->getProcess();
 
-    bool Dead = SessionForProc->second->getProcess().reapIfDead();
+    bool Dead = Proc.reapIfDead();
     if (Dead)
     {
       LOG(debug) << "Child PID " << PID << " of Session \""
-                 << SessionForProc->second->name() << "\" exited";
+                 << SessionForProc->second->name() << "\" exited with "
+                 << Proc.exitCode();
 
       for (ClientData* AC : SessionForProc->second->getAttachedClients())
-        AC->sendDetachReason(monomux::message::notification::Detached::Exit);
+        AC->sendDetachReason(monomux::message::notification::Detached::Exit,
+                             Proc.exitCode());
       destroyCallback(*SessionForProc->second);
     }
 

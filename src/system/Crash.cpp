@@ -385,7 +385,8 @@ Backtrace::Backtrace(std::size_t Depth, std::size_t Ignored)
       [&Addresses, Depth] { return ::backtrace(Addresses, Depth); }, -1);
     if (!MaybeFrameCount)
     {
-      LOG(error) << "backtrace() failed: " << MaybeFrameCount.getError();
+      LOG(error) << "backtrace() failed: " << MaybeFrameCount.getError() << ' '
+                 << MaybeFrameCount.getError().message();
       return;
     }
     FrameCount = MaybeFrameCount.get();
@@ -402,7 +403,8 @@ Backtrace::Backtrace(std::size_t Depth, std::size_t Ignored)
       },
       nullptr);
     if (!MaybeSymbols)
-      LOG(error) << "backtrace_symbols() failed: " << MaybeSymbols.getError();
+      LOG(error) << "backtrace_symbols() failed: " << MaybeSymbols.getError()
+                 << ' ' << MaybeSymbols.getError().message();
     else
       SymbolDataBuffer = MaybeSymbols.get();
   }

@@ -135,6 +135,9 @@ public:
   void loop();
 
   ExitReason exitReason() const noexcept { return Exit; }
+  /// \returns the exit code associated with the client-server connection
+  /// exiting, if any. This field is not always meaningful.
+  int exitCode() const noexcept { return ExitCode; }
 
   /// Sends a request to the connected server to tell what sessions are running
   /// on the server.
@@ -244,10 +247,11 @@ private:
   /// \p Poll is enabled.
   UniqueScalar<bool, false> InputFileEnabled;
 
-  ExitReason Exit;
+  ExitReason Exit = None;
+  int ExitCode = 0;
   /// Terminate the handling \p loop() of the client and set the exit status to
-  /// \p E.
-  void exit(ExitReason E);
+  /// \p E and the exit code to \p ECODE.
+  void exit(ExitReason E, int ECode);
 
   mutable Atomic<bool> TerminateLoop = false;
   std::unique_ptr<EPoll> Poll;

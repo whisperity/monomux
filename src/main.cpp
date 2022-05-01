@@ -515,7 +515,7 @@ void coreDumped(SignalHandling::Signal SigNum,
 
   std::cerr << "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - "
                "* - * - * - * - * - * - * - * - * - * - * - * -\n";
-  std::cerr << "    Monomux (v" << getFullVersion() << ") has crashed!\n";
+  std::cerr << "\t\tMonomux (v" << getFullVersion() << ") has crashed!\n";
   std::cerr << "---------------------------------------------------------------"
                "-----------------------------------------------\n";
   std::cerr << '\n';

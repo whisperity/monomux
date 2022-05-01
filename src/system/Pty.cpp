@@ -45,7 +45,7 @@ Pty::Pty()
     "Failed to openpty()",
     -1);
 
-  LOG(trace) << "Opened " << DeviceName << "(master: " << MasterFD
+  LOG(trace) << "Opened " << DeviceName << " (master: " << MasterFD
              << ", slave: " << SlaveFD << ')';
 
   Master = MasterFD;

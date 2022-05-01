@@ -56,10 +56,10 @@ void ClientData::subjugateIntoDataSocket(ClientData& Other) noexcept
 }
 
 void ClientData::sendDetachReason(
-  monomux::message::notification::Detached::DetachMode R)
+  monomux::message::notification::Detached::DetachMode R, int EC)
 {
   message::sendMessage(getControlSocket(),
-                       monomux::message::notification::Detached{R});
+                       monomux::message::notification::Detached{R, EC});
 }
 
 } // namespace monomux::server

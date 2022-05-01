@@ -160,7 +160,6 @@ static void coreDumped(SignalHandling::Signal SigNum,
   }
 }
 
-
 namespace
 {
 
@@ -478,10 +477,12 @@ int main(Options& Opts)
       return EXIT_Success;
     case Client::SessionExit:
       std::cout << "[exited";
+      if (Client.exitCode())
+        std::cout << " (with return code " << Client.exitCode() << ")";
       if (const SessionData* S = Client.attachedSession())
         std::cout << " (from session '" << S->Name << "')";
       std::cout << "]" << std::endl;
-      return EXIT_Success;
+      return Client.exitCode();
     case Client::ServerExit:
       std::cout << "[server exited]" << std::endl;
       return EXIT_Success;

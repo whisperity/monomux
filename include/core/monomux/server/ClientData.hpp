@@ -73,7 +73,11 @@ public:
   }
 
   /// Sends the specified detachment reason to the client, if it is connected.
-  void sendDetachReason(monomux::message::notification::Detached::DetachMode R);
+  ///
+  /// \param EC The exit code of the session that is detaching from. Not always
+  /// meaningful.
+  void sendDetachReason(monomux::message::notification::Detached::DetachMode R,
+                        int EC = 0);
 
 private:
   std::size_t ID;

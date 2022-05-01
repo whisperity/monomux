@@ -127,8 +127,8 @@ std::string Process::thisProcessPath()
   if (!ExecSuccessful)
   {
     MONOMUX_TRACE_LOG(LOG(fatal)
-                      << "'exec()' failed: " << ExecSuccessful.getError()
-                      << "\nThis process cannot continue.");
+                      << "'exec()' failed: " << ExecSuccessful.getError() << ' '
+                      << ExecSuccessful.getError().message());
     std::_Exit(-SIGCHLD);
   }
   unreachable("::exec() should've started a new process");
@@ -167,30 +167,53 @@ Process Process::spawn(const SpawnOptions& Opts)
   unreachable("Process::exec() should've replaced the process.");
 }
 
-bool Process::reapIfDead()
+static std::pair<bool, int> reapAndGetExitCode(Process::raw_handle PID,
+                                               bool Block)
 {
-  if (Handle == Invalid)
-    return true;
+  if (PID == Process::Invalid)
+    return {true, -1};
 
-  auto ChangedPID =
-    CheckedPOSIX([this] { return ::waitpid(Handle, nullptr, WNOHANG); }, -1);
+  POD<int> WaitStatus;
+  auto ChangedPID = CheckedPOSIX(
+    [&WaitStatus, PID, Block] {
+      return ::waitpid(PID, &WaitStatus, !Block ? WNOHANG : 0);
+    },
+    -1);
   if (!ChangedPID)
   {
     std::error_code EC = ChangedPID.getError();
     if (EC == std::errc::no_child_process /* ECHILD */)
-      return false;
-    throw std::system_error{EC, "waitpid(" + std::to_string(Handle) + ")"};
-  }
-
-  if (ChangedPID.get() == Handle)
-  {
-    MONOMUX_TRACE_LOG(LOG(trace) << "Successfully reaped child PID " << Handle);
-    return true;
+      return {false, 0};
+    throw std::system_error{EC,
+                            "waitpid(" + std::to_string(PID) + ", " +
+                              std::to_string(Block) + ")"};
   }
   if (ChangedPID.get() == 0)
+    // if WNOHANG was specified and one or more child(ren) specified by pid
+    // exist, but have not yet changed state, then 0 is returned.
+    return {false, 0};
+  // on success, returns the process ID of the child whose state has changed
+  if (ChangedPID.get() != PID)
+    return {false, 0};
+
+  MONOMUX_TRACE_LOG(LOG(trace) << "Successfully reaped child PID " << PID);
+  if (WIFEXITED(WaitStatus))
+    return {true, WEXITSTATUS(WaitStatus)};
+  if (WIFSIGNALED(WaitStatus))
+    return {true, -(WTERMSIG(WaitStatus))};
+
+  return {false, 0};
+}
+
+bool Process::reapIfDead()
+{
+  std::pair<bool, int> DeadAndExit = reapAndGetExitCode(Handle, false);
+  if (!DeadAndExit.first)
     return false;
 
-  return false;
+  Dead = true;
+  ExitCode = DeadAndExit.second;
+  return true;
 }
 
 void Process::wait()
@@ -200,19 +223,9 @@ void Process::wait()
 
   MONOMUX_TRACE_LOG(LOG(trace)
                     << "Waiting on child PID " << Handle << " to exit");
-  POD<int> WaitStatus;
-  auto ChangedPID = CheckedPOSIX(
-    [this, &WaitStatus] { return ::waitpid(Handle, &WaitStatus, 0); }, -1);
-  if (!ChangedPID)
-  {
-    std::error_code EC = ChangedPID.getError();
-    if (EC == std::errc::no_child_process /* ECHILD */)
-      return;
-    throw std::system_error{EC, "waitpid(" + std::to_string(Handle) + ")"};
-  }
-
-  if (ChangedPID.get() == Handle)
-    MONOMUX_TRACE_LOG(LOG(trace) << "Successfully reaped child PID " << Handle);
+  std::pair<bool, int> DeadAndExit = reapAndGetExitCode(Handle, true);
+  Dead = true;
+  ExitCode = DeadAndExit.second;
 }
 
 // NOLINTNEXTLINE(readability-make-member-function-const)

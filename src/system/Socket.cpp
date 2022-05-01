@@ -142,8 +142,8 @@ Socket::~Socket() noexcept
       CheckedPOSIX([this] { return ::unlink(identifier().c_str()); }, -1);
     if (!RemoveResult)
       LOG(error) << "Failed to remove file \"" << identifier()
-                 << "\" when closing the socket.\n\t"
-                 << RemoveResult.getError();
+                 << "\" when closing the socket.\n\t" << RemoveResult.getError()
+                 << ' ' << RemoveResult.getError().message();
   }
 }
 
@@ -191,7 +191,8 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
         EC == std::errc::too_many_files_open_in_system /* ENFILE */)
     {
       LOG(warn) << identifier()
-                << ": Failed to accept client: " << MaybeClient.getError();
+                << ": Failed to accept client: " << MaybeClient.getError()
+                << ' ' << MaybeClient.getError().message();
       ConsiderRecoverable = true;
     }
     else if (EC == std::errc::resource_unavailable_try_again /* EAGAIN */ ||
@@ -200,7 +201,8 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
              static_cast<int>(EC) != 0)
     {
       LOG(error) << identifier()
-                 << ": Failed to accept client: " << MaybeClient.getError();
+                 << ": Failed to accept client: " << MaybeClient.getError()
+                 << ' ' << MaybeClient.getError().message();
       ConsiderRecoverable = false;
     }
 

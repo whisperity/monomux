@@ -76,11 +76,11 @@ TEST(ControlMessageSerialisation, ClientIDRequest)
 TEST(ControlMessageSerialisation, ClientIDResponse)
 {
   monomux::message::response::ClientID Obj;
-  Obj.Client.ID = 42;
-  Obj.Client.Nonce = 16;
+  Obj.Client.ID = 4;
+  Obj.Client.Nonce = 2;
   EXPECT_EQ(
     encode(Obj),
-    "<CLIENT-ID><CLIENT><ID>42</ID><NONCE>16</NONCE></CLIENT></CLIENT-ID>");
+    "<CLIENT-ID><CLIENT><ID>4</ID><NONCE>2</NONCE></CLIENT></CLIENT-ID>");
 
   auto Decode = codec(Obj);
   EXPECT_EQ(Obj.Client.ID, Decode.Client.ID);
@@ -90,11 +90,11 @@ TEST(ControlMessageSerialisation, ClientIDResponse)
 TEST(ControlMessageSerialisation, DataSocketRequest)
 {
   monomux::message::request::DataSocket Obj;
-  Obj.Client.ID = 55;
-  Obj.Client.Nonce = 177;
+  Obj.Client.ID = 2;
+  Obj.Client.Nonce = 3;
   EXPECT_EQ(
     encode(Obj),
-    "<DATASOCKET><CLIENT><ID>55</ID><NONCE>177</NONCE></CLIENT></DATASOCKET>");
+    "<DATASOCKET><CLIENT><ID>2</ID><NONCE>3</NONCE></CLIENT></DATASOCKET>");
 
   auto Decode = codec(Obj);
   EXPECT_EQ(Obj.Client.ID, Decode.Client.ID);
@@ -303,18 +303,23 @@ TEST(ControlMessageSerialisation, DetachedNotification)
 {
   using namespace monomux::message::notification;
   Detached Obj;
+  Obj.ExitCode = 2;
 
   Obj.Mode = Detached::Detach;
-  EXPECT_EQ(encode(Obj), "<DETACHED>Detach</DETACHED>");
+  EXPECT_EQ(encode(Obj), "<DETACHED><MODE>Detach</MODE></DETACHED>");
   EXPECT_EQ(codec(Obj).Mode, Detached::Detach);
+  EXPECT_EQ(codec(Obj).ExitCode, 0);
 
   Obj.Mode = Detached::Exit;
-  EXPECT_EQ(encode(Obj), "<DETACHED>Exit</DETACHED>");
+  EXPECT_EQ(encode(Obj),
+            "<DETACHED><MODE>Exit</MODE><CODE>2</CODE></DETACHED>");
   EXPECT_EQ(codec(Obj).Mode, Detached::Exit);
+  EXPECT_EQ(codec(Obj).ExitCode, 2);
 
   Obj.Mode = Detached::ServerShutdown;
-  EXPECT_EQ(encode(Obj), "<DETACHED>Server</DETACHED>");
+  EXPECT_EQ(encode(Obj), "<DETACHED><MODE>Server</MODE></DETACHED>");
   EXPECT_EQ(codec(Obj).Mode, Detached::ServerShutdown);
+  EXPECT_EQ(codec(Obj).ExitCode, 0);
 }
 
 TEST(ControlMessageSerialisation, SignalRequest)

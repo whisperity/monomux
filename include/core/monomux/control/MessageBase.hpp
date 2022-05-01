@@ -22,9 +22,6 @@
 #include <string>
 #include <string_view>
 
-/* Defines the messaging API exposed by the current implementation. */
-#define MONOMUX_MESSAGING_API_VERSION 1
-
 #ifndef MONOMUX_MESSAGE
 #define MONOMUX_MESSAGE(KIND, NAME)                                            \
   static constexpr MessageKind Kind = MessageKind::KIND;                       \

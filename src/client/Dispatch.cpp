@@ -66,13 +66,13 @@ HANDLER(receivedDetachNotification)
   switch (Msg->Mode)
   {
     case Detached::Detach:
-      Client.exit(Detached);
+      Client.exit(Detached, 0);
       break;
     case Detached::Exit:
-      Client.exit(SessionExit);
+      Client.exit(SessionExit, Msg->ExitCode);
       break;
     case Detached::ServerShutdown:
-      Client.exit(ServerExit);
+      Client.exit(ServerExit, 0);
       break;
   }
 }

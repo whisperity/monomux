@@ -59,8 +59,7 @@ std::optional<Client> Client::create(std::string SocketPath,
   return std::nullopt;
 }
 
-Client::Client(Socket&& ControlSock)
-  : ControlSocket(std::move(ControlSock)), Exit(None)
+Client::Client(Socket&& ControlSock) : ControlSocket(std::move(ControlSock))
 {
   setUpDispatch();
 }
@@ -283,7 +282,7 @@ void Client::controlCallback()
 
     if (ControlSocket.failed())
     {
-      exit(Failed);
+      exit(Failed, -1);
       return;
     }
 
@@ -309,7 +308,7 @@ void Client::controlCallback()
     {
       LOG(warn) << "Error when handling message";
       if (getControlSocket().failed())
-        exit(Failed);
+        exit(Failed, -1);
       continue;
     }
   }
@@ -330,13 +329,14 @@ void Client::setExternalEventProcessor(std::function<RawCallbackFn> Callback)
   ExternalEventProcessor = std::move(Callback);
 }
 
-void Client::exit(ExitReason E)
+void Client::exit(ExitReason E, int ECode)
 {
   if (Exit != None)
     return;
 
   LOG(trace) << "Exit with reason " << E;
   Exit = E;
+  ExitCode = ECode;
   Poll.reset();
   TerminateLoop.get().store(true);
 }

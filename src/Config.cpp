@@ -20,7 +20,6 @@
 #include <string_view>
 
 #include "Config.hpp"
-#include "monomux/control/MessageBase.hpp"
 
 namespace monomux
 {
@@ -28,9 +27,6 @@ namespace monomux
 std::string getHumanReadableConfiguration()
 {
   std::ostringstream Buf;
-
-  Buf << " * Implementing messaging API version: "
-      << std::to_string((MONOMUX_MESSAGING_API_VERSION)) << '\n';
 
   Buf << " * " << MONOMUX_BUILD_TYPE << " build\n";
 

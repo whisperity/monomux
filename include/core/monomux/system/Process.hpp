@@ -71,11 +71,25 @@ public:
   /// Blocks until the current process instance has terminated.
   void wait();
 
+  /// \returns whether the child process has been \b OBSERVED to be dead.
+  bool dead() const noexcept { return Dead; }
+
+  /// \returns the exit code of the process, if it has already terminated.
+  /// This call is only valid after \p wait() concluded or \p reapIfDead()
+  /// returns \p true.
+  int exitCode() const noexcept
+  {
+    assert(Dead && "Process still alive, exit code is not meaningful!");
+    return ExitCode;
+  }
+
   /// Send the \p Signal to the underlying process.
   void signal(int Signal);
 
 private:
-  raw_handle Handle;
+  raw_handle Handle = Invalid;
+  bool Dead = false;
+  int ExitCode = 0;
   /// The \p Pty assocaited with the process, if \p SpawnOptions::CreatePTY was
   /// true.
   std::optional<Pty> PTY;

@@ -137,7 +137,8 @@ Pipe::~Pipe() noexcept
     if (!RemoveResult)
     {
       LOG(error) << "Failed to remove file \"" << identifier()
-                 << "\" when closing the pipe.\n\t" << RemoveResult.getError();
+                 << "\" when closing the pipe.\n\t" << RemoveResult.getError()
+                 << ' ' << RemoveResult.getError().message();
     }
   }
 }
