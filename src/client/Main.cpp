@@ -226,33 +226,33 @@ int main(Options& Opts)
   {
     ScopeGuard TerminalSetup{[&Term, &Client] { Term.setupClient(Client); },
                              [&Term] { Term.releaseClient(); }};
-    ScopeGuard Signal{
-      [&Term] {
-        SignalHandling& Sig = SignalHandling::get();
-        Sig.registerObject(SignalHandling::ModuleObjName, "Client");
-        Sig.registerObject(TerminalObjName, &Term);
-        Sig.registerCallback(SIGWINCH, &windowSizeChange);
-        Sig.enable();
+    ScopeGuard Signal{[&Term] {
+                        SignalHandling& Sig = SignalHandling::get();
+                        Sig.registerObject(SignalHandling::ModuleObjName,
+                                           "Client");
+                        Sig.registerObject(TerminalObjName, &Term);
+                        Sig.registerCallback(SIGWINCH, &windowSizeChange);
+                        Sig.enable();
 
-        // Override the SIGABRT handler with a custom one that
-        // resets the terminal during a crash.
-        Sig.registerCallback(SIGILL, &coreDumped);
-        Sig.registerCallback(SIGABRT, &coreDumped);
-        Sig.registerCallback(SIGSEGV, &coreDumped);
-        Sig.registerCallback(SIGSYS, &coreDumped);
-        Sig.registerCallback(SIGSTKFLT, &coreDumped);
-      },
-      [] {
-        SignalHandling& Sig = SignalHandling::get();
-        Sig.defaultCallback(SIGWINCH);
-        Sig.deleteObject(TerminalObjName);
+                        // Override the SIGABRT handler with a custom one that
+                        // resets the terminal during a crash.
+                        Sig.registerCallback(SIGILL, &coreDumped);
+                        Sig.registerCallback(SIGABRT, &coreDumped);
+                        Sig.registerCallback(SIGSEGV, &coreDumped);
+                        Sig.registerCallback(SIGSYS, &coreDumped);
+                        Sig.registerCallback(SIGSTKFLT, &coreDumped);
+                      },
+                      [] {
+                        SignalHandling& Sig = SignalHandling::get();
+                        Sig.defaultCallback(SIGWINCH);
+                        Sig.deleteObject(TerminalObjName);
 
-        Sig.clearOneCallback(SIGILL);
-        Sig.clearOneCallback(SIGABRT);
-        Sig.clearOneCallback(SIGSEGV);
-        Sig.clearOneCallback(SIGSYS);
-        Sig.clearOneCallback(SIGSTKFLT);
-      }};
+                        Sig.clearOneCallback(SIGILL);
+                        Sig.clearOneCallback(SIGABRT);
+                        Sig.clearOneCallback(SIGSEGV);
+                        Sig.clearOneCallback(SIGSYS);
+                        Sig.clearOneCallback(SIGSTKFLT);
+                      }};
 
     LOG(trace) << "Starting client...";
 

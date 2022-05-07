@@ -77,11 +77,9 @@ constexpr char ServerObjName[] = "Server";
 void serverShutdown(SignalHandling::Signal SigNum,
                     ::siginfo_t* Info,
                     const SignalHandling* Handling);
-
 void childExited(SignalHandling::Signal SigNum,
                  ::siginfo_t* Info,
                  const SignalHandling* Handling);
-
 void coreDumped(SignalHandling::Signal SigNum,
                 ::siginfo_t* Info,
                 const SignalHandling* Handling);
@@ -90,41 +88,58 @@ void coreDumped(SignalHandling::Signal SigNum,
 
 int main(Options& Opts)
 {
-  Socket ServerSock = Socket::create(*Opts.SocketPath);
-  Server S = Server(std::move(ServerSock));
+  std::optional<Socket> ServerSock;
+  try
+  {
+    ServerSock.emplace(Socket::create(*Opts.SocketPath));
+  }
+  catch (const std::system_error& SE)
+  {
+    LOG(fatal) << "Creating the socket '" << *Opts.SocketPath << "' failed:\n\t"
+               << SE.what();
+    if (SE.code() == std::errc::address_in_use)
+      LOG(info) << "If you are sure another server is not running, delete the "
+                   "file and restart the server.";
+    return EXIT_SystemError;
+  }
+
+  Server S = Server(std::move(*ServerSock));
   S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
-  ScopeGuard Signal{
-    [&S] {
-      SignalHandling& Sig = SignalHandling::get();
-      Sig.registerObject(SignalHandling::ModuleObjName, "Server");
-      Sig.registerObject(ServerObjName, &S);
-      Sig.registerCallback(SIGINT, &serverShutdown);
-      Sig.registerCallback(SIGTERM, &serverShutdown);
-      Sig.registerCallback(SIGCHLD, &childExited);
-      Sig.ignore(SIGPIPE);
-      Sig.enable();
+  ScopeGuard Signal{[&S] {
+                      SignalHandling& Sig = SignalHandling::get();
+                      Sig.registerObject(SignalHandling::ModuleObjName,
+                                         "Server");
+                      Sig.registerObject(ServerObjName, &S);
+                      Sig.registerCallback(SIGHUP, &serverShutdown);
+                      Sig.registerCallback(SIGINT, &serverShutdown);
+                      Sig.registerCallback(SIGTERM, &serverShutdown);
+                      Sig.registerCallback(SIGCHLD, &childExited);
+                      Sig.ignore(SIGPIPE);
+                      Sig.enable();
 
-      // Override the SIGABRT handler with a custom one that kills the server.
-      Sig.registerCallback(SIGILL, &coreDumped);
-      Sig.registerCallback(SIGABRT, &coreDumped);
-      Sig.registerCallback(SIGSEGV, &coreDumped);
-      Sig.registerCallback(SIGSYS, &coreDumped);
-      Sig.registerCallback(SIGSTKFLT, &coreDumped);
-    },
-    [] {
-      SignalHandling& Sig = SignalHandling::get();
-      Sig.unignore(SIGPIPE);
-      Sig.defaultCallback(SIGCHLD);
-      Sig.defaultCallback(SIGTERM);
-      Sig.defaultCallback(SIGINT);
-      Sig.deleteObject(ServerObjName);
+                      // Override the SIGABRT handler with a custom one that
+                      // kills the server.
+                      Sig.registerCallback(SIGILL, &coreDumped);
+                      Sig.registerCallback(SIGABRT, &coreDumped);
+                      Sig.registerCallback(SIGSEGV, &coreDumped);
+                      Sig.registerCallback(SIGSYS, &coreDumped);
+                      Sig.registerCallback(SIGSTKFLT, &coreDumped);
+                    },
+                    [] {
+                      SignalHandling& Sig = SignalHandling::get();
+                      Sig.unignore(SIGPIPE);
+                      Sig.defaultCallback(SIGCHLD);
+                      Sig.defaultCallback(SIGTERM);
+                      Sig.defaultCallback(SIGINT);
+                      Sig.defaultCallback(SIGHUP);
+                      Sig.deleteObject(ServerObjName);
 
-      Sig.clearOneCallback(SIGILL);
-      Sig.clearOneCallback(SIGABRT);
-      Sig.clearOneCallback(SIGSEGV);
-      Sig.clearOneCallback(SIGSYS);
-      Sig.clearOneCallback(SIGSTKFLT);
-    }};
+                      Sig.clearOneCallback(SIGILL);
+                      Sig.clearOneCallback(SIGABRT);
+                      Sig.clearOneCallback(SIGSEGV);
+                      Sig.clearOneCallback(SIGSYS);
+                      Sig.clearOneCallback(SIGSTKFLT);
+                    }};
 
   LOG(info) << "Starting Monomux Server";
   if (Opts.Background)
