@@ -28,6 +28,7 @@
 #include "monomux/system/Environment.hpp"
 #include "monomux/system/Signal.hpp"
 #include "monomux/system/Time.hpp"
+#include "monomux/unreachable.hpp"
 
 #include "ExitCode.hpp"
 #include "monomux/client/Main.hpp"
@@ -39,7 +40,7 @@ namespace monomux::client
 {
 
 Options::Options()
-  : ClientMode(false), ForceSessionSelectMenu(false),
+  : ClientMode(false), OnlyListSessions(false), InteractiveSessionMenu(false),
     DetachRequestLatest(false), DetachRequestAll(false)
 {}
 
@@ -57,8 +58,12 @@ std::vector<std::string> Options::toArgv() const
     Ret.emplace_back("--socket");
     Ret.emplace_back(*SocketPath);
   }
-  if (ForceSessionSelectMenu)
+
+  if (InteractiveSessionMenu)
+    Ret.emplace_back("--interactive");
+  else if (OnlyListSessions)
     Ret.emplace_back("--list");
+
   if (DetachRequestLatest)
     Ret.emplace_back("--detach");
   if (DetachRequestAll)
@@ -181,80 +186,19 @@ struct SessionSelectionResult
 } // namespace
 
 static SessionSelectionResult
+selectSession(const std::vector<SessionData>& Sessions,
+              const std::string& ToCreateSessionName);
+static SessionSelectionResult
 selectSession(const std::string& ClientID,
               const std::string& DefaultProgram,
               const std::vector<SessionData>& Sessions,
-              const std::string& DefaultSessionName,
-              bool AlwaysShowMenu)
-{
-  if (!AlwaysShowMenu)
-  {
-    if (Sessions.empty())
-    {
-      LOG(debug)
-        << "List of sessions on server is empty, requesting default...";
-      return {DefaultSessionName, SessionSelectionResult::Create};
-    }
-
-    if (DefaultSessionName.empty() && Sessions.size() == 1)
-    {
-      LOG(debug) << "No session '--name' specified, attaching to the single "
-                    "existing session...";
-      return {Sessions.front().Name, SessionSelectionResult::Attach};
-    }
-
-    if (!DefaultSessionName.empty())
-    {
-      LOG(debug) << "Session \"" << DefaultSessionName
-                 << "\" requested, checking...";
-      for (const SessionData& S : Sessions)
-        if (S.Name == DefaultSessionName)
-        {
-          LOG(debug) << "\tFound requested session, preparing for attach...";
-          return {S.Name, SessionSelectionResult::Attach};
-        }
-
-      LOG(debug) << "\tRequested session not found, requesting spawn...";
-      return {DefaultSessionName, SessionSelectionResult::Create};
-    }
-
-    assert(DefaultSessionName.empty() && Sessions.size() > 1);
-  }
-
-  std::size_t NewSessionChoice = Sessions.size() + 1;
-  std::size_t QuitChoice = NewSessionChoice + 1;
-  std::size_t UserChoice = 0;
-
-  // Mimicking the layout of tmux/byobu menu.
-  while (true)
-  {
-    std::cout << "\nMonomux sessions on '" << ClientID << "'...\n\n";
-    for (std::size_t I = 0; I < Sessions.size(); ++I)
-    {
-      const SessionData& SD = Sessions.at(I);
-      std::cout << "    " << (I + 1) << ". " << SD.Name << " (created "
-                << formatTime(SD.Created) << ")\n";
-    }
-    std::cout << "    " << NewSessionChoice << ". Create a new session ("
-              << DefaultProgram << ")\n";
-    std::cout << "    " << QuitChoice << ". Quit\n";
-    std::cout << "\nChoose 1-" << QuitChoice << ": ";
-
-    std::cin >> UserChoice;
-    std::cin.clear();
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    if (UserChoice == 0 || UserChoice > QuitChoice)
-      std::cerr << "\nERROR: Invalid input" << std::endl;
-    else
-      break;
-  }
-
-  if (UserChoice == NewSessionChoice)
-    return {DefaultSessionName, SessionSelectionResult::Create};
-  if (UserChoice == QuitChoice)
-    return {"", SessionSelectionResult::None};
-  return {Sessions.at(UserChoice - 1).Name, SessionSelectionResult::Attach};
-}
+              const std::string& ToCreateSessionName,
+              bool ListSessions,
+              bool Interactive);
+static ExitCode mainForControlClient(Options& Opts);
+static bool handshakeDataConnection(Client& Client);
+static ExitCode handleSessionCreateOrAttach(Options& Opts);
+static int handleClientExitStatus(const Client& Client);
 
 int main(Options& Opts)
 {
@@ -267,119 +211,15 @@ int main(Options& Opts)
   }
   Client& Client = *Opts.Connection;
 
-  // ----------------------- Handle control-mode requests ----------------------
   if (Opts.isControlMode())
-  {
-    if (!Opts.SessionData)
-      Opts.SessionData = MonomuxSession::loadFromEnv();
-    if (!Opts.SessionData)
-    {
-      std::cerr << "In-session options require the client to be executed "
-                   "within a session!"
-                << std::endl;
-      return EXIT_InvocationError;
-    }
+    return mainForControlClient(Opts);
 
-    ControlClient CC{Client, std::move(Opts.SessionData->SessionName)};
-    if (!Client.attached())
-    {
-      LOG(fatal) << "Failed to attach to session \"" << CC.sessionName()
-                 << "\"!";
-      return EXIT_SystemError;
-    }
-
-    if (Opts.DetachRequestLatest)
-      CC.requestDetachLatestClient();
-    else if (Opts.DetachRequestAll)
-      CC.requestDetachAllClients();
-
+  if (ExitCode Err = handleSessionCreateOrAttach(Opts); Err != EXIT_Success)
+    return Err;
+  if (!Client.attached())
+    // If there was an error connecting, the previous conditional exited with
+    // the error.
     return EXIT_Success;
-  }
-
-  // ----------------- Elevate the client to be fully connected ----------------
-  {
-    std::string FailureReason;
-    static constexpr std::size_t MaxHandshakeTries = 16;
-    unsigned short HandshakeCounter = 0;
-    while (!Client.handshake(&FailureReason))
-    {
-      ++HandshakeCounter;
-      if (HandshakeCounter == MaxHandshakeTries)
-      {
-        LOG(fatal)
-          << "Failed to establish full connection after enough retries.";
-        return EXIT_SystemError;
-      }
-
-      LOG(warn) << "Establishing full connection failed:\n\t" << FailureReason;
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  }
-
-  // --------------------- Deduce what session to attach to --------------------
-  {
-    std::optional<std::vector<SessionData>> Sessions =
-      Client.requestSessionList();
-    if (!Sessions.has_value())
-    {
-      LOG(fatal) << "Receiving the list of sessions from the server failed!";
-      return EXIT_SystemError;
-    }
-
-    std::string DefaultProgram = Opts.Program ? *Opts.Program : defaultShell();
-    if (DefaultProgram.empty())
-      LOG(warn) << "Failed to figure out what shell is being used, and no good "
-                   "defaults are available.\nPlease set the SHELL environment "
-                   "variable.";
-
-    SessionSelectionResult SessionAction =
-      selectSession(Client.getControlSocket().identifier(),
-                    DefaultProgram,
-                    *Sessions,
-                    Opts.SessionName ? *Opts.SessionName : "",
-                    Opts.ForceSessionSelectMenu);
-    if (SessionAction.Mode == SessionSelectionResult::None)
-      return EXIT_Success;
-    if (SessionAction.Mode == SessionSelectionResult::Create)
-    {
-      Process::SpawnOptions Spawn;
-      Spawn.Program = std::move(DefaultProgram);
-      if (Spawn.Program.empty())
-      {
-        LOG(fatal)
-          << "When creating a new session, no program to start was set.";
-        return EXIT_InvocationError;
-      }
-      Spawn.Arguments = std::move(Opts.ProgramArgs);
-      // TODO: Clean up the environment variables of the to-be-spawned process,
-      // e.g. do not inherit the TERM of the server, but rather the TERM of the
-      // client.
-
-      std::optional<std::string> Response =
-        Client.requestMakeSession(SessionAction.SessionName, std::move(Spawn));
-      if (!Response.has_value() || Response->empty())
-      {
-        LOG(fatal) << "When creating a new session, the creation failed.";
-        return EXIT_SystemError;
-      }
-      SessionAction.SessionName = *Response;
-
-      SessionAction.Mode = SessionSelectionResult::Attach;
-      // Intended "fallthrough".
-    }
-    if (SessionAction.Mode == SessionSelectionResult::Attach)
-    {
-      LOG(debug) << "Attaching to \"" << SessionAction.SessionName << "\"...";
-      bool Attached =
-        Client.requestAttach(std::move(SessionAction.SessionName));
-      if (!Attached)
-      {
-        std::cerr << "ERROR: Server reported failure when attaching."
-                  << std::endl;
-        return EXIT_SystemError;
-      }
-    }
-  }
 
   // ----------------------------- Be a real client ----------------------------
   Terminal Term{fd::fileno(stdin), fd::fileno(stdout)};
@@ -454,7 +294,234 @@ int main(Options& Opts)
   }
 
   LOG(trace) << "Client stopped...";
+  return handleClientExitStatus(Client);
+}
 
+static SessionSelectionResult
+selectSession(const std::vector<SessionData>& Sessions,
+              const std::string& ToCreateSessionName)
+{
+  if (Sessions.empty())
+  {
+    LOG(debug) << "List of sessions on server is empty, requesting default...";
+    return {ToCreateSessionName, SessionSelectionResult::Create};
+  }
+
+  if (ToCreateSessionName.empty() && Sessions.size() == 1)
+  {
+    LOG(debug) << "No session '--name' specified, attaching to the singular "
+                  "existing session...";
+    return {Sessions.front().Name, SessionSelectionResult::Attach};
+  }
+
+  if (!ToCreateSessionName.empty())
+  {
+    LOG(debug) << "Session \"" << ToCreateSessionName
+               << "\" requested, checking...";
+    for (const SessionData& S : Sessions)
+      if (S.Name == ToCreateSessionName)
+      {
+        LOG(debug) << "\tFound requested session, preparing for attach...";
+        return {S.Name, SessionSelectionResult::Attach};
+      }
+
+    LOG(debug) << "\tRequested session not found, requesting spawn...";
+    return {ToCreateSessionName, SessionSelectionResult::Create};
+  }
+
+  unreachable("Previous decisions should have returned.");
+}
+
+static SessionSelectionResult
+selectSession(const std::string& ClientID,
+              const std::string& DefaultProgram,
+              const std::vector<SessionData>& Sessions,
+              const std::string& ToCreateSessionName,
+              bool UserWantsOnlyListSessions,
+              bool UserWantsInteractive)
+{
+  const bool NeedsInteractive =
+    UserWantsInteractive || UserWantsOnlyListSessions || Sessions.size() >= 2;
+  if (!NeedsInteractive)
+    return selectSession(Sessions, ToCreateSessionName);
+
+  const std::size_t NewSessionChoice = Sessions.size() + 1;
+  const std::size_t QuitChoice = NewSessionChoice + 1;
+  std::size_t UserChoice = 0;
+
+  // Mimicking the layout of tmux/byobu menu.
+  while (true)
+  {
+    std::cout << "\nMonomux sessions on '" << ClientID << "'...\n\n";
+    for (std::size_t I = 0; I < Sessions.size(); ++I)
+    {
+      const SessionData& SD = Sessions.at(I);
+      std::cout << "    " << (I + 1) << ". " << SD.Name << " (created "
+                << formatTime(SD.Created) << ")\n";
+    }
+    if (UserWantsOnlyListSessions)
+    {
+      std::cout << std::endl;
+      return {"", SessionSelectionResult::None};
+    }
+
+    // ---------------------- Show the interactive menu -----------------------
+    std::cout << "    " << NewSessionChoice << ". Create a new ";
+    if (!ToCreateSessionName.empty())
+      std::cout << '\'' << ToCreateSessionName << "' ";
+    std::cout << "session (" << DefaultProgram << ")\n";
+
+    std::cout << "    " << QuitChoice << ". Quit\n";
+
+    std::cout << "\nChoose 1-" << QuitChoice << ": ";
+    std::cin >> UserChoice;
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    if (UserChoice == 0 || UserChoice > QuitChoice)
+      std::cerr << "\nERROR: Invalid input" << std::endl;
+    else
+      break;
+  }
+
+  if (UserChoice == NewSessionChoice)
+  {
+    if (!ToCreateSessionName.empty())
+      return {ToCreateSessionName, SessionSelectionResult::Create};
+
+    std::cout << "\nSession name (leave blank for default): ";
+    std::string ToCreateSessionName2;
+    std::getline(std::cin, ToCreateSessionName2);
+    std::cout << std::endl;
+    return {ToCreateSessionName2, SessionSelectionResult::Create};
+  }
+  if (UserChoice == QuitChoice)
+    return {"", SessionSelectionResult::None};
+  return {Sessions.at(UserChoice - 1).Name, SessionSelectionResult::Attach};
+}
+
+/// Handles operations through a \p ControlClient -only connection.
+static ExitCode mainForControlClient(Options& Opts)
+{
+  if (!Opts.SessionData)
+    Opts.SessionData = MonomuxSession::loadFromEnv();
+  if (!Opts.SessionData)
+  {
+    std::cerr << "In-session options require the client to be executed "
+                 "within a session!"
+              << std::endl;
+    return EXIT_InvocationError;
+  }
+
+  ControlClient CC{*Opts.Connection, std::move(Opts.SessionData->SessionName)};
+  if (!Opts.Connection->attached())
+  {
+    LOG(fatal) << "Failed to attach to session \"" << CC.sessionName() << "\"!";
+    return EXIT_SystemError;
+  }
+
+  if (Opts.DetachRequestLatest)
+    CC.requestDetachLatestClient();
+  else if (Opts.DetachRequestAll)
+    CC.requestDetachAllClients();
+
+  return EXIT_Success;
+}
+
+/// Elevates the \p Client to have a full-fledged \b Data connection with the
+/// server.
+static bool handshakeDataConnection(Client& Client)
+{
+  std::string FailureReason;
+  static constexpr std::size_t MaxHandshakeTries = 16;
+  unsigned short HandshakeCounter = 0;
+  while (!Client.handshake(&FailureReason))
+  {
+    ++HandshakeCounter;
+    if (HandshakeCounter == MaxHandshakeTries)
+    {
+      LOG(fatal) << "Failed to establish full connection after enough retries.";
+      return false;
+    }
+
+    LOG(warn) << "Establishing full connection failed:\n\t" << FailureReason;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+
+  return true;
+}
+
+static ExitCode handleSessionCreateOrAttach(Options& Opts)
+{
+  Client& Client = *Opts.Connection;
+
+  std::optional<std::vector<SessionData>> Sessions =
+    Client.requestSessionList();
+  if (!Sessions.has_value())
+  {
+    LOG(fatal) << "Receiving the list of sessions from the server failed!";
+    return EXIT_SystemError;
+  }
+
+  std::string DefaultProgram = Opts.Program ? *Opts.Program : defaultShell();
+  if (DefaultProgram.empty())
+    LOG(warn) << "Failed to figure out what shell is being used, and no good "
+                 "defaults are available.\nPlease set the SHELL environment "
+                 "variable.";
+
+  SessionSelectionResult SessionAction =
+    selectSession(Client.getControlSocket().identifier(),
+                  DefaultProgram,
+                  *Sessions,
+                  Opts.SessionName ? *Opts.SessionName : "",
+                  Opts.OnlyListSessions,
+                  Opts.InteractiveSessionMenu);
+  if (SessionAction.Mode == SessionSelectionResult::None)
+    return EXIT_Success;
+  if (SessionAction.Mode == SessionSelectionResult::Create)
+  {
+    Process::SpawnOptions Spawn;
+    Spawn.Program = std::move(DefaultProgram);
+    if (Spawn.Program.empty())
+    {
+      LOG(fatal) << "When creating a new session, no program to start was set.";
+      return EXIT_InvocationError;
+    }
+    Spawn.Arguments = std::move(Opts.ProgramArgs);
+    // TODO: Clean up the environment variables of the to-be-spawned process,
+    // e.g. do not inherit the TERM of the server, but rather the TERM of the
+    // client.
+
+    std::optional<std::string> Response =
+      Client.requestMakeSession(SessionAction.SessionName, std::move(Spawn));
+    if (!Response.has_value() || Response->empty())
+    {
+      LOG(fatal) << "When creating a new session, the creation failed.";
+      return EXIT_SystemError;
+    }
+    SessionAction.SessionName = *Response;
+
+    SessionAction.Mode = SessionSelectionResult::Attach;
+    // Intended "fallthrough".
+  }
+  if (SessionAction.Mode == SessionSelectionResult::Attach)
+  {
+    handshakeDataConnection(Client);
+
+    LOG(debug) << "Attaching to \"" << SessionAction.SessionName << "\"...";
+    bool Attached = Client.requestAttach(std::move(SessionAction.SessionName));
+    if (!Attached)
+    {
+      std::cerr << "ERROR: Server reported failure when attaching."
+                << std::endl;
+      return EXIT_SystemError;
+    }
+  }
+
+  return EXIT_Success;
+}
+
+static int handleClientExitStatus(const Client& Client)
+{
   switch (Client.exitReason())
   {
     case Client::None:
@@ -487,7 +554,6 @@ int main(Options& Opts)
       std::cout << "[server exited]" << std::endl;
       return EXIT_Success;
   }
-
   return EXIT_Success;
 }
 

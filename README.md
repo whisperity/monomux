@@ -24,7 +24,14 @@ There are no other dependencies.
 Installation
 ------------
 
-> TODO.
+### Ubuntu (18.04, 20.04)
+
+Download the `.deb` (and optionally the `.ddeb`) file for the release, and install it using
+
+~~~{.bash}
+sudo dpkg --install monomux-*.*deb
+~~~
+
 
 Usage
 -----
@@ -32,7 +39,7 @@ Usage
 The easiest use of MonoMux is simply starting it: `monomux`.
 By default, a server starts in the background, and a default session is created with the default shell of the current user, and the client automatically attaches to this session.
 Executing the client with a server already running will attach to the only session on the server, or if multiple sessions exist, an interactive menu will start with which a session can be selected.
-(The interactive menu can be explicitly requested, even if only at most one session exists, with the `--list` parameter.)
+(The interactive menu can be explicitly requested, even if only at most one session exists, with the `-i` or `--interactive` parameter.)
 
 > **ℹ️ Note:** Please always refer to the output of `monomux -h` for up-to-date information about what flags the installed tool supports.
 

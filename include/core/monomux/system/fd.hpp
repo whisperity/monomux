@@ -17,9 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include <fcntl.h>
+#include <cstdio>
 
-#include "monomux/Log.hpp"
+#include <fcntl.h>
 
 namespace monomux
 {

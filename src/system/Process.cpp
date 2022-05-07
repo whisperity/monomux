@@ -22,6 +22,7 @@
 
 #include <linux/limits.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include "monomux/adt/POD.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
@@ -44,6 +45,11 @@ static void allocCopyString(const std::string& Source,
     reinterpret_cast<char*>(std::calloc(Source.size() + 1, 1));
   std::strncpy(
     DestinationStringArray[Index], Source.c_str(), Source.size() + 1);
+}
+
+Process::raw_handle Process::thisProcess()
+{
+  return CheckedPOSIXThrow([] { return ::getpid(); }, "getpid()", -1);
 }
 
 std::string Process::thisProcessPath()

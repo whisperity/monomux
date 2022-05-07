@@ -95,6 +95,9 @@ private:
   std::optional<Pty> PTY;
 
 public:
+  /// \returns the PID handle of the currently executing process.
+  static raw_handle thisProcess();
+
   /// \returns the address of the currently executing binary, queried from the
   /// kernel.
   static std::string thisProcessPath();

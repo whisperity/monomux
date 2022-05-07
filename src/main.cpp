@@ -46,21 +46,23 @@ using namespace monomux;
 namespace
 {
 
-const char* ShortOptions = "hvqVs:n:ldDNk";
+const char ShortOptions[] = "hvqVs:n:lidDNk";
+
 // clang-format off
 struct ::option LongOptions[] = {
-  {"help",       no_argument,       nullptr, 'h'},
-  {"verbose",    no_argument,       nullptr, 'v'},
-  {"quiet",      no_argument,       nullptr, 'q'},
-  {"server",     no_argument,       nullptr, 0},
-  {"socket",     required_argument, nullptr, 's'},
-  {"name",       required_argument, nullptr, 'n'},
-  {"list",       no_argument,       nullptr, 'l'},
-  {"detach",     no_argument,       nullptr, 'd'},
-  {"detach-all", no_argument,       nullptr, 'D'},
-  {"no-daemon",  no_argument,       nullptr, 'N'},
-  {"keepalive",  no_argument,       nullptr, 'k'},
-  {nullptr,      0,                 nullptr, 0}
+  {"help",        no_argument,       nullptr, 'h'},
+  {"verbose",     no_argument,       nullptr, 'v'},
+  {"quiet",       no_argument,       nullptr, 'q'},
+  {"server",      no_argument,       nullptr, 0},
+  {"socket",      required_argument, nullptr, 's'},
+  {"name",        required_argument, nullptr, 'n'},
+  {"list",        no_argument,       nullptr, 'l'},
+  {"interactive", no_argument,       nullptr, 'i'},
+  {"detach",      no_argument,       nullptr, 'd'},
+  {"detach-all",  no_argument,       nullptr, 'D'},
+  {"no-daemon",   no_argument,       nullptr, 'N'},
+  {"keepalive",   no_argument,       nullptr, 'k'},
+  {nullptr,       0,                 nullptr, 0}
 };
 // clang-format on
 
@@ -181,7 +183,10 @@ int main(int ArgC, char* ArgV[])
           ClientOpts.SessionName.emplace(optarg);
           break;
         case 'l':
-          ClientOpts.ForceSessionSelectMenu = true;
+          ClientOpts.OnlyListSessions = true;
+          break;
+        case 'i':
+          ClientOpts.InteractiveSessionMenu = true;
           break;
         case 'd':
           ClientOpts.DetachRequestLatest = true;
@@ -446,15 +451,17 @@ Client options:
 
                                       monomux -n session -- /bin/bash --no-rc
 
-    -n NAME, --name NAME        - Name of the remote session to attach to, or
+    -n NAME, --name NAME        - Name of the remote session to attach to or
                                   create. (Defaults to: "default".)
-                                  This option makes '--list' inoperative.
-    -l, --list                  - Always start the client with the session list,
+    -l, --list                  - List the sessions that are running on the
+                                  server listening on the socket given to
+                                  '--socket', but do not attach or configure
+                                  anything otherwise.
+    -i, --interactive           - Always start the client with the session list,
                                   even if only at most one session exists on the
                                   server. (The default behaviour is to
                                   automatically create a session or attach in
                                   this case.)
-                                  This option makes '--name' inoperative.
     -s PATH, --socket PATH      - Path of the server socket to connect to.
 
 

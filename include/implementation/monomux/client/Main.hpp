@@ -43,16 +43,22 @@ struct Options
   /// Whether the client mode was enabled.
   bool ClientMode : 1;
 
+  /// Whether the user requested only listing the sessions on the server, but
+  /// no connection to be made.
+  bool OnlyListSessions : 1;
+
   /// Whether the client should start with showing the session selection menu,
   /// and disregard normal startup decision heuristics.
-  bool ForceSessionSelectMenu : 1;
+  bool InteractiveSessionMenu : 1;
 
   /// Whether it was requested to detach the latest client from a session.
-  /// This is a control-mode flag.
+  ///
+  /// \note This is a control-mode flag.
   bool DetachRequestLatest : 1;
 
   /// Whether it was requested to detach all clients from a session.
-  /// This is a control-mode flag.
+  ///
+  /// \note This is a control-mode flag.
   bool DetachRequestAll : 1;
 
   /// The path to the server socket where the client should connect to.
