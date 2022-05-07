@@ -55,7 +55,8 @@ jobs:
           cmake -S . -B Build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.library-type == 'static' && 'OFF' || 'ON' }}
+            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.library-type == 'static' && 'OFF' || 'ON' }} \
+            -DMONOMUX_BUILD_TESTS=ON
       - name: "Build"
         run: |
           cmake --build ./Build -- -j

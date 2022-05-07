@@ -44,7 +44,9 @@ jobs:
 
           cmake -S . -B Build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DMONOMUX_NON_ESSENTIAL_LOGS=ON \
+            -DMONOMUX_BUILD_TESTS=ON
 
       - name: "Execute Static Analysis"
         uses: whisperity/codechecker-analysis-action@v1

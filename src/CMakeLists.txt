@@ -33,7 +33,8 @@ add_subdirectory(system)
 add_library(monomuxCore ${MONOMUX_LIBRARY_TYPE}
   ${libmonomuxCore_SOURCES}
   )
-add_dependencies(monomuxCore generate_version_h)
+add_dependencies(monomuxCore
+  monomux_generate_version_h)
 target_link_libraries(monomuxCore PUBLIC
   util
   )

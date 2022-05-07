@@ -149,7 +149,8 @@ if (NOT VERSIONING_FROM_TRAMPOLINE)
       "${VERSION_HEADER_TEMPLATE}"
     COMMAND ${CMAKE_COMMAND}
       -P "${VERSION_GENERATOR_SCRIPT}")
-  add_custom_target(generate_version_h DEPENDS "${VERSION_HEADER_RESULT}")
+  add_custom_target(monomux_generate_version_h
+      DEPENDS "${VERSION_HEADER_RESULT}")
 
   set_source_files_properties("${VERSION_HEADER_RESULT}"
     PROPERTIES GENERATED TRUE

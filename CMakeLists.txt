@@ -15,6 +15,11 @@ if (NOT UNIX)
   message(FATAL_ERROR "This project supports only POSIX Unix/Linux platforms!")
 endif()
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if (NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug)
+endif()
+
 include(GNUInstallDirs)
 include(MonomuxConfig)
 
