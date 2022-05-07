@@ -69,55 +69,26 @@ std::vector<std::string> Options::toArgv() const
   unreachable("[[noreturn]]");
 }
 
-static constexpr char ServerObjName[] = "Server";
-static constexpr char MasterAborterName[] = "Master-Aborter";
-
-/// Handler for request to terinate the server.
-static void serverShutdown(SignalHandling::Signal /* SigNum */,
-                           ::siginfo_t* /* Info */,
-                           const SignalHandling* Handling)
+namespace
 {
-  const volatile auto* Srv =
-    std::any_cast<Server*>(Handling->getObject(ServerObjName));
-  if (!Srv)
-    return;
-  (*Srv)->interrupt();
-}
 
-/// Handler for \p SIGCHLD when a process spawned by the server quits.
-static void childExited(SignalHandling::Signal /* SigNum */,
-                        ::siginfo_t* Info,
-                        const SignalHandling* Handling)
-{
-  Process::raw_handle CPID = Info->si_pid;
-  const volatile auto* Srv =
-    std::any_cast<Server*>(Handling->getObject(ServerObjName));
-  if (!Srv)
-    return;
-  (*Srv)->registerDeadChild(CPID);
-}
+constexpr char ServerObjName[] = "Server";
+constexpr char MasterAborterName[] = "Master-Aborter";
 
-/// Custom handler for \p SIGABRT. This is even more custom than the handler in
-/// the global \p main() as it deals with killing the server first.
-static void coreDumped(SignalHandling::Signal SigNum,
-                       ::siginfo_t* Info,
-                       const SignalHandling* Handling)
-{
-  serverShutdown(SigNum, Info, Handling);
 
-  // Fallback to the master handler that main.cpp should've installed.
-  const auto* MasterAborter =
-    std::any_cast<std::function<SignalHandling::SignalCallback>>(
-      Handling->getObject(MasterAborterName));
-  if (MasterAborter)
-    (*MasterAborter)(SigNum, Info, Handling);
-  else
-  {
-    LOG(fatal) << "In Server, " << SignalHandling::signalName(SigNum)
-               << " FATAL SIGNAL received, but local handler did not find the "
-                  "appropriate master one.";
-  }
-}
+void serverShutdown(SignalHandling::Signal SigNum,
+                    ::siginfo_t* Info,
+                    const SignalHandling* Handling);
+
+void childExited(SignalHandling::Signal SigNum,
+                 ::siginfo_t* Info,
+                 const SignalHandling* Handling);
+
+void coreDumped(SignalHandling::Signal SigNum,
+                ::siginfo_t* Info,
+                const SignalHandling* Handling);
+
+} // namespace
 
 int main(Options& Opts)
 {
@@ -173,5 +144,57 @@ int main(Options& Opts)
   LOG(info) << "Monomux Server stopped";
   return EXIT_Success;
 }
+
+namespace
+{
+
+/// Handler for request to terinate the server.
+void serverShutdown(SignalHandling::Signal /* SigNum */,
+                    ::siginfo_t* /* Info */,
+                    const SignalHandling* Handling)
+{
+  const volatile auto* Srv =
+    std::any_cast<Server*>(Handling->getObject(ServerObjName));
+  if (!Srv)
+    return;
+  (*Srv)->interrupt();
+}
+
+/// Handler for \p SIGCHLD when a process spawned by the server quits.
+void childExited(SignalHandling::Signal /* SigNum */,
+                 ::siginfo_t* Info,
+                 const SignalHandling* Handling)
+{
+  Process::raw_handle CPID = Info->si_pid;
+  const volatile auto* Srv =
+    std::any_cast<Server*>(Handling->getObject(ServerObjName));
+  if (!Srv)
+    return;
+  (*Srv)->registerDeadChild(CPID);
+}
+
+/// Custom handler for \p SIGABRT. This is even more custom than the handler in
+/// the global \p main() as it deals with killing the server first.
+void coreDumped(SignalHandling::Signal SigNum,
+                ::siginfo_t* Info,
+                const SignalHandling* Handling)
+{
+  serverShutdown(SigNum, Info, Handling);
+
+  // Fallback to the master handler that main.cpp should've installed.
+  const auto* MasterAborter =
+    std::any_cast<std::function<SignalHandling::SignalCallback>>(
+      Handling->getObject(MasterAborterName));
+  if (MasterAborter)
+    (*MasterAborter)(SigNum, Info, Handling);
+  else
+  {
+    LOG(fatal) << "In Server, " << SignalHandling::signalName(SigNum)
+               << " FATAL SIGNAL received, but local handler did not find the "
+                  "appropriate master one.";
+  }
+}
+
+} // namespace
 
 } // namespace monomux::server

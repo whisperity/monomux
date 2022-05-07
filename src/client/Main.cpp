@@ -111,59 +111,28 @@ connect(Options& Opts, bool Block, std::string* FailureReason)
   return C;
 }
 
-static constexpr char TerminalObjName[] = "Terminal";
-static constexpr char MasterAborterName[] = "Master-Aborter";
-
-// NOLINTNEXTLINE(cert-err58-cpp)
-static auto OriginalLogLevel =
-  makeLazy([]() -> log::Severity { return log::Logger::get().getLimit(); });
-
-/// Handler for \p SIGWINCH (window size change) events produces by the terminal
-/// the program is running in.
-static void windowSizeChange(SignalHandling::Signal /* SigNum */,
-                             ::siginfo_t* /* Info */,
-                             const SignalHandling* Handling)
+bool makeWholeWithData(Client& Client, std::string* FailureReason)
 {
-  const volatile auto* Term =
-    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
-  if (!Term)
-    return;
-  (*Term)->notifySizeChanged();
-}
-
-/// Custom handler for \p SIGABRT. This is even more custom than the handler in
-/// the global \p main() as it deals with resetting the terminal to sensible
-/// defaults first.
-static void coreDumped(SignalHandling::Signal SigNum,
-                       ::siginfo_t* Info,
-                       const SignalHandling* Handling)
-{
-  // Reset the loglevel so all messages that might appear appear as needed.
-  log::Logger::get().setLimit(OriginalLogLevel.get());
-
-  // Reset the terminal so we don't get weird output if the client crashed in
-  // the middle of a formatting sequence.
-  const volatile auto* Term =
-    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
-  if (Term)
+  static constexpr std::size_t MaxHandshakeTries = 16;
+  unsigned short HandshakeCounter = 0;
+  while (!Client.handshake(FailureReason))
   {
-    (*Term)->disengage();
-    (*Term)->releaseClient();
+    ++HandshakeCounter;
+    if (HandshakeCounter == MaxHandshakeTries)
+    {
+      if (FailureReason)
+        FailureReason->insert(
+          0, "Failed to establish full connection after enough retries. ");
+      return false;
+    }
+
+    LOG(warn) << "Establishing full connection failed:\n\t" << FailureReason;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  // Fallback to the master handler that main.cpp should've installed.
-  const auto* MasterAborter =
-    std::any_cast<std::function<SignalHandling::SignalCallback>>(
-      Handling->getObject(MasterAborterName));
-  if (MasterAborter)
-    (*MasterAborter)(SigNum, Info, Handling);
-  else
-  {
-    LOG(fatal) << "In Client, " << SignalHandling::signalName(SigNum)
-               << " FATAL SIGNAL received, but local handler did not find the "
-                  "appropriate master one.";
-  }
+  return true;
 }
+
 
 namespace
 {
@@ -183,22 +152,33 @@ struct SessionSelectionResult
   SessionMode Mode;
 };
 
-} // namespace
+SessionSelectionResult selectSession(const std::vector<SessionData>& Sessions,
+                                     const std::string& ToCreateSessionName);
+SessionSelectionResult selectSession(const std::string& ClientID,
+                                     const std::string& DefaultProgram,
+                                     const std::vector<SessionData>& Sessions,
+                                     const std::string& ToCreateSessionName,
+                                     bool ListSessions,
+                                     bool Interactive);
+ExitCode mainForControlClient(Options& Opts);
+ExitCode handleSessionCreateOrAttach(Options& Opts);
+int handleClientExitStatus(const Client& Client);
 
-static SessionSelectionResult
-selectSession(const std::vector<SessionData>& Sessions,
-              const std::string& ToCreateSessionName);
-static SessionSelectionResult
-selectSession(const std::string& ClientID,
-              const std::string& DefaultProgram,
-              const std::vector<SessionData>& Sessions,
-              const std::string& ToCreateSessionName,
-              bool ListSessions,
-              bool Interactive);
-static ExitCode mainForControlClient(Options& Opts);
-static bool handshakeDataConnection(Client& Client);
-static ExitCode handleSessionCreateOrAttach(Options& Opts);
-static int handleClientExitStatus(const Client& Client);
+void windowSizeChange(SignalHandling::Signal SigNum,
+                      ::siginfo_t* Info,
+                      const SignalHandling* Handling);
+void coreDumped(SignalHandling::Signal SigNum,
+                ::siginfo_t* Info,
+                const SignalHandling* Handling);
+
+// NOLINTNEXTLINE(cert-err58-cpp)
+auto OriginalLogLevel =
+  makeLazy([]() -> log::Severity { return log::Logger::get().getLimit(); });
+
+constexpr char TerminalObjName[] = "Terminal";
+constexpr char MasterAborterName[] = "Master-Aborter";
+
+} // namespace
 
 int main(Options& Opts)
 {
@@ -297,9 +277,11 @@ int main(Options& Opts)
   return handleClientExitStatus(Client);
 }
 
-static SessionSelectionResult
-selectSession(const std::vector<SessionData>& Sessions,
-              const std::string& ToCreateSessionName)
+namespace
+{
+
+SessionSelectionResult selectSession(const std::vector<SessionData>& Sessions,
+                                     const std::string& ToCreateSessionName)
 {
   if (Sessions.empty())
   {
@@ -332,13 +314,12 @@ selectSession(const std::vector<SessionData>& Sessions,
   unreachable("Previous decisions should have returned.");
 }
 
-static SessionSelectionResult
-selectSession(const std::string& ClientID,
-              const std::string& DefaultProgram,
-              const std::vector<SessionData>& Sessions,
-              const std::string& ToCreateSessionName,
-              bool UserWantsOnlyListSessions,
-              bool UserWantsInteractive)
+SessionSelectionResult selectSession(const std::string& ClientID,
+                                     const std::string& DefaultProgram,
+                                     const std::vector<SessionData>& Sessions,
+                                     const std::string& ToCreateSessionName,
+                                     bool UserWantsOnlyListSessions,
+                                     bool UserWantsInteractive)
 {
   const bool NeedsInteractive =
     UserWantsInteractive || UserWantsOnlyListSessions || Sessions.size() >= 2;
@@ -400,7 +381,7 @@ selectSession(const std::string& ClientID,
 }
 
 /// Handles operations through a \p ControlClient -only connection.
-static ExitCode mainForControlClient(Options& Opts)
+ExitCode mainForControlClient(Options& Opts)
 {
   if (!Opts.SessionData)
     Opts.SessionData = MonomuxSession::loadFromEnv();
@@ -427,30 +408,8 @@ static ExitCode mainForControlClient(Options& Opts)
   return EXIT_Success;
 }
 
-/// Elevates the \p Client to have a full-fledged \b Data connection with the
-/// server.
-static bool handshakeDataConnection(Client& Client)
-{
-  std::string FailureReason;
-  static constexpr std::size_t MaxHandshakeTries = 16;
-  unsigned short HandshakeCounter = 0;
-  while (!Client.handshake(&FailureReason))
-  {
-    ++HandshakeCounter;
-    if (HandshakeCounter == MaxHandshakeTries)
-    {
-      LOG(fatal) << "Failed to establish full connection after enough retries.";
-      return false;
-    }
 
-    LOG(warn) << "Establishing full connection failed:\n\t" << FailureReason;
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-
-  return true;
-}
-
-static ExitCode handleSessionCreateOrAttach(Options& Opts)
+ExitCode handleSessionCreateOrAttach(Options& Opts)
 {
   Client& Client = *Opts.Connection;
 
@@ -505,7 +464,14 @@ static ExitCode handleSessionCreateOrAttach(Options& Opts)
   }
   if (SessionAction.Mode == SessionSelectionResult::Attach)
   {
-    handshakeDataConnection(Client);
+    {
+      std::string DataFailure;
+      if (!makeWholeWithData(Client, &DataFailure))
+      {
+        LOG(fatal) << DataFailure;
+        return EXIT_SystemError;
+      }
+    }
 
     LOG(debug) << "Attaching to \"" << SessionAction.SessionName << "\"...";
     bool Attached = Client.requestAttach(std::move(SessionAction.SessionName));
@@ -520,7 +486,7 @@ static ExitCode handleSessionCreateOrAttach(Options& Opts)
   return EXIT_Success;
 }
 
-static int handleClientExitStatus(const Client& Client)
+int handleClientExitStatus(const Client& Client)
 {
   switch (Client.exitReason())
   {
@@ -556,5 +522,54 @@ static int handleClientExitStatus(const Client& Client)
   }
   return EXIT_Success;
 }
+
+/// Handler for \p SIGWINCH (window size change) events produces by the terminal
+/// the program is running in.
+void windowSizeChange(SignalHandling::Signal /* SigNum */,
+                      ::siginfo_t* /* Info */,
+                      const SignalHandling* Handling)
+{
+  const volatile auto* Term =
+    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
+  if (!Term)
+    return;
+  (*Term)->notifySizeChanged();
+}
+
+/// Custom handler for \p SIGABRT. This is even more custom than the handler in
+/// the global \p main() as it deals with resetting the terminal to sensible
+/// defaults first.
+void coreDumped(SignalHandling::Signal SigNum,
+                ::siginfo_t* Info,
+                const SignalHandling* Handling)
+{
+  // Reset the loglevel so all messages that might appear appear as needed.
+  log::Logger::get().setLimit(OriginalLogLevel.get());
+
+  // Reset the terminal so we don't get weird output if the client crashed in
+  // the middle of a formatting sequence.
+  const volatile auto* Term =
+    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
+  if (Term)
+  {
+    (*Term)->disengage();
+    (*Term)->releaseClient();
+  }
+
+  // Fallback to the master handler that main.cpp should've installed.
+  const auto* MasterAborter =
+    std::any_cast<std::function<SignalHandling::SignalCallback>>(
+      Handling->getObject(MasterAborterName));
+  if (MasterAborter)
+    (*MasterAborter)(SigNum, Info, Handling);
+  else
+  {
+    LOG(fatal) << "In Client, " << SignalHandling::signalName(SigNum)
+               << " FATAL SIGNAL received, but local handler did not find the "
+                  "appropriate master one.";
+  }
+}
+
+} // namespace
 
 } // namespace monomux::client

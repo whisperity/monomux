@@ -93,7 +93,7 @@ void printHelp();
 void printVersion();
 void printFeatures();
 void coreDumped(SignalHandling::Signal SigNum,
-                ::siginfo_t* /* Info */,
+                ::siginfo_t* Info,
                 const SignalHandling* Handling);
 
 } // namespace
@@ -452,7 +452,8 @@ Client options:
                                       monomux -n session -- /bin/bash --no-rc
 
     -n NAME, --name NAME        - Name of the remote session to attach to or
-                                  create. (Defaults to: "default".)
+                                  create. (Defaults to an automatically
+                                  generated value.)
     -l, --list                  - List the sessions that are running on the
                                   server listening on the socket given to
                                   '--socket', but do not attach or configure

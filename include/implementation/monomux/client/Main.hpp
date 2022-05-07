@@ -93,6 +93,13 @@ struct Options
 std::optional<Client>
 connect(Options& Opts, bool Block, std::string* FailureReason);
 
+/// Attempts to make the \p Client fully featured with a \b Data connection,
+/// capable of actually exchanging user-specific information with the server.
+///
+/// \param FailureReason If given, after an unsuccessful connection, a
+/// human-readable reason for the failure will be written to.
+bool makeWholeWithData(Client& Client, std::string* FailureReason);
+
 /// Executes the Monomux Client logic.
 ///
 /// \returns \p ExitCode
