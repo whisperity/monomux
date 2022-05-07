@@ -30,6 +30,8 @@
 #include "monomux/system/Time.hpp"
 #include "monomux/unreachable.hpp"
 
+#include "monomux/system/Process.hpp"
+
 #include "ExitCode.hpp"
 #include "monomux/client/Main.hpp"
 
@@ -176,7 +178,6 @@ auto OriginalLogLevel =
   makeLazy([]() -> log::Severity { return log::Logger::get().getLimit(); });
 
 constexpr char TerminalObjName[] = "Terminal";
-constexpr char MasterAborterName[] = "Master-Aborter";
 
 } // namespace
 
@@ -231,31 +232,26 @@ int main(Options& Opts)
         Sig.registerObject(SignalHandling::ModuleObjName, "Client");
         Sig.registerObject(TerminalObjName, &Term);
         Sig.registerCallback(SIGWINCH, &windowSizeChange);
+        Sig.enable();
 
         // Override the SIGABRT handler with a custom one that
         // resets the terminal during a crash.
-        Sig.registerObject(MasterAborterName, Sig.getCallback(SIGABRT));
         Sig.registerCallback(SIGILL, &coreDumped);
         Sig.registerCallback(SIGABRT, &coreDumped);
         Sig.registerCallback(SIGSEGV, &coreDumped);
         Sig.registerCallback(SIGSYS, &coreDumped);
         Sig.registerCallback(SIGSTKFLT, &coreDumped);
-        Sig.enable();
       },
       [] {
         SignalHandling& Sig = SignalHandling::get();
         Sig.defaultCallback(SIGWINCH);
         Sig.deleteObject(TerminalObjName);
 
-        auto MasterAborter =
-          *std::any_cast<std::function<SignalHandling::SignalCallback>>(
-            Sig.getObject(MasterAborterName));
-        Sig.registerCallback(SIGILL, MasterAborter);
-        Sig.registerCallback(SIGABRT, MasterAborter);
-        Sig.registerCallback(SIGSEGV, MasterAborter);
-        Sig.registerCallback(SIGSYS, MasterAborter);
-        Sig.registerCallback(SIGSTKFLT, MasterAborter);
-        Sig.deleteObject(MasterAborterName);
+        Sig.clearOneCallback(SIGILL);
+        Sig.clearOneCallback(SIGABRT);
+        Sig.clearOneCallback(SIGSEGV);
+        Sig.clearOneCallback(SIGSYS);
+        Sig.clearOneCallback(SIGSTKFLT);
       }};
 
     LOG(trace) << "Starting client...";
@@ -311,7 +307,7 @@ SessionSelectionResult selectSession(const std::vector<SessionData>& Sessions,
     return {ToCreateSessionName, SessionSelectionResult::Create};
   }
 
-  unreachable("Previous decisions should have returned.");
+  return {"", SessionSelectionResult::None};
 }
 
 SessionSelectionResult selectSession(const std::string& ClientID,
@@ -321,10 +317,17 @@ SessionSelectionResult selectSession(const std::string& ClientID,
                                      bool UserWantsOnlyListSessions,
                                      bool UserWantsInteractive)
 {
-  const bool NeedsInteractive =
-    UserWantsInteractive || UserWantsOnlyListSessions || Sessions.size() >= 2;
-  if (!NeedsInteractive)
-    return selectSession(Sessions, ToCreateSessionName);
+  if (!(UserWantsOnlyListSessions || UserWantsInteractive))
+  {
+    // Unless we know already that interactivity is needed, try the default
+    // logic...
+    SessionSelectionResult R = selectSession(Sessions, ToCreateSessionName);
+    if (R.Mode != SessionSelectionResult::None)
+      // If decision making was successful, pass it on.
+      return R;
+    // If the non-interactive logic did not work out, fall back to
+    // interactivity.
+  }
 
   const std::size_t NewSessionChoice = Sessions.size() + 1;
   const std::size_t QuitChoice = NewSessionChoice + 1;
@@ -539,8 +542,8 @@ void windowSizeChange(SignalHandling::Signal /* SigNum */,
 /// Custom handler for \p SIGABRT. This is even more custom than the handler in
 /// the global \p main() as it deals with resetting the terminal to sensible
 /// defaults first.
-void coreDumped(SignalHandling::Signal SigNum,
-                ::siginfo_t* Info,
+void coreDumped(SignalHandling::Signal /* SigNum */,
+                ::siginfo_t* /* Info */,
                 const SignalHandling* Handling)
 {
   // Reset the loglevel so all messages that might appear appear as needed.
@@ -554,19 +557,6 @@ void coreDumped(SignalHandling::Signal SigNum,
   {
     (*Term)->disengage();
     (*Term)->releaseClient();
-  }
-
-  // Fallback to the master handler that main.cpp should've installed.
-  const auto* MasterAborter =
-    std::any_cast<std::function<SignalHandling::SignalCallback>>(
-      Handling->getObject(MasterAborterName));
-  if (MasterAborter)
-    (*MasterAborter)(SigNum, Info, Handling);
-  else
-  {
-    LOG(fatal) << "In Client, " << SignalHandling::signalName(SigNum)
-               << " FATAL SIGNAL received, but local handler did not find the "
-                  "appropriate master one.";
   }
 }
 

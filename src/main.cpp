@@ -244,18 +244,6 @@ int main(int ArgC, char* ArgV[])
       }
       MainOpts.Severity = static_cast<Severity>(
         Default + MainOpts.VerbosityQuietnessDifferential);
-
-#ifdef MONOMUX_NON_ESSENTIAL_LOGS
-      VerbosityPositiveSizeT =
-        std::abs(MainOpts.VerbosityQuietnessDifferential);
-#endif
-      MONOMUX_TRACE_LOG(
-        std::cerr << "Debug: Loading logger and setting lowest verbosity to '-"
-                  << (std::string(
-                       VerbosityPositiveSizeT,
-                       MainOpts.VerbosityQuietnessDifferential < 0 ? 'q' : 'v'))
-                  << "', level '" << Logger::levelName(MainOpts.Severity)
-                  << "'..." << std::endl);
     }
 
     if (ClientOpts.DetachRequestLatest && ClientOpts.DetachRequestAll)
@@ -494,29 +482,21 @@ void printFeatures()
   std::cout << "Features:\n" << getHumanReadableConfiguration() << std::endl;
 }
 
+std::sig_atomic_t AlreadyTerminatingOnSignal;
+
 void coreDumped(SignalHandling::Signal SigNum,
                 ::siginfo_t* /* Info */,
                 const SignalHandling* Handling)
 {
-  static std::sig_atomic_t AlreadyTerminatingOnSigNum;
+  if (AlreadyTerminatingOnSignal)
+    std::_Exit(-SigNum);
+  AlreadyTerminatingOnSignal = SigNum;
 
   const volatile auto* ModulePtr = std::any_cast<const char*>(
     Handling->getObject(SignalHandling::ModuleObjName));
   const char* Module = ModulePtr ? *ModulePtr : "<Unknown>";
   LOG(fatal) << "in '" << Module << "' - FATAL SIGNAL " << SigNum << " '"
              << SignalHandling::signalName(SigNum) << "' RECEIVED!";
-
-  if (AlreadyTerminatingOnSigNum)
-  {
-    LOG(fatal) << "Already handling another fatal signal "
-               << AlreadyTerminatingOnSigNum << " '"
-               << SignalHandling::signalName(
-                    static_cast<SignalHandling::Signal>(
-                      AlreadyTerminatingOnSigNum))
-               << "'! Self-destructing...";
-    std::_Exit(-SigNum);
-  }
-  AlreadyTerminatingOnSigNum = SigNum;
 
   Backtrace BT;
   BT.prettify();

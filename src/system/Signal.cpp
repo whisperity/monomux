@@ -118,9 +118,17 @@ void SignalHandling::handler(Signal SigNum,
   if (!Context)
     return;
 
-  std::function<SignalCallback>* volatile Cb = &Context->Callbacks.at(SigNum);
-  if (Cb && *Cb)
+  CallbackArray* volatile CbArr = &Context->Callbacks.at(SigNum);
+  if (!CbArr)
+    return;
+  for (std::size_t I = 0; I < CallbackCount; ++I)
+  {
+    Callback* volatile Cb = &CbArr->at(I);
+    if (!Cb || !*Cb)
+      return;
+
     (*Cb)(SigNum, Info, Context);
+  }
 }
 
 std::unique_ptr<SignalHandling> SignalHandling::Singleton;
@@ -146,7 +154,10 @@ SignalHandling::SignalHandling()
   static_assert(std::is_same_v<decltype(handler), KernelSignalHandler>,
                 "Signal handler type invalid.");
 
-  Callbacks.fill(std::function<SignalCallback>{});
+  Callbacks.fill(CallbackArray{});
+  for (auto& CallbackArray : Callbacks)
+    CallbackArray.fill(Callback{});
+
   ObjectNames.fill(std::string{});
   Objects.fill(std::any{});
   RegisteredSignals.fill(false);
@@ -198,7 +209,7 @@ void SignalHandling::enable()
 {
   for (std::size_t S = 0; S < SignalCount; ++S)
   {
-    if (!Callbacks.at(S))
+    if (!Callbacks.at(S).at(0))
       // If the callback for the signal is empty, no handling is needed.
       continue;
     if (RegisteredSignals.at(S))
@@ -284,18 +295,61 @@ void SignalHandling::registerCallback(Signal SigNum,
   if (static_cast<std::size_t>(SigNum) > SignalCount)
     throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
 
-  Callbacks.at(SigNum) = std::move(Callback);
+  CallbackArray& SCBs = Callbacks.at(SigNum);
+  if (SCBs.at(CallbackCount - 1))
+    throw std::out_of_range{
+      "Signal " + std::to_string(SigNum) + " already has max " +
+      std::to_string(CallbackCount) + " callbacks registered"};
+
+  if constexpr (CallbackCount >= 2)
+  {
+    for (std::size_t I = CallbackCount - 1; I != 0; --I)
+    {
+      if (SCBs.at(I - 1))
+      {
+        MONOMUX_TRACE_LOG(LOG(data) << "Signal #" << SigNum << " callback #"
+                                    << (I - 1) << " moved to the right");
+        SCBs.at(I - 1).swap(SCBs.at(I));
+      }
+    }
+  }
+
+  SCBs.at(0) = std::move(Callback);
   MONOMUX_TRACE_LOG(LOG(data)
                     << "Callback registered for " << signalName(SigNum));
 }
 
-void SignalHandling::clearCallback(Signal SigNum)
+void SignalHandling::clearOneCallback(Signal SigNum)
 {
   if (static_cast<std::size_t>(SigNum) > SignalCount)
     throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
 
-  std::function<SignalCallback> Empty{};
-  Callbacks.at(SigNum).swap(Empty);
+  CallbackArray& SCBs = Callbacks.at(SigNum);
+  if (!SCBs.at(0))
+    throw std::out_of_range{"Signal " + std::to_string(SigNum) +
+                            " has no callbacks registered"};
+
+  Callback Cb;
+  SCBs.at(0).swap(Cb);
+  MONOMUX_TRACE_LOG(LOG(data)
+                    << "Top callback cleared from " << signalName(SigNum));
+
+  if constexpr (CallbackCount >= 2)
+    for (std::size_t I = 0; I < CallbackCount - 1; ++I)
+      if (SCBs.at(I + 1))
+      {
+        MONOMUX_TRACE_LOG(LOG(data) << "Signal #" << SigNum << " callback #"
+                                    << (I + 1) << " moved to the left");
+        SCBs.at(I + 1).swap(SCBs.at(I));
+      }
+}
+
+void SignalHandling::clearCallbacks(Signal SigNum)
+{
+  if (static_cast<std::size_t>(SigNum) > SignalCount)
+    throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
+
+  Callbacks.at(SigNum).fill(Callback{});
 
   MONOMUX_TRACE_LOG(LOG(data)
                     << "Callback cleared from " << signalName(SigNum));
@@ -306,14 +360,14 @@ void SignalHandling::clearCallbacks() noexcept
   for (std::size_t S = 0; S < SignalCount; ++S)
   {
     std::function<SignalCallback> Empty{};
-    Callbacks.at(S).swap(Empty);
+    Callbacks.at(S).fill(Callback{});
   }
   MONOMUX_TRACE_LOG(LOG(data) << "All callbacks cleared");
 }
 
 void SignalHandling::defaultCallback(Signal SigNum)
 {
-  clearCallback(SigNum);
+  clearCallbacks(SigNum);
 
   if (RegisteredSignals.at(SigNum) || MaskedSignals.at(SigNum))
   {
@@ -326,11 +380,22 @@ void SignalHandling::defaultCallback(Signal SigNum)
 }
 
 std::function<SignalHandling::SignalCallback>
-SignalHandling::getCallback(Signal SigNum) const
+SignalHandling::getCallback(Signal SigNum, std::size_t Index) const
 {
   if (static_cast<std::size_t>(SigNum) > SignalCount)
     throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
-  return Callbacks.at(SigNum);
+  if (Index > CallbackCount)
+    throw std::out_of_range{"Invalid index " + std::to_string(Index) +
+                            " >= " + std::to_string(CallbackCount)};
+  return Callbacks.at(SigNum).at(Index);
+}
+
+std::function<SignalHandling::SignalCallback>
+SignalHandling::getOneCallback(Signal SigNum) const
+{
+  if (static_cast<std::size_t>(SigNum) > SignalCount)
+    throw std::out_of_range{"Invalid signal " + std::to_string(SigNum)};
+  return Callbacks.at(SigNum).at(0);
 }
 
 void SignalHandling::registerObject(std::string Name, std::any Object)

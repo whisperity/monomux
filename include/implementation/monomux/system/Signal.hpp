@@ -57,6 +57,10 @@ public:
   static constexpr std::size_t SignalCount = __SIGRTMIN;
   // The true SIGRTMIN is an extern libc call which would make it not constepr.
 
+  /// The number of callbacks that might be registered \b per \b signal to
+  /// the handling structure.
+  static constexpr std::size_t CallbackCount = 4;
+
   /// The number of objects that might be registered into the configuration
   /// for use in signal handlers.
   static constexpr std::size_t ObjectCount = 4;
@@ -107,8 +111,13 @@ private:
   /// The global object for the signal handler.
   static std::unique_ptr<SignalHandling> Singleton;
 
+  /// A single stored callback for a signal.
+  using Callback = std::function<SignalCallback>;
+  /// The array of callback \b per \b signal.
+  using CallbackArray = std::array<Callback, CallbackCount>;
+
   /// A lookup table of callbacks for signals.
-  std::array<std::function<SignalCallback>, SignalCount> Callbacks;
+  std::array<CallbackArray, SignalCount> Callbacks;
 
   /// A lookup table of object names.
   std::array<std::string, ObjectCount> ObjectNames;
@@ -181,12 +190,18 @@ public:
   void unignore();
 
   /// Registers a callback to fire when \p SigNum is received.
+  /// The callback is added on \b top of the existing callbacks, and will be
+  /// fired \b first from all the callbacks.
   void registerCallback(Signal SigNum, std::function<SignalCallback> Callback);
 
-  /// Remove the callback of \p SigNum.
+  /// Remove the \b top callback registered for \p SigNum.
+  /// If only one callback was registered, behaves as \p clearCallback().
+  void clearOneCallback(Signal SigNum);
+
+  /// Remove the callbacks of \p SigNum.
   /// If signal handling had been \p enabled() for the signal beforehand, no
   /// handler will fire.
-  void clearCallback(Signal SigNum);
+  void clearCallbacks(Signal SigNum);
 
   /// Remove all callbacks.
   void clearCallbacks() noexcept;
@@ -195,9 +210,14 @@ public:
   /// \p enabled() for the signal beforehand, reset the default handler.
   void defaultCallback(Signal SigNum);
 
-  /// \returns the callback registered for \p SigNum, or an empty \p function()
-  /// if none are registered.
-  std::function<SignalCallback> getCallback(Signal SigNum) const;
+  /// \returns the \p Indexth callback registered for \p SigNum, or an empty
+  /// \p function() if none such are registered.
+  std::function<SignalCallback> getCallback(Signal SigNum,
+                                            std::size_t Index) const;
+
+  /// \returns the \b top callback registered for \p SigNum, or an empty
+  /// \p function() if no callbacks are registered.
+  std::function<SignalCallback> getOneCallback(Signal SigNum) const;
 
   /// Register the \p Object with \p Name in the global object storage of the
   /// signal handler.

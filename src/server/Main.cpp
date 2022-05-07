@@ -73,8 +73,6 @@ namespace
 {
 
 constexpr char ServerObjName[] = "Server";
-constexpr char MasterAborterName[] = "Master-Aborter";
-
 
 void serverShutdown(SignalHandling::Signal SigNum,
                     ::siginfo_t* Info,
@@ -92,10 +90,6 @@ void coreDumped(SignalHandling::Signal SigNum,
 
 int main(Options& Opts)
 {
-  if (Opts.Background)
-    CheckedPOSIXThrow(
-      [] { return ::daemon(0, 0); }, "Backgrounding ourselves failed", -1);
-
   Socket ServerSock = Socket::create(*Opts.SocketPath);
   Server S = Server(std::move(ServerSock));
   S.setExitIfNoMoreSessions(Opts.ExitOnLastSessionTerminate);
@@ -108,17 +102,14 @@ int main(Options& Opts)
       Sig.registerCallback(SIGTERM, &serverShutdown);
       Sig.registerCallback(SIGCHLD, &childExited);
       Sig.ignore(SIGPIPE);
+      Sig.enable();
 
-      // Override the SIGABRT handler with a custom one that
-      // resets the terminal during a crash.
-      Sig.registerObject(MasterAborterName, Sig.getCallback(SIGABRT));
+      // Override the SIGABRT handler with a custom one that kills the server.
       Sig.registerCallback(SIGILL, &coreDumped);
       Sig.registerCallback(SIGABRT, &coreDumped);
       Sig.registerCallback(SIGSEGV, &coreDumped);
       Sig.registerCallback(SIGSYS, &coreDumped);
       Sig.registerCallback(SIGSTKFLT, &coreDumped);
-      Sig.enable();
-      Sig.enable();
     },
     [] {
       SignalHandling& Sig = SignalHandling::get();
@@ -128,18 +119,18 @@ int main(Options& Opts)
       Sig.defaultCallback(SIGINT);
       Sig.deleteObject(ServerObjName);
 
-      auto MasterAborter =
-        *std::any_cast<std::function<SignalHandling::SignalCallback>>(
-          Sig.getObject(MasterAborterName));
-      Sig.registerCallback(SIGILL, MasterAborter);
-      Sig.registerCallback(SIGABRT, MasterAborter);
-      Sig.registerCallback(SIGSEGV, MasterAborter);
-      Sig.registerCallback(SIGSYS, MasterAborter);
-      Sig.registerCallback(SIGSTKFLT, MasterAborter);
-      Sig.deleteObject(MasterAborterName);
+      Sig.clearOneCallback(SIGILL);
+      Sig.clearOneCallback(SIGABRT);
+      Sig.clearOneCallback(SIGSEGV);
+      Sig.clearOneCallback(SIGSYS);
+      Sig.clearOneCallback(SIGSTKFLT);
     }};
 
   LOG(info) << "Starting Monomux Server";
+  if (Opts.Background)
+    CheckedPOSIXThrow(
+      [] { return ::daemon(0, 0); }, "Backgrounding ourselves failed", -1);
+
   ScopeGuard Server{[&S] { S.loop(); }, [&S] { S.shutdown(); }};
   LOG(info) << "Monomux Server stopped";
   return EXIT_Success;
@@ -180,19 +171,6 @@ void coreDumped(SignalHandling::Signal SigNum,
                 const SignalHandling* Handling)
 {
   serverShutdown(SigNum, Info, Handling);
-
-  // Fallback to the master handler that main.cpp should've installed.
-  const auto* MasterAborter =
-    std::any_cast<std::function<SignalHandling::SignalCallback>>(
-      Handling->getObject(MasterAborterName));
-  if (MasterAborter)
-    (*MasterAborter)(SigNum, Info, Handling);
-  else
-  {
-    LOG(fatal) << "In Server, " << SignalHandling::signalName(SigNum)
-               << " FATAL SIGNAL received, but local handler did not find the "
-                  "appropriate master one.";
-  }
 }
 
 } // namespace

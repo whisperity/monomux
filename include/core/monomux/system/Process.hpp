@@ -102,6 +102,9 @@ public:
   /// kernel.
   static std::string thisProcessPath();
 
+  /// Sends the \p Signal to the process identified by \p PID.
+  static void signal(raw_handle Handle, int Signal);
+
   /// Replaces the current process (as if by calling the \p exec() family) in
   /// the system with the started one. This is a low-level operation that
   /// performs no additional meaningful setup of process state.

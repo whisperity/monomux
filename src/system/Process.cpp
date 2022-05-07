@@ -235,7 +235,9 @@ void Process::wait()
 }
 
 // NOLINTNEXTLINE(readability-make-member-function-const)
-void Process::signal(int Signal)
+void Process::signal(int Signal) { signal(Handle, Signal); }
+
+void Process::signal(raw_handle Handle, int Signal)
 {
   if (Handle == Invalid)
     return;
