@@ -77,14 +77,16 @@ public:
 ///
 /// Example:
 ///
-///     auto Open = CheckedPOSIX([]() {
-///       return ::open("foo", O_RDONLY);
-///     }, /* ErrorIndicatingReturnValue =*/-1);
+///   \code{.cpp}
+///   auto Open = CheckedPOSIX([]() {
+///     return ::open("foo", O_RDONLY);
+///   }, /* ErrorIndicatingReturnValue =*/-1);
 ///
-///     if (!Open) {
-///       // Do something as the call failed.
-///     }
-///     Open.get(); // Obtain the return value from the lambda.
+///   if (!Open) {
+///     // Do something as the call failed.
+///   }
+///   Open.get(); // Obtain the return value from the lambda.
+///   \endcode
 template <typename Fn, typename... ErrTys>
 decltype(auto)
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -112,12 +114,14 @@ CheckedPOSIX(Fn&& F, ErrTys&&... ErrorValues) noexcept
 ///
 /// Example:
 ///
-///     auto FD = CheckedPOSIXThrow([]() {
-///       return ::open("foo", O_RDONLY);
-///     }, "Failed to open the file"s,
-///     /* ErrorIndicatingReturnValue =*/-1);
+///   \code{.cpp}
+///   auto FD = CheckedPOSIXThrow([]() {
+///     return ::open("foo", O_RDONLY);
+///   }, "Failed to open the file"s,
+///   /* ErrorIndicatingReturnValue =*/-1);
 ///
-///     FD; // Obtain the return value from the lambda.
+///   FD; // Obtain the return value from the lambda.
+///   \endcode
 template <typename Fn, typename... ErrTys>
 decltype(auto)
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -146,16 +150,18 @@ CheckedPOSIXThrow(Fn&& F, std::string ErrMsg, ErrTys&&... ErrorValues)
 ///
 /// Example:
 ///
-///     auto Open = CheckedPOSIX([](bool& Error) {
-///       int fd = ::open("foo", O_RDONLY);
-///       Error = (fd == -1);
-///       return 42;
-///     });
+///   \code{.cpp}
+///   auto Open = CheckedPOSIX([](bool& Error) {
+///     int fd = ::open("foo", O_RDONLY);
+///     Error = (fd == -1);
+///     return 42;
+///   });
 ///
-///     if (!Open) {
-///       // Do something as the call failed.
-///     }
-///     Open.get(); // Obtain the return value from the lambda.
+///   if (!Open) {
+///     // Do something as the call failed.
+///   }
+///   Open.get(); // Obtain the return value from the lambda.
+///   \endcode
 template <typename Fn>
 decltype(auto)
 CheckedPOSIX(Fn&& F) noexcept // NOLINT(readability-identifier-naming)

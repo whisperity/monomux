@@ -11,7 +11,6 @@
  */
 #define MONOMUX_VERSION_TWEAK "${VERSION_TWEAK}"
 
-
 /* Whether the versioning system uncovered additional detail. */
 #define MONOMUX_VERSION_HAS_EXTRAS "${VERSION_HAS_EXTRAS}"
 

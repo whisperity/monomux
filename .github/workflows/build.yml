@@ -4,8 +4,8 @@ on:
   push:
 
 jobs:
-  style:
-    name: "Style checks"
+  style-and-docs:
+    name: "Style checks & Documentation"
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
@@ -14,6 +14,33 @@ jobs:
         uses: jidicula/clang-format-action@v4.6.2
         with:
           check-path: src
+      - name: "Install dependencies"
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install \
+            doxygen \
+            graphviz
+      - name: "Prepare build with CMake"
+        run: |
+          cmake --version
+
+          cmake -S . -B Build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
+            -DMONOMUX_BUILD_DOCS=ON \
+            -DMONOMUX_BUILD_SHARED_LIBS=OFF \
+            -DMONOMUX_BUILD_TESTS=OFF \
+            -DMONOMUX_NON_ESSENTIAL_LOGS=ON
+      - name: "Doxygen"
+        run: |
+          cmake --build ./Build -- -j docs
+      - name: "Upload artefacts: Doxygen"
+        uses: actions/upload-artifact@v2
+        with:
+          path: "Build/docs/html"
+          name: "Implementation reference"
+          if-no-files-found: warn
+          retention-days: 30
 
   lts-linux:
     strategy:
@@ -125,7 +152,7 @@ jobs:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
           name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 30
       - name: "Upload binary package artefacts: Debian package"
         if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
         uses: actions/upload-artifact@v2
@@ -133,7 +160,7 @@ jobs:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
           name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 30
       - name: "Upload binary package artefacts: Debian package (debug symbols)"
         if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
         uses: actions/upload-artifact@v2
@@ -141,4 +168,4 @@ jobs:
           path: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.ddeb"
           name: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.ddeb"
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 30

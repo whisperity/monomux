@@ -70,6 +70,7 @@ include_directories(
 add_subdirectory(include)
 add_subdirectory(src)
 
+include(MonomuxDoxygen)
 include(MonomuxCPack)
 
 add_subdirectory(test)
