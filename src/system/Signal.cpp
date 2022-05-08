@@ -112,7 +112,10 @@ void SignalHandling::handler(Signal SigNum,
                              void* /*Context*/)
 {
   if (static_cast<std::size_t>(SigNum) > SignalCount)
-    unreachable("Unhandleable too large signal number received");
+  {
+    LOG(error) << "Unhandleable too large signal number received";
+    return;
+  }
 
   SignalHandling* volatile Context = Singleton.get();
   if (!Context)
@@ -138,8 +141,8 @@ SignalHandling& SignalHandling::get()
   if (!Singleton)
   {
     Singleton = SignalHandling::create();
-    MONOMUX_TRACE_LOG(LOG(debug) << "SignalHandling initialised at address "
-                                 << Singleton.get());
+    MONOMUX_TRACE_LOG(LOG(debug)
+                      << "Initialised at address " << Singleton.get());
   }
   return *Singleton;
 }
@@ -302,21 +305,13 @@ void SignalHandling::registerCallback(Signal SigNum,
       std::to_string(CallbackCount) + " callbacks registered"};
 
   if constexpr (CallbackCount >= 2)
-  {
     for (std::size_t I = CallbackCount - 1; I != 0; --I)
-    {
       if (SCBs.at(I - 1))
-      {
-        MONOMUX_TRACE_LOG(LOG(data) << "Signal #" << SigNum << " callback #"
-                                    << (I - 1) << " moved to the right");
         SCBs.at(I - 1).swap(SCBs.at(I));
-      }
-    }
-  }
 
   SCBs.at(0) = std::move(Callback);
-  MONOMUX_TRACE_LOG(LOG(data)
-                    << "Callback registered for " << signalName(SigNum));
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "New callback added for " << signalName(SigNum));
 }
 
 void SignalHandling::clearOneCallback(Signal SigNum)
@@ -331,17 +326,13 @@ void SignalHandling::clearOneCallback(Signal SigNum)
 
   Callback Cb;
   SCBs.at(0).swap(Cb);
-  MONOMUX_TRACE_LOG(LOG(data)
+  MONOMUX_TRACE_LOG(LOG(trace)
                     << "Top callback cleared from " << signalName(SigNum));
 
   if constexpr (CallbackCount >= 2)
     for (std::size_t I = 0; I < CallbackCount - 1; ++I)
       if (SCBs.at(I + 1))
-      {
-        MONOMUX_TRACE_LOG(LOG(data) << "Signal #" << SigNum << " callback #"
-                                    << (I + 1) << " moved to the left");
         SCBs.at(I + 1).swap(SCBs.at(I));
-      }
 }
 
 void SignalHandling::clearCallbacks(Signal SigNum)
@@ -351,8 +342,8 @@ void SignalHandling::clearCallbacks(Signal SigNum)
 
   Callbacks.at(SigNum).fill(Callback{});
 
-  MONOMUX_TRACE_LOG(LOG(data)
-                    << "Callback cleared from " << signalName(SigNum));
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "Callbacks cleared from " << signalName(SigNum));
 }
 
 void SignalHandling::clearCallbacks() noexcept
@@ -362,7 +353,7 @@ void SignalHandling::clearCallbacks() noexcept
     std::function<SignalCallback> Empty{};
     Callbacks.at(S).fill(Callback{});
   }
-  MONOMUX_TRACE_LOG(LOG(data) << "All callbacks cleared");
+  MONOMUX_TRACE_LOG(LOG(trace) << "All callbacks cleared");
 }
 
 void SignalHandling::defaultCallback(Signal SigNum)
@@ -409,8 +400,8 @@ void SignalHandling::registerObject(std::string Name, std::any Object)
 
     if (IName == Name || IName.empty())
     {
-      MONOMUX_TRACE_LOG(LOG(data) << "Object \"" << Name
-                                  << "\" registered (ID: " << I << ')');
+      MONOMUX_TRACE_LOG(LOG(trace) << "Object \"" << Name
+                                   << "\" registered (ID: " << I << ')');
 
       if (IName.empty())
         IName = std::move(Name);
@@ -430,15 +421,13 @@ void SignalHandling::deleteObject(const std::string& Name) noexcept
     return;
 
   for (std::size_t I = 0; I < ObjectCount; ++I)
-  {
     if (ObjectNames.at(I) == Name)
     {
       Objects.at(I).reset();
-      MONOMUX_TRACE_LOG(LOG(data) << "Object \"" << Name << "\" (ID: " << I
-                                  << ") deleted");
+      MONOMUX_TRACE_LOG(LOG(trace) << "Object \"" << Name << "\" (ID: " << I
+                                   << ") deleted");
       return;
     }
-  }
 }
 
 void SignalHandling::deleteObjects() noexcept
@@ -450,7 +439,7 @@ void SignalHandling::deleteObjects() noexcept
     ObjectNames.at(I).clear();
     Objects.at(I).reset();
   }
-  MONOMUX_TRACE_LOG(LOG(data) << "Objects deleted");
+  MONOMUX_TRACE_LOG(LOG(trace) << "Objects deleted");
 }
 
 std::any* SignalHandling::getObject(const char* Name) noexcept
@@ -465,15 +454,13 @@ const std::any* SignalHandling::getObject(const char* Name) const noexcept
     return nullptr;
 
   for (std::size_t I = 0; I < ObjectCount; ++I)
-  {
     if (std::strncmp(
           ObjectNames.at(I).c_str(), Name, ObjectNames.at(I).size()) == 0)
-    {
       return &Objects.at(I);
-    }
-  }
 
   return nullptr;
 }
 
 } // namespace monomux
+
+#undef LOG

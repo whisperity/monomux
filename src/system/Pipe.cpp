@@ -47,7 +47,7 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
     "open('" + Path + "')",
     -1);
 
-  LOG(debug) << "Created FIFO at " << Path;
+  LOG(debug) << "Created FIFO at '" << Path << '\'';
 
   Pipe P{std::move(Handle), std::move(Path), true};
   P.OpenedAs = Write;
@@ -63,6 +63,8 @@ Pipe::AnonymousPipe Pipe::create(bool InheritInChild)
     [&PipeFDs, ExtraFlags] { return ::pipe2(PipeFDs, ExtraFlags); },
     "pipe2()",
     -1);
+
+  LOG(debug) << "Created anonymous pipe";
 
   AnonymousPipe PipePair;
   PipePair.Read = std::make_unique<Pipe>(Pipe::wrap(PipeFDs[0], Read, {}));
@@ -80,7 +82,7 @@ Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
     "open('" + Path + "')",
     -1);
 
-  LOG(debug) << "Opened FIFO at " << Path << "for "
+  LOG(debug) << "Opened FIFO at '" << Path << "' for "
              << (OpenMode == Read ? "Read" : "Write");
 
   Pipe P{std::move(Handle), std::move(Path), false};
@@ -102,7 +104,7 @@ Pipe Pipe::wrap(fd&& FD, Mode OpenMode, std::string Identifier)
     Identifier.push_back('>');
   }
 
-  LOG(trace) << "Pipeified FD " << Identifier;
+  LOG(debug) << "Pipeified FD " << Identifier;
 
   Pipe P{std::move(FD), std::move(Identifier), false};
   P.OpenedAs = OpenMode;
@@ -317,3 +319,5 @@ std::unique_ptr<Pipe> Pipe::AnonymousPipe::takeWrite()
 }
 
 } // namespace monomux
+
+#undef LOG

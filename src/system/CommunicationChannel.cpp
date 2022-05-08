@@ -218,3 +218,5 @@ std::size_t CommunicationChannel::write(std::string_view Buffer)
 }
 
 } // namespace monomux
+
+#undef LOG

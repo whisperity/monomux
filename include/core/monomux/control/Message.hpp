@@ -25,6 +25,16 @@
 
 #include "MessageBase.hpp"
 
+#define MONOMUX_MESSAGE(KIND, NAME)                                            \
+  static constexpr MessageKind Kind = MessageKind::KIND;                       \
+  static std::optional<NAME> decode(std::string_view Buffer);                  \
+  static std::string encode(const NAME& Object);
+
+#define MONOMUX_MESSAGE_BASE(NAME)                                             \
+  static constexpr MessageKind Kind = MessageKind::Base;                       \
+  static std::optional<NAME> decode(std::string_view& Buffer);                 \
+  static std::string encode(const NAME& Object);
+
 namespace monomux::message
 {
 
@@ -280,3 +290,6 @@ struct Redraw
 } // namespace notification
 
 } // namespace monomux::message
+
+#undef MONOMUX_MESSAGE
+#undef MONOMUX_MESSAGE_BASE

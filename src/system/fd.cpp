@@ -48,7 +48,7 @@ fd::raw_fd fd::fileno(std::FILE* File)
 
 fd::fd(raw_fd Handle) noexcept : Handle(Handle)
 {
-  MONOMUX_TRACE_LOG(LOG(debug) << "FD #" << Handle << " opened.");
+  MONOMUX_TRACE_LOG(LOG(data) << "FD #" << Handle << " opened.");
 }
 
 fd fd::dup(raw_fd Handle)
@@ -60,7 +60,7 @@ fd fd::dup(raw_fd Handle)
 
 void fd::close(raw_fd FD) noexcept
 {
-  MONOMUX_TRACE_LOG(LOG(debug) << "Closing FD #" << FD << "...");
+  MONOMUX_TRACE_LOG(LOG(data) << "Closing FD #" << FD << "...");
   CheckedPOSIX([FD] { return ::close(FD); }, -1);
 }
 
@@ -131,3 +131,5 @@ void fd::setNonBlockingCloseOnExec(raw_fd FD) noexcept
 }
 
 } // namespace monomux
+
+#undef LOG

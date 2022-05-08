@@ -54,8 +54,8 @@ HANDLER(responseClientID)
   Client.ClientID = Msg->Client.ID;
   Client.Nonce.emplace(Msg->Client.Nonce);
 
-  MONOMUX_DEBUG(LOG(data) << "Client is \"" << Client.ClientID
-                          << "\" with nonce: " << *Client.Nonce);
+  MONOMUX_TRACE_LOG(LOG(data) << "Client is \"" << Client.ClientID
+                              << "\" with nonce: " << *Client.Nonce);
 }
 
 HANDLER(receivedDetachNotification)
@@ -80,3 +80,7 @@ HANDLER(receivedDetachNotification)
 #undef HANDLER
 
 } // namespace monomux::client
+
+#undef MSG
+#undef HANDLER
+#undef LOG

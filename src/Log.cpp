@@ -25,18 +25,23 @@
 namespace monomux::log
 {
 
-static constexpr const char* SeverityName[Min + 1] = {"",
-                                                      "!!! FATAL",
-                                                      " !! ERROR",
-                                                      "  ! WARNING",
-                                                      "    INFO",
-                                                      "  > DEBUG",
-                                                      " >> TRACE",
-                                                      ">>> DATA"};
+static constexpr const char* SeverityName[Min + 1] = {"           ",
+                                                      "!!! FATAL  ",
+                                                      " !! ERROR  ",
+                                                      "  ! Warning",
+                                                      "    Info   ",
+                                                      "  > Debug  ",
+                                                      " >> trace  ",
+                                                      ">>> data   "};
+static constexpr const char InvalidSeverity[] = "??? Invalid";
 
 const char* Logger::levelName(Severity S) noexcept
 {
-  assert(S <= log::Min && S >= log::Max && "Invalid severity?");
+  if (S > log::Min || S < log::Max)
+  {
+    assert(false && "Invalid severity to stringify!");
+    return InvalidSeverity;
+  }
   return SeverityName[S];
 }
 
@@ -63,13 +68,24 @@ Logger& Logger::get()
   {
     Singleton = std::make_unique<Logger>(Default, std::clog);
     MONOMUX_TRACE_LOG(Singleton->operator()(log::Debug, "logger")
-                      << "Logger initialised at address " << Singleton.get());
+                      << "Initialised at address " << Singleton.get());
   }
 
   return *Singleton;
 }
 
 Logger* Logger::tryGet() { return Singleton.get(); }
+
+std::size_t Logger::digits(std::size_t Number)
+{
+  std::size_t R = 1;
+  while (Number > 0)
+  {
+    Number /= 10; // NOLINT(readability-magic-numbers)
+    ++R;
+  }
+  return R;
+}
 
 Logger::Logger(Severity S, std::ostream& OS) : SeverityLimit(S), OS(&OS) {}
 

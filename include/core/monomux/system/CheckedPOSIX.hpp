@@ -25,8 +25,8 @@
 namespace monomux
 {
 
-// Hardcode this, because decltype(errno) would not be portable. errno might be
-// a macro.
+// Hardcode this, because decltype(errno) would not be portable.
+// errno might be defined only as a macro!
 using errno_t = int;
 
 namespace detail

@@ -43,8 +43,6 @@ Socket Socket::create(std::string Path, bool InheritInChild)
     "socket()",
     -1);
 
-  MONOMUX_TRACE_LOG(LOG(trace) << "Anonymous socket created");
-
   // TODO: Mask?
 
   POD<struct ::sockaddr_un> SocketAddr;
@@ -61,7 +59,7 @@ Socket Socket::create(std::string Path, bool InheritInChild)
     "bind('" + Path + "')",
     -1);
 
-  LOG(debug) << "Created at \"" << Path << '"';
+  LOG(debug) << "Created at '" << Path << '\'';
 
   Socket S{std::move(Handle), std::move(Path), true};
   S.Owning = true;
@@ -75,8 +73,6 @@ Socket Socket::connect(std::string Path, bool InheritInChild)
     [ExtraFlags] { return ::socket(AF_UNIX, SOCK_STREAM | ExtraFlags, 0); },
     "socket()",
     -1);
-
-  MONOMUX_TRACE_LOG(LOG(trace) << "Anonymous socket created");
 
   POD<struct ::sockaddr_un> SocketAddr;
   SocketAddr->sun_family = AF_UNIX;
@@ -92,7 +88,7 @@ Socket Socket::connect(std::string Path, bool InheritInChild)
     "connect('" + Path + "')",
     -1);
 
-  LOG(debug) << "Connected to \"" << Path << '"';
+  LOG(debug) << "Connected to '" << Path << '\'';
 
   Socket S{std::move(Handle), std::move(Path), false};
   S.Owning = false;
@@ -300,3 +296,5 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
 }
 
 } // namespace monomux
+
+#undef LOG

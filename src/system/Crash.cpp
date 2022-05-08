@@ -56,7 +56,7 @@ void putSharedObjectOffsets(const std::vector<Backtrace::Frame*>& Frames)
     [&BinaryStr] { return ::dlopen(BinaryStr.c_str(), RTLD_LAZY); }, nullptr);
   if (!MaybeObj)
   {
-    MONOMUX_TRACE_LOG(LOG(debug)
+    MONOMUX_TRACE_LOG(LOG(warn)
                       << "dlopen(): failed to generate symbol info for '"
                       << BinaryStr << "': " << dlerror());
   }
@@ -120,8 +120,8 @@ void putSharedObjectOffsets(const std::vector<Backtrace::Frame*>& Frames)
           if (!SymInfoError)
           {
             MONOMUX_TRACE_LOG(
-              LOG(debug) << "dladdr(): failed to generate symbol info for #"
-                         << F->Index << ": " << dlerror());
+              LOG(warn) << "dladdr(): failed to generate symbol info for #"
+                        << F->Index << ": " << dlerror());
             continue;
           }
         }
@@ -380,9 +380,10 @@ Backtrace::Backtrace(std::size_t Depth, std::size_t Ignored)
   Depth += Ignored;
   if (Depth > MaxSize)
   {
-    LOG(debug) << "Requested " << Depth
-               << " stack frames, which is larger than supported limit "
-               << MaxSize;
+    MONOMUX_TRACE_LOG(LOG(debug)
+                      << "Requested " << Depth
+                      << " stack frames, which is larger than supported limit "
+                      << MaxSize);
     Depth = MaxSize;
   }
 
@@ -398,8 +399,8 @@ Backtrace::Backtrace(std::size_t Depth, std::size_t Ignored)
       return;
     }
     FrameCount = MaybeFrameCount.get();
-    LOG(trace) << "backtrace() returned " << FrameCount << " symbols, ignoring "
-               << Ignored;
+    MONOMUX_TRACE_LOG(LOG(data) << "backtrace() returned " << FrameCount
+                                << " symbols, ignoring " << Ignored);
     FrameCount -= Ignored;
     Frames.reserve(FrameCount);
   }
@@ -538,3 +539,5 @@ void Backtrace::prettify()
 }
 
 } // namespace monomux
+
+#undef LOG

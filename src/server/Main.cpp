@@ -191,3 +191,5 @@ void coreDumped(SignalHandling::Signal SigNum,
 } // namespace
 
 } // namespace monomux::server
+
+#undef LOG

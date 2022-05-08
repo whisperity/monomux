@@ -111,14 +111,16 @@ Message Message::unpack(std::string_view Str) noexcept
 
 std::string readPascalString(CommunicationChannel& Channel)
 {
-  static constexpr std::size_t MaxMeaningfulMessageSize = 1 << 14;
+  static constexpr std::size_t MaxMeaningfulMessageSize = 1 << 24;
 
   std::string SizeStr = Channel.read(sizeof(std::size_t));
   std::size_t Size = Message::binaryStringToSize(SizeStr);
   if (Size > MaxMeaningfulMessageSize)
   {
-    LOG(warn) << "When reading a Pascal String, got a prefix of " << Size
-              << " that was deemed too large. Ignoring message!";
+    LOG(error)
+      << "When reading a Pascal String, got a prefix of " << Size
+      << " that was deemed too large (>= " << MaxMeaningfulMessageSize
+      << "). This is likely due to memory corruption. Ignoring message!";
     return {};
   }
   std::string DataStr = Channel.read(Size);
@@ -139,20 +141,6 @@ std::string_view consume(std::string_view Data, const std::string_view Literal)
   Data.remove_prefix(Literal.size());
   return Data;
 }
-
-#if 0
-// Superseded by takeUntilAndConsume and splice.
-/// Returns the \p string_view into \p Data until the first occurrence of
-/// \p Literal.
-std::string_view takeUntil(std::string_view Data,
-                           const std::string_view Literal)
-{
-  auto Pos = Data.find(Literal);
-  if (Pos == std::string_view::npos)
-    return {};
-  return Data.substr(0, Pos);
-}
-#endif
 
 /// Returns \p N characters spliced from the beginning of \p Data and modifies
 /// \p Data to point after the removed characters.
@@ -854,3 +842,5 @@ DECODE(Redraw)
 #undef DECODE_BASE
 #undef DECODE
 #undef DECODE_BASE
+
+#undef LOG

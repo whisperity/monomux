@@ -54,7 +54,7 @@ std::size_t SessionData::sendInput(std::string_view Data)
 
 ClientData* SessionData::getLatestClient() const
 {
-  MONOMUX_TRACE_LOG(LOG(debug) << "Searching latest active client of \"" << Name
+  MONOMUX_TRACE_LOG(LOG(trace) << "Searching latest active client of \"" << Name
                                << "\"...");
   ClientData* R = nullptr;
   std::optional<decltype(std::declval<ClientData>().lastActive())> Time;
@@ -95,3 +95,5 @@ void SessionData::removeClient(ClientData& Client) noexcept
 }
 
 } // namespace monomux::server
+
+#undef LOG

@@ -19,9 +19,7 @@
 #pragma once
 #include "Client.hpp"
 
-namespace monomux
-{
-namespace client
+namespace monomux::client
 {
 
 /// A \p ControlClient is a non-user-facing management wrapper over an
@@ -55,5 +53,4 @@ private:
   std::string SessionName;
 };
 
-} // namespace client
-} // namespace monomux
+} // namespace monomux::client

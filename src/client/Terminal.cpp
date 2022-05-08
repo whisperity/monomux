@@ -29,6 +29,9 @@
 
 #include "monomux/client/Terminal.hpp"
 
+#include "monomux/Log.hpp"
+#define LOG(SEVERITY) monomux::log::SEVERITY("client/Terminal")
+
 namespace monomux::client
 {
 
@@ -195,3 +198,5 @@ void Terminal::notifySizeChanged() const noexcept
 }
 
 } // namespace monomux::client
+
+#undef LOG

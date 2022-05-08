@@ -271,7 +271,6 @@ void Client::loop()
 void Client::controlCallback()
 {
   using namespace monomux::message;
-  MONOMUX_TRACE_LOG(LOG(trace) << __PRETTY_FUNCTION__);
   std::string Data;
 
   // Consume all the control messages that might be on the socket if a burst
@@ -302,8 +301,8 @@ void Client::controlCallback()
       Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
     if (Action == Dispatch.end())
     {
-      LOG(trace) << "Unknown message type " << static_cast<int>(MB.Kind)
-                 << " received";
+      MONOMUX_TRACE_LOG(LOG(trace) << "Unknown message type "
+                                   << static_cast<int>(MB.Kind) << " received");
       continue;
     }
 
@@ -314,7 +313,7 @@ void Client::controlCallback()
     }
     catch (const std::system_error& Err)
     {
-      LOG(warn) << "Error when handling message";
+      LOG(error) << "Error when handling message";
       if (getControlSocket().failed())
         exit(Failed, -1);
       continue;
@@ -534,3 +533,5 @@ Client::Inhibitor Client::inhibitInputFile()
 }
 
 } // namespace monomux::client
+
+#undef LOG

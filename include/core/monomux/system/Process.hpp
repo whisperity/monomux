@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <cassert>
 #include <map>
 #include <optional>
 #include <string>
@@ -26,8 +27,6 @@
 
 #include "monomux/system/CheckedPOSIX.hpp"
 #include "monomux/system/Pty.hpp"
-
-#include "monomux/Log.hpp"
 
 namespace monomux
 {
@@ -132,17 +131,10 @@ public:
   static void fork(ParentFn ParentAction, ChildFn ChildAction)
   {
     auto ForkResult = CheckedPOSIXThrow([] { return ::fork(); }, "fork()", -1);
-
     if (ForkResult == 0)
-    {
-      MONOMUX_TRACE_LOG(log::trace("system/Process") << "Forked, in child...");
       ChildAction();
-    }
     else
-    {
-      MONOMUX_TRACE_LOG(log::trace("system/Process") << "Forked, in parent...");
       ParentAction();
-    }
   }
 };
 

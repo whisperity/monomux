@@ -119,3 +119,5 @@ EPoll::Listener::~Listener()
 }
 
 } // namespace monomux
+
+#undef LOG

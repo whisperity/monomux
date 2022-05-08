@@ -137,7 +137,7 @@ HANDLER(requestMakeSession)
 
   if (!Msg->Name.empty() && Server.getSession(Msg->Name))
   {
-    LOG(info) << "Session \"" << Msg->Name << "\" already exists";
+    LOG(debug) << "Session \"" << Msg->Name << "\" already exists";
     sendMessage(Client.getControlSocket(), Resp);
     return;
   }
@@ -150,7 +150,7 @@ HANDLER(requestMakeSession)
     Msg->Name = std::to_string(SessionNum);
   }
 
-  LOG(debug) << "Creating Session \"" << Msg->Name << "\"...";
+  LOG(info) << "Creating Session \"" << Msg->Name << "\"...";
   Resp.Name = Msg->Name;
   auto S = std::make_unique<SessionData>(std::move(Msg->Name));
 
@@ -263,3 +263,5 @@ HANDLER(redrawNotified)
 #undef HANDLER
 
 } // namespace monomux::server
+
+#undef LOG

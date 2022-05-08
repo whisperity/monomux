@@ -214,3 +214,5 @@ std::optional<MonomuxSession> MonomuxSession::loadFromEnv()
 }
 
 } // namespace monomux
+
+#undef LOG

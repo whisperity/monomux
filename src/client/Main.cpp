@@ -187,7 +187,7 @@ int main(Options& Opts)
   // of the Client itself is placed into the global entry point.
   if (!Opts.Connection.has_value())
   {
-    LOG(fatal) << "Attempted to start Client without an active connection";
+    LOG(fatal) << "Attempted to start Client without an active connection!";
     return EXIT_SystemError;
   }
   Client& Client = *Opts.Connection;
@@ -213,7 +213,7 @@ int main(Options& Opts)
     // Send the initial window size to the server so the attached session prompt
     // is appropriately (re)drawn to the right size, if the size is different.
     Terminal::Size S = Term.getSize();
-    LOG(data) << "Terminal size rows=" << S.Rows << ", columns=" << S.Columns;
+    LOG(data) << "Terminal size: rows=" << S.Rows << ", columns=" << S.Columns;
 
     // This is a little bit of a hack, but we observed that certain elaborate
     // prompts, such as multiline ZSH Powerline do not really redraw when the
@@ -563,3 +563,5 @@ void coreDumped(SignalHandling::Signal /* SigNum */,
 } // namespace
 
 } // namespace monomux::client
+
+#undef LOG

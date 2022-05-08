@@ -22,20 +22,6 @@
 #include <string>
 #include <string_view>
 
-#ifndef MONOMUX_MESSAGE
-#define MONOMUX_MESSAGE(KIND, NAME)                                            \
-  static constexpr MessageKind Kind = MessageKind::KIND;                       \
-  static std::optional<NAME> decode(std::string_view Buffer);                  \
-  static std::string encode(const NAME& Object);
-#endif
-
-#ifndef MONOMUX_MESSAGE_BASE
-#define MONOMUX_MESSAGE_BASE(NAME)                                             \
-  static constexpr MessageKind Kind = MessageKind::Base;                       \
-  static std::optional<NAME> decode(std::string_view& Buffer);                 \
-  static std::string encode(const NAME& Object);
-#endif
-
 namespace monomux::message
 {
 

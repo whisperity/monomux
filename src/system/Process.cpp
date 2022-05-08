@@ -19,6 +19,7 @@
 #include <csignal>
 #include <cstdio>
 #include <cstring>
+#include <iomanip>
 
 #include <linux/limits.h>
 #include <sys/wait.h>
@@ -64,28 +65,31 @@ std::string Process::thisProcessPath()
 
 [[noreturn]] void Process::exec(const SpawnOptions& Opts)
 {
-  LOG(debug) << "----- Process::exec() was called -----\n";
+  LOG(debug) << "----- Process::exec() "
+             << "was called -----";
 
   char** NewArgv = new char*[Opts.Arguments.size() + 2];
   allocCopyString(Opts.Program, NewArgv, 0);
-  LOG(debug) << "        Program:    " << Opts.Program << '\n';
+  LOG(debug) << "        Program: " << Opts.Program;
   NewArgv[Opts.Arguments.size() + 1] = nullptr;
   for (std::size_t I = 0; I < Opts.Arguments.size(); ++I)
   {
     allocCopyString(Opts.Arguments[I], NewArgv, I + 1);
-    LOG(debug) << "        Arg " << I << ":    " << Opts.Arguments[I];
+    LOG(debug) << "        Arg "
+               << std::setw(log::Logger::digits(Opts.Arguments.size())) << I
+               << ": " << Opts.Arguments[I];
   }
 
   for (const auto& E : Opts.Environment)
   {
     if (!E.second.has_value())
     {
-      LOG(debug) << "        Env var:    " << E.first << " unset!";
+      LOG(debug) << "        Env unset: " << E.first;
       CheckedPOSIX([&K = E.first] { return ::unsetenv(K.c_str()); }, -1);
     }
     else
     {
-      LOG(debug) << "        Env var:    " << E.first << '=' << *E.second;
+      LOG(debug) << "        Env   set: " << E.first << " = " << *E.second;
       CheckedPOSIX(
         [&K = E.first, &V = E.second] {
           return ::setenv(K.c_str(), V->c_str(), 1);
@@ -94,7 +98,20 @@ std::string Process::thisProcessPath()
     }
   }
 
-  LOG(debug) << "----- Process::exec() firing -----";
+  if (Opts.CreatePTY)
+    LOG(debug) << "        pty: Yes";
+  else
+  {
+    if (Opts.StandardInput)
+      LOG(debug) << "        stdin: " << *Opts.StandardInput;
+    if (Opts.StandardOutput)
+      LOG(debug) << "       stdout: " << *Opts.StandardOutput;
+    if (Opts.StandardError)
+      LOG(debug) << "       stderr: " << *Opts.StandardError;
+  }
+
+  LOG(debug) << "----- Process::exec() "
+             << "firing... -----";
 
   if (!Opts.CreatePTY)
   {
@@ -109,23 +126,11 @@ std::string Process::thisProcessPath()
       }
     };
     if (Opts.StandardInput)
-    {
-      MONOMUX_TRACE_LOG(LOG(trace) << "    Process will use STDIN: "
-                                   << *Opts.StandardInput);
       ReplaceFD(fd::fileno(stdin), *Opts.StandardInput);
-    }
     if (Opts.StandardError)
-    {
-      MONOMUX_TRACE_LOG(LOG(trace) << "    Process will use STDERR: "
-                                   << *Opts.StandardError);
       ReplaceFD(fd::fileno(stderr), *Opts.StandardError);
-    }
     if (Opts.StandardOutput)
-    {
-      MONOMUX_TRACE_LOG(LOG(trace) << "    Process will use STDOUT: "
-                                   << *Opts.StandardOutput);
       ReplaceFD(fd::fileno(stdout), *Opts.StandardOutput);
-    }
   }
 
   auto ExecSuccessful =
@@ -153,7 +158,7 @@ Process Process::spawn(const SpawnOptions& Opts)
     // We are in the parent.
     Process P;
     P.Handle = ForkResult;
-    LOG(debug) << "PID " << P.Handle << " spawned.";
+    MONOMUX_TRACE_LOG(LOG(debug) << "PID " << P.Handle << " spawned.");
 
     if (PTY)
     {
@@ -227,8 +232,8 @@ void Process::wait()
   if (Handle == Invalid)
     return;
 
-  MONOMUX_TRACE_LOG(LOG(trace)
-                    << "Waiting on child PID " << Handle << " to exit");
+  MONOMUX_TRACE_LOG(LOG(debug)
+                    << "Waiting on child PID " << Handle << " to exit...");
   std::pair<bool, int> DeadAndExit = reapAndGetExitCode(Handle, true);
   Dead = true;
   ExitCode = DeadAndExit.second;
@@ -249,3 +254,5 @@ void Process::signal(raw_handle Handle, int Signal)
 }
 
 } // namespace monomux
+
+#undef LOG

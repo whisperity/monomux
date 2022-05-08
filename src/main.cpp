@@ -336,16 +336,13 @@ int main(int ArgC, char* ArgV[])
     {
       LOG(info) << "No running server found, starting one automatically...";
       ServerOpts.ServerMode = true;
-      Process::fork(
-        [] {         /* In the parent, continue. */
-             return; // NOLINT(readability-redundant-control-flow)
-        },
-        [&ServerOpts, &ArgV] {
-          // Perform the server restart in the child, so it gets
-          // disowned when we eventually exit, and we can remain the
-          // client.
-          server::exec(ServerOpts, ArgV[0]);
-        });
+      Process::fork([] { /* Parent: noop. */ },
+                    [&ServerOpts, &ArgV] {
+                      // Perform the server restart in the child, so it gets
+                      // disowned when we eventually exit, and we can remain the
+                      // client.
+                      server::exec(ServerOpts, ArgV[0]);
+                    });
 
       // Give some time for the server to spawn...
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -511,18 +508,10 @@ void coreDumped(SignalHandling::Signal SigNum,
   std::cerr << "---------------------------------------------------------------"
                "-----------------------------------------------\n";
   const auto& Frames = BT.getFrames();
-  std::size_t LenIndex = 1;
-  {
-    std::size_t IndexDigits = Frames.size();
-    while (IndexDigits > 0)
-    {
-      IndexDigits /= 10; // NOLINT(readability-magic-numbers)
-      ++LenIndex;
-    }
-  }
   for (const Backtrace::Frame& F : Frames)
   {
-    std::cerr << '#' << std::setw(LenIndex) << F.Index << " - ";
+    std::cerr << '#' << std::setw(log::Logger::digits(Frames.size())) << F.Index
+              << " - ";
     if (F.Pretty.empty())
       std::cerr << F.SymbolData;
     else
@@ -534,3 +523,5 @@ void coreDumped(SignalHandling::Signal SigNum,
 }
 
 } // namespace
+
+#undef LOG

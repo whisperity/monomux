@@ -113,6 +113,10 @@ public:
   /// spawned. Otherwise, returns \p nullptr.
   static Logger* tryGet();
 
+  /// \returns the number of digits (when written in decimal notation) of the
+  /// given \p Number.
+  static std::size_t digits(std::size_t Number);
+
   /// Creates a new \p Logger object that has no connection with the global
   /// logging instance.
   ///

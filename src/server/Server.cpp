@@ -309,8 +309,9 @@ void Server::controlCallback(ClientData& Client)
       Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
     if (Action == Dispatch.end())
     {
-      LOG(trace) << "Client \"" << Client.id() << "\": unknown message type "
-                 << static_cast<int>(MB.Kind) << " received";
+      MONOMUX_TRACE_LOG(LOG(trace) << "Client \"" << Client.id()
+                                   << "\": unknown message type "
+                                   << static_cast<int>(MB.Kind) << " received");
       continue;
     }
 
@@ -322,8 +323,8 @@ void Server::controlCallback(ClientData& Client)
     }
     catch (const std::system_error& Err)
     {
-      LOG(warn) << "Client \"" << Client.id()
-                << "\": error when handling message";
+      LOG(error) << "Client \"" << Client.id()
+                 << "\": error when handling message";
       if (ClientSock.failed())
         exitCallback(Client);
       continue;
@@ -359,7 +360,7 @@ void Server::dataCallback(ClientData& Client)
 
 void Server::exitCallback(ClientData& Client)
 {
-  LOG(info) << "Client \"" << Client.id() << "\" left";
+  LOG(info) << "Client \"" << Client.id() << "\" exited";
 
   if (const auto* DS = Client.getDataSocket())
   {
@@ -456,9 +457,10 @@ void Server::destroyCallback(SessionData& Session)
 void Server::turnClientIntoDataOfOtherClient(ClientData& MainClient,
                                              ClientData& DataClient)
 {
-  LOG(trace) << "Client \"" << DataClient.id()
-             << "\" becoming the DATA connection for Client \""
-             << MainClient.id() << '"';
+  MONOMUX_TRACE_LOG(LOG(trace)
+                    << "Client \"" << DataClient.id()
+                    << "\" becoming the DATA connection for Client \""
+                    << MainClient.id() << '"');
   MainClient.subjugateIntoDataSocket(DataClient);
   FDLookup[MainClient.getDataSocket()->raw()] =
     ClientDataConnection{&MainClient};
@@ -501,3 +503,5 @@ void Server::reapDeadChildren()
 }
 
 } // namespace monomux::server
+
+#undef LOG

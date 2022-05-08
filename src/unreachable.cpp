@@ -34,5 +34,5 @@ unreachable_impl(const char* Msg, const char* File, std::size_t LineNo)
 
   // [[noreturn]]
   std::abort();
-  std::_Exit(-1);
+  std::_Exit(-4);
 }
