@@ -70,7 +70,15 @@ void Server::loop()
     MONOMUX_TRACE_LOG(LOG(data) << NumTriggeredFDs << " events received!");
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
-      if (Poll->fdAt(I) == Sock.raw())
+      raw_fd EventFD = Poll->fdAt(I);
+      if (EventFD == fd::Invalid)
+      {
+        LOG(error) << '#' << I
+                   << " event received but there was no associated file";
+        continue;
+      }
+
+      if (EventFD == Sock.raw())
       {
         // Event occured on the main socket.
         std::error_code Error;
@@ -110,13 +118,12 @@ void Server::loop()
       else
       {
         // Event occured on another (connected client) socket.
-        raw_fd FD = Poll->fdAt(I);
-        MONOMUX_TRACE_LOG(LOG(trace) << "Data on file descriptor " << FD);
+        MONOMUX_TRACE_LOG(LOG(trace) << "Data on file descriptor " << EventFD);
 
-        LookupVariant* Entity = FDLookup.tryGet(FD);
+        LookupVariant* Entity = FDLookup.tryGet(EventFD);
         if (!Entity)
         {
-          LOG(error) << "\tFile descriptor " << FD
+          LOG(error) << "\tFile descriptor " << EventFD
                      << " missing from lookup table? (Possible internal error "
                         "or race condition!)";
           continue;

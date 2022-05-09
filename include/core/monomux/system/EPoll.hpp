@@ -92,7 +92,7 @@ public:
   }
 
   /// Retrieve the file descriptor that fired for the Nth event.
-  raw_fd fdAt(std::size_t Index) const { return at(Index).data.fd; }
+  raw_fd fdAt(std::size_t Index);
 
   /// Adds the specified file descriptor \p FD to the event queue. Events will
   /// trigger for \p Incoming (the file is available for reading) or \p Outgoing

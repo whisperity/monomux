@@ -237,6 +237,13 @@ void Client::loop()
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
       raw_fd EventFD = Poll->fdAt(I);
+      if (EventFD == fd::Invalid)
+      {
+        LOG(error) << '#' << I
+                   << " event received but there was no associated file";
+        continue;
+      }
+
       try
       {
         if (EventFD == DataSocket->raw() && DataHandler)

@@ -61,6 +61,11 @@ std::size_t EPoll::wait()
   return FiredEventCount;
 }
 
+raw_fd EPoll::fdAt(std::size_t Index)
+{
+  return Index < Events.size() ? at(Index).data.fd : fd::Invalid;
+}
+
 void EPoll::listen(raw_fd FD, bool Incoming, bool Outgoing)
 {
   Listeners.try_emplace(FD, *this, FD, Incoming, Outgoing);
