@@ -23,6 +23,7 @@
 
 #include "monomux/client/Client.hpp"
 #include "monomux/system/Environment.hpp"
+#include "monomux/system/Process.hpp"
 
 namespace monomux::client
 {
@@ -68,13 +69,10 @@ struct Options
   /// attach to if exists.
   std::optional<std::string> SessionName;
 
-  /// The program to start if a new session is created during the client's
-  /// connection.
-  std::optional<std::string> Program;
-
-  /// The command-line arguments to give to the invoked program during session
-  /// start.
-  std::vector<std::string> ProgramArgs;
+  /// The options of the programs to start if a new session is created during
+  /// the client's connection. (Ignored if the client attaches to an existing
+  /// session.)
+  std::optional<Process::SpawnOptions> Program;
 
   /// Contains the master connection to the server, if such was established.
   std::optional<Client> Connection;

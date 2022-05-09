@@ -71,11 +71,26 @@ std::vector<std::string> Options::toArgv() const
   if (DetachRequestAll)
     Ret.emplace_back("--detach-all");
 
-  if (Program.has_value())
+  if (Program)
   {
-    Ret.emplace_back(*Program);
+    for (const auto& Env : Program->Environment)
+    {
+      if (Env.second.has_value())
+      {
+        Ret.emplace_back("--env");
+        Ret.emplace_back(Env.first).append("=").append(*Env.second);
+      }
+      else
+      {
+        Ret.emplace_back("--unset");
+        Ret.emplace_back(Env.first);
+      }
+    }
 
-    for (const std::string& Arg : ProgramArgs)
+    Ret.emplace_back("--");
+    Ret.emplace_back(Program->Program);
+
+    for (const std::string& Arg : Program->Arguments)
       Ret.emplace_back(Arg);
   }
 
@@ -154,6 +169,7 @@ struct SessionSelectionResult
   SessionMode Mode;
 };
 
+void emplaceDefaultProgram(Options& Opts);
 SessionSelectionResult selectSession(const std::vector<SessionData>& Sessions,
                                      const std::string& ToCreateSessionName);
 SessionSelectionResult selectSession(const std::string& ClientID,
@@ -275,6 +291,25 @@ int main(Options& Opts)
 
 namespace
 {
+
+void emplaceDefaultProgram(Options& Opts)
+{
+  const bool HasReceivedProgramToStart =
+    Opts.Program && !Opts.Program->Program.empty();
+  std::string DefaultProgram =
+    HasReceivedProgramToStart ? Opts.Program->Program : defaultShell();
+  if (DefaultProgram.empty())
+    LOG(warn) << "Failed to figure out what shell is being used, and no good "
+                 "defaults are available.\nPlease set the SHELL environment "
+                 "variable.";
+  if (!HasReceivedProgramToStart)
+  {
+    if (!Opts.Program)
+      Opts.Program.emplace(Process::SpawnOptions{});
+    Opts.Program->Program = DefaultProgram;
+  }
+}
+
 
 SessionSelectionResult selectSession(const std::vector<SessionData>& Sessions,
                                      const std::string& ToCreateSessionName)
@@ -424,15 +459,10 @@ ExitCode handleSessionCreateOrAttach(Options& Opts)
     return EXIT_SystemError;
   }
 
-  std::string DefaultProgram = Opts.Program ? *Opts.Program : defaultShell();
-  if (DefaultProgram.empty())
-    LOG(warn) << "Failed to figure out what shell is being used, and no good "
-                 "defaults are available.\nPlease set the SHELL environment "
-                 "variable.";
-
+  emplaceDefaultProgram(Opts);
   SessionSelectionResult SessionAction =
     selectSession(Client.getControlSocket().identifier(),
-                  DefaultProgram,
+                  Opts.Program->Program,
                   *Sessions,
                   Opts.SessionName ? *Opts.SessionName : "",
                   Opts.OnlyListSessions,
@@ -441,20 +471,14 @@ ExitCode handleSessionCreateOrAttach(Options& Opts)
     return EXIT_Success;
   if (SessionAction.Mode == SessionSelectionResult::Create)
   {
-    Process::SpawnOptions Spawn;
-    Spawn.Program = std::move(DefaultProgram);
-    if (Spawn.Program.empty())
-    {
-      LOG(fatal) << "When creating a new session, no program to start was set.";
-      return EXIT_InvocationError;
-    }
-    Spawn.Arguments = std::move(Opts.ProgramArgs);
+    assert(Opts.Program && !Opts.Program->Program.empty() &&
+           "When creating a new session, no program to start was set");
     // TODO: Clean up the environment variables of the to-be-spawned process,
     // e.g. do not inherit the TERM of the server, but rather the TERM of the
     // client.
 
-    std::optional<std::string> Response =
-      Client.requestMakeSession(SessionAction.SessionName, std::move(Spawn));
+    std::optional<std::string> Response = Client.requestMakeSession(
+      SessionAction.SessionName, std::move(*Opts.Program));
     if (!Response.has_value() || Response->empty())
     {
       LOG(fatal) << "When creating a new session, the creation failed.";

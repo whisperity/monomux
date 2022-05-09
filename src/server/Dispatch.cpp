@@ -166,6 +166,8 @@ HANDLER(requestMakeSession)
     SOpts.Environment.try_emplace(std::move(UnsetEnvVar), std::nullopt);
 
   {
+    // Inject the variables needed by the controlling client to detach from the
+    // session.
     MonomuxSession MS;
     MS.SessionName = Resp.Name;
     MS.Socket = SocketPath::absolutise(Server.Sock.identifier());

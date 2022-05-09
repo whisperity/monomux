@@ -46,7 +46,7 @@ using namespace monomux;
 namespace
 {
 
-const char ShortOptions[] = "hvqVs:n:lidDNk";
+const char ShortOptions[] = "hvqVs:e:u:n:lidDNk";
 
 // clang-format off
 struct ::option LongOptions[] = {
@@ -55,6 +55,8 @@ struct ::option LongOptions[] = {
   {"quiet",       no_argument,       nullptr, 'q'},
   {"server",      no_argument,       nullptr, 0},
   {"socket",      required_argument, nullptr, 's'},
+  {"env",         required_argument, nullptr, 'e'},
+  {"unset",       required_argument, nullptr, 'u'},
   {"name",        required_argument, nullptr, 'n'},
   {"list",        no_argument,       nullptr, 'l'},
   {"interactive", no_argument,       nullptr, 'i'},
@@ -182,6 +184,27 @@ int main(int ArgC, char* ArgV[])
         case 'n':
           ClientOpts.SessionName.emplace(optarg);
           break;
+        case 'e':
+        {
+          std::string_view::size_type EqualLoc =
+            std::string_view{optarg}.find('=');
+          if (EqualLoc == std::string_view::npos)
+          {
+            ArgError() << "option '-e/--env' must be specified in the format "
+                          "'VAR=VAL'\n";
+            break;
+          }
+          if (!ClientOpts.Program)
+            ClientOpts.Program.emplace(Process::SpawnOptions{});
+          ClientOpts.Program->Environment.emplace(
+            std::string{optarg, EqualLoc}, std::string{optarg + EqualLoc + 1});
+          break;
+        }
+        case 'u':
+          if (!ClientOpts.Program)
+            ClientOpts.Program.emplace(Process::SpawnOptions{});
+          ClientOpts.Program->Environment.emplace(optarg, std::nullopt);
+          break;
         case 'l':
           ClientOpts.OnlyListSessions = true;
           break;
@@ -264,12 +287,14 @@ int main(int ArgC, char* ArgV[])
       }
 
       assert(ClientOpts.ClientMode);
-      if (!ClientOpts.Program.has_value())
+      if (!ClientOpts.Program)
+        ClientOpts.Program.emplace(Process::SpawnOptions{});
+      if (ClientOpts.Program->Program.empty())
         // The first positional argument is the program name to spawn.
-        ClientOpts.Program.emplace(ArgV[::optind]);
+        ClientOpts.Program->Program = ArgV[::optind];
       else
         // Otherwise they are arguments to the program to start.
-        ClientOpts.ProgramArgs.emplace_back(ArgV[::optind]);
+        ClientOpts.Program->Arguments.emplace_back(ArgV[::optind]);
     }
 
     if (HadErrors)
@@ -436,6 +461,17 @@ Client options:
 
                                       monomux -n session -- /bin/bash --no-rc
 
+    -e VAR=VAL, --env VAR=VAR   - Set the environment variable 'VAR' to have the
+                                  value 'VAL' in the spawned session. If the
+                                  client attaches to an existing session, this
+                                  flag is ignored!
+                                  This flag may be specified multiple times for
+                                  multiple environment variables.
+    -u VAR, --unset VAR         - Make the environment variable 'VAR' undefined
+                                  in the spawned session. If the client attaches
+                                  to an existing session, this flag is ignored!
+                                  This flag may be specified multiple times for
+                                  multiple environment variables.
     -n NAME, --name NAME        - Name of the remote session to attach to or
                                   create. (Defaults to an automatically
                                   generated value.)
