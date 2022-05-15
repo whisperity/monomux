@@ -18,6 +18,7 @@
  */
 #pragma once
 #include <cstdint>
+#include <iosfwd>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -89,5 +90,11 @@ private:
   /// in a string format.
   const char* const* SymbolDataBuffer;
 };
+
+/// Prints \p Trace to the output \p OS using a default formatting logic.
+void printBacktrace(std::ostream& OS, const Backtrace& Trace);
+
+/// Generate a backtrace and print it to \p OS.
+void printBacktrace(std::ostream& OS, bool Prettify = true);
 
 } // namespace monomux

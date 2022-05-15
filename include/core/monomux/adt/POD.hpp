@@ -30,7 +30,10 @@ namespace detail
 /// Prevents optimisation of \p memset calls by too clever compilers.
 inline void
 // NOLINTNEXTLINE(readability-identifier-naming)
-memset_manual(void* B, int Ch, std::size_t N) noexcept
+memset_manual(void* B,
+              // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+              int Ch,
+              std::size_t N) noexcept
 {
   if (!B || !N)
     return;

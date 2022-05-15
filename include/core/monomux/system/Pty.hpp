@@ -20,6 +20,7 @@
 #include <optional>
 
 #include "monomux/adt/UniqueScalar.hpp"
+#include "monomux/system/Pipe.hpp"
 #include "monomux/system/fd.hpp"
 
 namespace monomux
@@ -34,6 +35,13 @@ class Pty
   fd Master;
   fd Slave;
   std::string Name;
+
+  /// A \p Pipe for reading from the other side. Only established \b AFTER
+  /// setting up either as parent or childside.
+  std::unique_ptr<Pipe> Read;
+  /// A \p Pipe for writing to the other side. Only established \b AFTER
+  /// setting up either as parent or childside.
+  std::unique_ptr<Pipe> Write;
 
 public:
   /// Creates a new PTY-pair.
@@ -53,6 +61,21 @@ public:
 
   /// \returns the name of the PTY interface that was created (e.g. /dev/pts/2).
   const std::string& name() const noexcept { return Name; }
+
+  /// Reads at most \p Bytes bytes from the standard output of the other end of
+  /// the PTY.
+  ///
+  /// \note Using this method is only valid once the PTY has established its
+  /// master/slave status.
+  std::string read(std::size_t Bytes);
+  /// Sends the contents of \p Buffer into the standard input of the other end
+  /// of the PTY.
+  ///
+  /// \returns the number of bytes written.
+  ///
+  /// \note Using this method is only valid once the PTY has established its
+  /// master/slave status.
+  std::size_t write(std::string_view Buffer);
 
   /// Executes actions that configure the current PTY from the owning parent's
   /// point of view. This usually means that the PTS (pseudoterminal-slave)

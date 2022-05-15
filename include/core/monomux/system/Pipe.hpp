@@ -23,7 +23,7 @@
 #include <fcntl.h>
 
 #include "monomux/adt/UniqueScalar.hpp"
-#include "monomux/system/CommunicationChannel.hpp"
+#include "monomux/system/BufferedChannel.hpp"
 #include "monomux/system/fd.hpp"
 
 namespace monomux
@@ -38,12 +38,15 @@ namespace monomux
 /// This class wraps a nameless pipe or a Unix named pipe (\e FIFO) appearing as
 /// a file in the filesystem, and allows reading or writing (but noth both!) to
 /// it.
-class Pipe : public CommunicationChannel
+class Pipe : public BufferedChannel
 {
 public:
   /// The mode with which the \p Pipe is opened.
   enum Mode
   {
+    /// Sentinel.
+    None = 0,
+
     /// Open the read end of the pipe.
     Read = O_RDONLY,
     /// Open the write end of the pipe.
@@ -108,6 +111,18 @@ public:
   /// is indeed a pipe, and assumes it is set up appropriately.
   static Pipe wrap(fd&& FD, Mode OpenMode = Read, std::string Identifier = "");
 
+  /// Wraps the already existing file descriptor \p FD as a \p Pipe. The new
+  /// instance will \b NOT \b TAKE ownership or close the resource at the end
+  /// of its life.
+  ///
+  /// \param Identifier An identifier to assign to the \p Pipe. If empty, a
+  /// default value will be created.
+  ///
+  /// \note This method does \b NOT verify whether the wrapped file descriptor
+  /// is indeed a pipe, and assumes it is set up appropriately.
+  static Pipe
+  weakWrap(raw_fd FD, Mode OpenMode = Read, std::string Identifier = "");
+
   /// Sets the open pipe to be \e non-blocking. \p Read operations will
   /// immediately return without data, and \p Write will fail if the pipe is
   /// full of unread contents.
@@ -120,16 +135,13 @@ public:
   bool isBlocking() const noexcept { return !Nonblock; }
   bool isNonblocking() const noexcept { return Nonblock; }
 
-  using CommunicationChannel::read;
-  using CommunicationChannel::write;
-
   /// Directly read and consume at most \p Bytes of data from the given file
   /// descriptor \p FD.
   ///
   /// \param Success If not \p nullptr, and the read encounters an error, will
   /// be set to \p false.
-  static std::string
-  read(raw_fd FD, std::size_t Bytes, bool* Success = nullptr);
+  // static std::string
+  // read(raw_fd FD, std::size_t Bytes, bool* Success = nullptr);
 
   /// Write \p Data into the file descriptor \p FD.
   ///
@@ -137,22 +149,29 @@ public:
   /// be set to \p false.
   ///
   /// \return The number of bytes written.
-  static std::size_t
-  write(raw_fd FD, std::string_view Buffer, bool* Success = nullptr);
+  // static std::size_t
+  // write(raw_fd FD, std::string_view Buffer, bool* Success = nullptr);
 
   ~Pipe() noexcept override;
-  Pipe(Pipe&&) noexcept;
-  Pipe& operator=(Pipe&&) noexcept;
+  Pipe(Pipe&&) noexcept = default;
+  Pipe& operator=(Pipe&&) noexcept = default;
+
+  using BufferedChannel::read;
+  using BufferedChannel::write;
 
 protected:
-  Pipe(fd Handle, std::string Identifier, bool NeedsCleanup);
+  Pipe(fd Handle, std::string Identifier, bool NeedsCleanup, Mode OpenMode);
 
   std::string readImpl(std::size_t Bytes, bool& Continue) override;
   std::size_t writeImpl(std::string_view Buffer, bool& Continue) override;
 
+  std::size_t optimalReadSize() const noexcept override;
+  std::size_t optimalWriteSize() const noexcept override;
+
 private:
-  Mode OpenedAs;
+  UniqueScalar<Mode, None> OpenedAs;
   UniqueScalar<bool, false> Nonblock;
+  UniqueScalar<bool, false> Weak;
 };
 
 } // namespace monomux

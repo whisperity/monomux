@@ -1,5 +1,6 @@
 list(APPEND libmonomuxCore_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/CommunicationChannel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/BufferedChannel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/Channel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Environment.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/EPoll.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fd.cpp

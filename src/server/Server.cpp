@@ -341,15 +341,14 @@ void Server::controlCallback(ClientData& Client)
 
 void Server::dataCallback(ClientData& Client)
 {
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  static constexpr std::size_t BUFFER_SIZE = 1024;
+  static constexpr std::size_t BufferSize = 1024;
 
   MONOMUX_TRACE_LOG(LOG(trace)
                     << "Client \"" << Client.id() << "\" sent DATA!");
   std::string Data;
   try
   {
-    Data = Client.getDataSocket()->read(BUFFER_SIZE);
+    Data = Client.getDataSocket()->read(BufferSize);
   }
   catch (const std::system_error& Err)
   {
@@ -357,6 +356,14 @@ void Server::dataCallback(ClientData& Client)
                << "\": error when reading DATA: " << Err.what();
     return;
   }
+
+  if (Client.getDataSocket()->failed())
+  {
+    // We realise the client disconnected during an attempt to read.
+    exitCallback(Client);
+    return;
+  }
+
   Client.activity();
   MONOMUX_TRACE_LOG(LOG(data)
                     << "Client \"" << Client.id() << "\" data: " << Data);
@@ -395,15 +402,14 @@ void Server::createCallback(SessionData& Session)
 
 void Server::dataCallback(SessionData& Session)
 {
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  static constexpr std::size_t BUFFER_SIZE = 1024;
+  static constexpr std::size_t BufferSize = 1024;
 
   MONOMUX_TRACE_LOG(LOG(trace)
                     << "Session \"" << Session.name() << "\" sent DATA!");
   std::string Data;
   try
   {
-    Data = Session.readOutput(BUFFER_SIZE);
+    Data = Session.readOutput(BufferSize);
   }
   catch (const std::system_error& Err)
   {
@@ -411,6 +417,7 @@ void Server::dataCallback(SessionData& Session)
                << "\": error when reading DATA: " << Err.what();
     return;
   }
+
   Session.activity();
   MONOMUX_TRACE_LOG(LOG(data)
                     << "Session \"" << Session.name() << "\" data: " << Data);
@@ -426,6 +433,13 @@ void Server::dataCallback(SessionData& Session)
         LOG(error) << "Session \"" << Session.name()
                    << "\": error when sending DATA to attached client \""
                    << C->id() << "\": " << Err.what();
+
+        if (DS->failed())
+        {
+          // We realise the client disconnected during an attempt to send.
+          exitCallback(*C);
+          continue;
+        }
       }
 }
 

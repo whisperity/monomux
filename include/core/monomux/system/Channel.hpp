@@ -18,6 +18,7 @@
  */
 #pragma once
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "monomux/adt/UniqueScalar.hpp"
@@ -28,10 +29,10 @@ namespace monomux
 
 /// Wraps a system resource used for communication. This is a very low-level
 /// interface encapsulating the necessary system calls and transmission logic.
-class CommunicationChannel
+class Channel
 {
 public:
-  CommunicationChannel() = delete;
+  Channel() = delete;
 
   /// \returns the raw, unmanaged file descriptor for the underlying resource.
   raw_fd raw() const noexcept { return Handle.get(); }
@@ -50,37 +51,29 @@ public:
 
   /// Read at maximum \p Bytes bytes of data from the communication channel.
   ///
-  /// Depending on the implementation of the OS primitive and its state, this
-  /// operation \b MAY block, or \b MAY return less than exactly \p Bytes of
-  /// data, or even fail completely, if the channel does not support reading.
+  /// \warning Depending on the implementation of the OS primitive and its
+  /// state, this operation \b MAY block, or \b MAY return less than exactly
+  /// \p Bytes of data, or even fail completely, if the channel does not support
+  /// reading. It is also possible that the underlying implementation reads
+  /// \b more than \p Bytes of data, in which case the tail end is discarded.
   std::string read(std::size_t Bytes);
-
-  /// Reads at maximum \p Bytes bytes of data from the communication channel,
-  /// bypassing any buffering logic.
-  std::string readImmediate(std::size_t Bytes);
 
   /// Write the contents of \p Buffer into the communication channel.
   ///
-  /// Depending on the implementation of the OS primitive and its state, this
-  /// operation \b MAY block, or \b MAY write less than the entire buffer. In
-  /// some cases, it also \b MAY fail completely, if the channel does not
-  /// support writing.
+  /// \warning Depending on the implementation of the OS primitive and its
+  /// state, this operation \b MAY block, or \b MAY write less than the entire
+  /// buffer. In some cases, it also \b MAY fail completely, if the channel does
+  /// not support writing.
   ///
   /// \returns the number of bytes written, as reported by the operating system.
   std::size_t write(std::string_view Buffer);
 
-  /// Writes the contents of \p Buffer into the communcation channel, bypassing
-  /// any additional buffering logic.
-  std::size_t writeImmediate(std::string_view Buffer);
-
-  virtual ~CommunicationChannel() noexcept = default;
+  virtual ~Channel() noexcept = default;
 
 protected:
-  static constexpr std::size_t BufferSize = 1 << 14;
-
-  CommunicationChannel(fd Handle, std::string Identifier, bool NeedsCleanup);
-  CommunicationChannel(CommunicationChannel&&) noexcept;
-  CommunicationChannel& operator=(CommunicationChannel&&) noexcept;
+  Channel(fd Handle, std::string Identifier, bool NeedsCleanup);
+  Channel(Channel&&) noexcept = default;
+  Channel& operator=(Channel&&) noexcept = default;
 
   /// Implemented by subclases to actually perform reading from the system.
   ///
@@ -98,13 +91,6 @@ protected:
 
   fd Handle;
   std::string Identifier;
-  /// A ballooning buffer for read requests. In some implementations, the
-  /// actual low-level read operation might consume (and thus make unavailable)
-  /// and return more data than the user requested. This overflow is stored in
-  /// this buffer, and served first at subsequent read requests.
-  std::vector<char> ReadBuffer;
-  /// \see ReadBuffer
-  std::vector<char> WriteBuffer;
 
 private:
   UniqueScalar<bool, false> EntityCleanup;

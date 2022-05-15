@@ -18,7 +18,6 @@
  */
 #include <chrono>
 #include <cstdlib>
-#include <iomanip>
 #include <iostream>
 #include <system_error>
 #include <thread>
@@ -543,17 +542,7 @@ void coreDumped(SignalHandling::Signal SigNum,
   std::cerr << getHumanReadableConfiguration() << '\n';
   std::cerr << "---------------------------------------------------------------"
                "-----------------------------------------------\n";
-  const auto& Frames = BT.getFrames();
-  for (const Backtrace::Frame& F : Frames)
-  {
-    std::cerr << '#' << std::setw(log::Logger::digits(Frames.size())) << F.Index
-              << " - ";
-    if (F.Pretty.empty())
-      std::cerr << F.SymbolData;
-    else
-      std::cerr << F.Pretty;
-    std::cerr << std::endl;
-  }
+  printBacktrace(std::cerr, BT);
   std::cerr << "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - "
                "* - * - * - * - * - * - * - * - * - * - * - * -\n";
 }

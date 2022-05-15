@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <sstream>
+
 #include <linux/limits.h>
 #include <pty.h>
 #include <unistd.h>
@@ -28,6 +30,7 @@
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Pty")
+#define LOG_WITH_IDENTIFIER(SEVERITY) LOG(SEVERITY) << name() << ": "
 
 namespace monomux
 {
@@ -53,9 +56,28 @@ Pty::Pty()
   Name = DeviceName;
 }
 
+std::string Pty::read(std::size_t Bytes)
+{
+  if (!Read)
+    throw std::system_error{std::make_error_code(std::errc::no_link),
+                            "Reading from Pty that has not established"};
+
+  return Read->read(Bytes);
+}
+
+std::size_t Pty::write(std::string_view Buffer)
+{
+  if (!Write)
+    throw std::system_error{std::make_error_code(std::errc::no_link),
+                            "Reading from Pty that has not established"};
+
+  return Write->write(Buffer);
+}
+
 void Pty::setupParentSide()
 {
-  MONOMUX_TRACE_LOG(LOG(trace) << Master << ": Set up as parent...");
+  MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace)
+                    << Master << " - set up as parent...");
 
   // Close PTS, the slave PTY.
   raw_fd PTS = Slave.release();
@@ -63,11 +85,22 @@ void Pty::setupParentSide()
 
   IsMaster = true;
   fd::setNonBlockingCloseOnExec(Master);
+
+  std::ostringstream InName;
+  std::ostringstream OutName;
+  InName << "<r:pty:" << name() << '>';
+  OutName << "<w:pty:" << name() << '>';
+
+  Read = std::make_unique<Pipe>(
+    Pipe::weakWrap(Master.get(), Pipe::Read, InName.str()));
+  Write = std::make_unique<Pipe>(
+    Pipe::weakWrap(Master.get(), Pipe::Write, OutName.str()));
 }
 
 void Pty::setupChildrenSide()
 {
-  MONOMUX_TRACE_LOG(LOG(trace) << Slave << ": Set up as child...");
+  MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace)
+                    << Slave << " - Set up as child...");
 
   // Closes PTM, the pseudoterminal multiplexer master (PTMX).
   raw_fd PTM = Master.release();
@@ -75,6 +108,9 @@ void Pty::setupChildrenSide()
 
   CheckedPOSIXThrow(
     [this] { return ::login_tty(Slave); }, "login_tty in child", -1);
+
+  // Generally the PTY children are exec()ing away, so we can safely just NOT
+  // set up the Pipe data structures here, right?
 }
 
 void Pty::setSize(unsigned short Rows, unsigned short Columns)
@@ -96,4 +132,5 @@ void Pty::setSize(unsigned short Rows, unsigned short Columns)
 
 } // namespace monomux
 
+#undef LOG_WITH_IDENTIFIER
 #undef LOG

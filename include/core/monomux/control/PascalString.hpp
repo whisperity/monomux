@@ -18,7 +18,7 @@
  */
 #pragma once
 #include "monomux/control/MessageBase.hpp"
-#include "monomux/system/CommunicationChannel.hpp"
+#include "monomux/system/BufferedChannel.hpp"
 
 namespace monomux::message
 {
@@ -28,7 +28,7 @@ namespace monomux::message
 ///
 /// \note This operation \b MAY block.
 template <typename T>
-std::size_t sendMessage(CommunicationChannel& Channel, const T& Msg)
+std::size_t sendMessage(BufferedChannel& Channel, const T& Msg)
 {
   return Channel.write(encodeWithSize(Msg));
 }
@@ -36,15 +36,14 @@ std::size_t sendMessage(CommunicationChannel& Channel, const T& Msg)
 /// Reads a size-prefixed payload from the \p Channel.
 ///
 /// \note This operation \b MAY block.
-std::string readPascalString(CommunicationChannel& Channel);
+std::string readPascalString(BufferedChannel& Channel);
 
 /// Reads a fully encoded message from the \p Channel and expects it to be of
 /// message type \p T. If the message successfully read, returns it.
 ///
 /// \note This operation \b MAY block. If the message fails to read, or the
 /// message is not the \e expected type, the message \b MAY be dropped and lost.
-template <typename T>
-std::optional<T> receiveMessage(CommunicationChannel& Channel)
+template <typename T> std::optional<T> receiveMessage(BufferedChannel& Channel)
 {
   std::string Data = readPascalString(Channel);
   Message MsgBase = Message::unpack(Data);

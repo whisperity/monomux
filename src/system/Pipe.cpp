@@ -16,6 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cstdio>
+#include <sstream>
+
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -26,15 +29,24 @@
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Pipe")
+#define LOG_WITH_IDENTIFIER(SEVERITY) LOG(SEVERITY) << identifier() << ": "
 
 namespace monomux
 {
 
 static constexpr auto UserACL = S_IRUSR | S_IWUSR;
 
-Pipe::Pipe(fd Handle, std::string Identifier, bool NeedsCleanup)
-  : CommunicationChannel(std::move(Handle), std::move(Identifier), NeedsCleanup)
+Pipe::Pipe(fd Handle, std::string Identifier, bool NeedsCleanup, Mode OpenMode)
+  : BufferedChannel(std::move(Handle),
+                    std::move(Identifier),
+                    NeedsCleanup,
+                    OpenMode == Read ? BUFSIZ : 0,
+                    OpenMode == Write ? BUFSIZ : 0),
+    OpenedAs(OpenMode)
 {}
+
+std::size_t Pipe::optimalReadSize() const noexcept { return BUFSIZ; }
+std::size_t Pipe::optimalWriteSize() const noexcept { return BUFSIZ; }
 
 Pipe Pipe::create(std::string Path, bool InheritInChild)
 {
@@ -49,9 +61,18 @@ Pipe Pipe::create(std::string Path, bool InheritInChild)
 
   LOG(debug) << "Created FIFO at '" << Path << '\'';
 
-  Pipe P{std::move(Handle), std::move(Path), true};
-  P.OpenedAs = Write;
+  Pipe P{std::move(Handle), std::move(Path), true, Write};
   return P;
+}
+
+static void printPipeNameHead(std::ostream& OS, Pipe::Mode M)
+{
+  OS << '<';
+  if (M == Pipe::Read)
+    OS << 'r';
+  else if (M == Pipe::Write)
+    OS << 'w';
+  OS << ':' << "pipe-fd:";
 }
 
 Pipe::AnonymousPipe Pipe::create(bool InheritInChild)
@@ -66,9 +87,20 @@ Pipe::AnonymousPipe Pipe::create(bool InheritInChild)
 
   LOG(debug) << "Created anonymous pipe";
 
+  std::ostringstream RName;
+  RName << "<anonpipe:" << PipeFDs[0] << "+" << PipeFDs[1] << "/";
+
+  std::ostringstream WName;
+  WName << RName.str();
+
+  RName << "read" << ':' << PipeFDs[0] << '>';
+  WName << "write" << ':' << PipeFDs[1] << '>';
+
   AnonymousPipe PipePair;
-  PipePair.Read = std::make_unique<Pipe>(Pipe::wrap(PipeFDs[0], Read, {}));
-  PipePair.Write = std::make_unique<Pipe>(Pipe::wrap(PipeFDs[1], Write, {}));
+  PipePair.Read =
+    std::make_unique<Pipe>(Pipe::wrap(PipeFDs[0], Read, RName.str()));
+  PipePair.Write =
+    std::make_unique<Pipe>(Pipe::wrap(PipeFDs[1], Write, WName.str()));
   return PipePair;
 }
 
@@ -85,8 +117,7 @@ Pipe Pipe::open(std::string Path, Mode OpenMode, bool InheritInChild)
   LOG(debug) << "Opened FIFO at '" << Path << "' for "
              << (OpenMode == Read ? "Read" : "Write");
 
-  Pipe P{std::move(Handle), std::move(Path), false};
-  P.OpenedAs = OpenMode;
+  Pipe P{std::move(Handle), std::move(Path), false, OpenMode};
   return P;
 }
 
@@ -94,44 +125,45 @@ Pipe Pipe::wrap(fd&& FD, Mode OpenMode, std::string Identifier)
 {
   if (Identifier.empty())
   {
-    Identifier.push_back('<');
-    if (OpenMode == Read)
-      Identifier.push_back('r');
-    else if (OpenMode == Write)
-      Identifier.push_back('w');
-    Identifier.append(":pipe-fd:");
-    Identifier.append(std::to_string(FD.get()));
-    Identifier.push_back('>');
+    std::ostringstream Name;
+    printPipeNameHead(Name, OpenMode);
+    Name << FD.get() << '>';
+
+    Identifier = Name.str();
   }
 
   LOG(debug) << "Pipeified FD " << Identifier;
 
-  Pipe P{std::move(FD), std::move(Identifier), false};
-  P.OpenedAs = OpenMode;
+  Pipe P{std::move(FD), std::move(Identifier), false, OpenMode};
   return P;
 }
 
-Pipe::Pipe(Pipe&& RHS) noexcept
-  : CommunicationChannel(std::move(RHS)), OpenedAs(std::move(RHS.OpenedAs)),
-    Nonblock(std::move(RHS.Nonblock))
-{}
-
-Pipe& Pipe::operator=(Pipe&& RHS) noexcept
+Pipe Pipe::weakWrap(raw_fd FD, Mode OpenMode, std::string Identifier)
 {
-  if (this == &RHS)
-    return *this;
+  if (Identifier.empty())
+  {
+    std::ostringstream Name;
+    printPipeNameHead(Name, OpenMode);
+    Name << FD << "(weak)" << '>';
 
-  CommunicationChannel::operator=(
-    std::move(static_cast<CommunicationChannel&&>(RHS)));
+    Identifier = Name.str();
+  }
 
-  OpenedAs = std::move(RHS.OpenedAs);
-  Nonblock = std::move(RHS.Nonblock);
+  LOG(debug) << "Weak-Pipeified FD " << Identifier;
 
-  return *this;
+  Pipe P{FD, std::move(Identifier), false, OpenMode};
+  P.Weak = true;
+  return P;
 }
 
 Pipe::~Pipe() noexcept
 {
+  if (Weak)
+    // Steal the file descriptor from the management object and do not let
+    // the destruction actually close the resource - we do NOT own those handles
+    // internally!
+    (void)std::move(*this).release().release();
+
   if (needsCleanup())
   {
     auto RemoveResult =
@@ -161,8 +193,9 @@ void Pipe::setNonblocking()
   Nonblock = true;
 }
 
-std::string Pipe::read(raw_fd FD, std::size_t Bytes, bool* Success)
+static std::string read(raw_fd FD, std::size_t Bytes, bool* Success)
 {
+  static constexpr std::size_t BufferSize = BUFSIZ;
   std::string Return;
   Return.reserve(Bytes);
 
@@ -217,8 +250,9 @@ std::string Pipe::read(raw_fd FD, std::size_t Bytes, bool* Success)
   return Return;
 }
 
-std::size_t Pipe::write(raw_fd FD, std::string_view Buffer, bool* Success)
+static std::size_t write(raw_fd FD, std::string_view Buffer, bool* Success)
 {
+  static constexpr std::size_t BufferSize = BUFSIZ;
   std::size_t BytesSent = 0;
   while (!Buffer.empty())
   {
@@ -233,6 +267,18 @@ std::size_t Pipe::write(raw_fd FD, std::string_view Buffer, bool* Success)
       if (EC == std::errc::interrupted /* EINTR */)
         // Not an error.
         continue;
+      if (EC == std::errc::operation_would_block /* EWOULDBLOCK */ ||
+          EC == std::errc::resource_unavailable_try_again /* EAGAIN */)
+      {
+        // Not a hard error. Allow buffering the remaining data.
+        MONOMUX_TRACE_LOG(LOG(trace)
+                          << FD << ": " << SentBytes.getError().message());
+        if (Success)
+          // It is potential that we had a partial write, do not mark the
+          // entire FD as faulty.
+          *Success = true;
+        return BytesSent;
+      }
 
       LOG(error) << FD << ": Write error";
       if (Success)
@@ -268,7 +314,7 @@ std::string Pipe::readImpl(std::size_t Bytes, bool& Continue)
       "Not readable."};
 
   bool Success;
-  std::string Data = Pipe::read(Handle, Bytes, &Success);
+  std::string Data = monomux::read(Handle, Bytes, &Success);
   if (!Success)
   {
     setFailed();
@@ -286,10 +332,10 @@ std::size_t Pipe::writeImpl(std::string_view Buffer, bool& Continue)
   if (OpenedAs != Write)
     throw std::system_error{
       std::make_error_code(std::errc::operation_not_permitted),
-      "Not readable."};
+      "Not writable."};
 
   bool Success;
-  std::size_t Bytes = Pipe::write(Handle, Buffer, &Success);
+  std::size_t Bytes = monomux::write(Handle, Buffer, &Success);
   if (!Success)
   {
     setFailed();
@@ -320,4 +366,5 @@ std::unique_ptr<Pipe> Pipe::AnonymousPipe::takeWrite()
 
 } // namespace monomux
 
+#undef LOG_WITH_IDENTIFIER
 #undef LOG

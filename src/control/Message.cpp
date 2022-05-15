@@ -109,7 +109,7 @@ Message Message::unpack(std::string_view Str) noexcept
   return MB;
 }
 
-std::string readPascalString(CommunicationChannel& Channel)
+std::string readPascalString(BufferedChannel& Channel)
 {
   static constexpr std::size_t MaxMeaningfulMessageSize = 1 << 24;
 

@@ -16,10 +16,29 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <csignal>
+#include <iostream>
+
 #include <gtest/gtest.h>
+
+#include "monomux/system/Crash.hpp"
+
+void stackTrace(int Signal)
+{
+  // Remove this handler and make the OS handle once we return.
+  (void)std::signal(Signal, SIG_DFL);
+
+  std::cerr << "FATAL! " << Signal << '\n';
+  monomux::printBacktrace(std::cerr);
+  std::cerr << std::endl;
+}
 
 int main(int argc, char *argv[])
 {
   ::testing::InitGoogleTest(&argc, argv);
+
+  (void)std::signal(SIGABRT, stackTrace);
+  (void)std::signal(SIGSEGV, stackTrace);
+
   return RUN_ALL_TESTS();
 }

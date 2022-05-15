@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cstdio>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -27,13 +28,18 @@
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("system/Socket")
+#define LOG_WITH_IDENTIFIER(SEVERITY) LOG(SEVERITY) << identifier() << ": "
 
 namespace monomux
 {
 
 Socket::Socket(fd Handle, std::string Identifier, bool NeedsCleanup)
-  : CommunicationChannel(std::move(Handle), std::move(Identifier), NeedsCleanup)
+  : BufferedChannel(
+      std::move(Handle), std::move(Identifier), NeedsCleanup, BUFSIZ, BUFSIZ)
 {}
+
+std::size_t Socket::optimalReadSize() const noexcept { return BUFSIZ; }
+std::size_t Socket::optimalWriteSize() const noexcept { return BUFSIZ; }
 
 Socket Socket::create(std::string Path, bool InheritInChild)
 {
@@ -111,25 +117,6 @@ Socket Socket::wrap(fd&& FD, std::string Identifier)
   return S;
 }
 
-Socket::Socket(Socket&& RHS) noexcept
-  : CommunicationChannel(std::move(RHS)), Owning(std::move(RHS.Owning)),
-    Listening(std::move(RHS.Listening))
-{}
-
-Socket& Socket::operator=(Socket&& RHS) noexcept
-{
-  if (this == &RHS)
-    return *this;
-
-  CommunicationChannel::operator=(
-    std::move(static_cast<CommunicationChannel&&>(RHS)));
-
-  Owning = std::move(RHS.Owning);
-  Listening = std::move(RHS.Listening);
-
-  return *this;
-}
-
 Socket::~Socket() noexcept
 {
   if (needsCleanup())
@@ -158,7 +145,7 @@ void Socket::listen(std::size_t QueueSize)
     [this, QueueSize] { return ::listen(Handle, static_cast<int>(QueueSize)); },
     "listen()",
     -1);
-  MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Listening...");
+  MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "Listening...");
   Listening = true;
 }
 
@@ -167,7 +154,7 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
   POD<struct ::sockaddr_un> SocketAddr;
   POD<::socklen_t> SocketAddrLen;
 
-  MONOMUX_TRACE_LOG(LOG(trace) << identifier() << ": Accepting client...");
+  MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "Accepting client...");
 
   auto MaybeClient = CheckedPOSIX(
     [this, &SocketAddr, &SocketAddrLen] {
@@ -186,9 +173,9 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
     if (EC == std::errc::too_many_files_open /* EMFILE */ ||
         EC == std::errc::too_many_files_open_in_system /* ENFILE */)
     {
-      LOG(warn) << identifier()
-                << ": Failed to accept client: " << MaybeClient.getError()
-                << ' ' << MaybeClient.getError().message();
+      LOG_WITH_IDENTIFIER(warn)
+        << "Failed to accept client: " << MaybeClient.getError() << ' '
+        << MaybeClient.getError().message();
       ConsiderRecoverable = true;
     }
     else if (EC == std::errc::resource_unavailable_try_again /* EAGAIN */ ||
@@ -196,9 +183,9 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
              EC == std::errc::connection_aborted /* ECONNABORTED */ ||
              static_cast<int>(EC) != 0)
     {
-      LOG(error) << identifier()
-                 << ": Failed to accept client: " << MaybeClient.getError()
-                 << ' ' << MaybeClient.getError().message();
+      LOG_WITH_IDENTIFIER(error)
+        << "Failed to accept client: " << MaybeClient.getError() << ' '
+        << MaybeClient.getError().message();
       ConsiderRecoverable = false;
     }
 
@@ -209,12 +196,14 @@ std::optional<Socket> Socket::accept(std::error_code* Error, bool* Recoverable)
 
   // Successfully accepted a client.
   std::string ClientPath = SocketAddr->sun_path;
-  LOG(trace) << identifier() << ": Client \"" << ClientPath << "\" connected";
+  LOG_WITH_IDENTIFIER(trace) << "Client \"" << ClientPath << "\" connected";
   return Socket::wrap(MaybeClient.get(), std::move(ClientPath));
 }
 
 std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
 {
+  static constexpr std::size_t BufferSize = BUFSIZ;
+
   std::string Return;
   Return.reserve(Bytes);
 
@@ -244,7 +233,7 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
       return {};
     }
 
-    LOG(error) << identifier() << ": Read error";
+    LOG_WITH_IDENTIFIER(error) << "Read error";
     Continue = false;
     setFailed();
     throw std::system_error{std::make_error_code(EC)};
@@ -254,7 +243,7 @@ std::string Socket::readImpl(std::size_t Bytes, bool& Continue)
   Continue = true;
   if (ReadBytes.get() == 0)
   {
-    LOG(error) << identifier() << ": Disconnected";
+    LOG_WITH_IDENTIFIER(error) << "Disconnected";
     setFailed();
     Continue = false;
   }
@@ -277,8 +266,18 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
       Continue = true;
       return 0;
     }
+    if (EC == std::errc::operation_would_block /* EWOULDBLOCK */ ||
+        EC == std::errc::resource_unavailable_try_again /* EAGAIN */)
+    {
+      // This is a soft error. Writing must not continue yet, but the higher
+      // level API should be allowed to buffer.
+      MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace)
+                        << SentBytes.getError().message());
+      Continue = false;
+      return 0;
+    }
 
-    LOG(error) << identifier() << ": Write error";
+    LOG_WITH_IDENTIFIER(error) << "Write error";
     setFailed();
     Continue = false;
     throw std::system_error{std::make_error_code(EC)};
@@ -287,7 +286,7 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
   Continue = true;
   if (SentBytes.get() == 0)
   {
-    LOG(error) << identifier() << ": Disconnected";
+    LOG_WITH_IDENTIFIER(error) << "Disconnected";
     setFailed();
     Continue = false;
   }
@@ -297,4 +296,5 @@ std::size_t Socket::writeImpl(std::string_view Buffer, bool& Continue)
 
 } // namespace monomux
 
+#undef LOG_WITH_IDENTIFIER
 #undef LOG

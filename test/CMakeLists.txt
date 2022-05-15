@@ -31,6 +31,7 @@ if (MONOMUX_BUILD_TESTS)
   add_executable(monomux_tests
     main.cpp
 
+    adt/RingStorageTest.cpp
     adt/SmallIndexMapTest.cpp
     control/MessageSerialisationTest.cpp
     )
@@ -40,6 +41,7 @@ if (MONOMUX_BUILD_TESTS)
     )
   target_link_libraries(monomux_tests PRIVATE
     monomuxCore
+    monomuxImplementation
     )
   target_link_libraries(monomux_tests PUBLIC
     gtest_main

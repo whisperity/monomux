@@ -18,6 +18,8 @@
  */
 #include <algorithm>
 #include <cassert>
+#include <iomanip>
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <vector>
@@ -536,6 +538,29 @@ void Backtrace::prettify()
       SymbolisersForThisObject.pop_back();
     }
   }
+}
+
+void printBacktrace(std::ostream& OS, const Backtrace& Trace)
+{
+  const auto& Frames = Trace.getFrames();
+  for (const Backtrace::Frame& F : Frames)
+  {
+    OS << '#' << std::setw(log::Logger::digits(Frames.size())) << F.Index
+       << " - ";
+    if (F.Pretty.empty())
+      OS << F.SymbolData;
+    else
+      OS << F.Pretty;
+    OS << std::endl;
+  }
+}
+
+void printBacktrace(std::ostream& OS, bool Prettify)
+{
+  Backtrace BT;
+  if (Prettify)
+    BT.prettify();
+  printBacktrace(OS, BT);
 }
 
 } // namespace monomux

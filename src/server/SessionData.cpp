@@ -40,16 +40,14 @@ std::string SessionData::readOutput(std::size_t Size)
 {
   if (!hasProcess() || !getProcess().hasPty())
     return {};
-  bool Success;
-  std::string Data = Pipe::read(getProcess().getPty()->raw(), Size, &Success);
-  return Success ? Data : "";
+  return getProcess().getPty()->read(Size);
 }
 
 std::size_t SessionData::sendInput(std::string_view Data)
 {
   if (!hasProcess() || !getProcess().hasPty())
     return 0;
-  return Pipe::write(getProcess().getPty()->raw(), Data);
+  return getProcess().getPty()->write(Data);
 }
 
 ClientData* SessionData::getLatestClient() const

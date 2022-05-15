@@ -22,7 +22,7 @@
 #include <system_error>
 
 #include "monomux/adt/UniqueScalar.hpp"
-#include "monomux/system/CommunicationChannel.hpp"
+#include "monomux/system/BufferedChannel.hpp"
 #include "monomux/system/fd.hpp"
 
 namespace monomux
@@ -44,7 +44,7 @@ namespace monomux
 /// facilitating socket behaviour.
 ///
 /// \see socket(7)
-class Socket : public CommunicationChannel
+class Socket : public BufferedChannel
 {
 public:
   /// Creates a new \p Socket which will be owned by the current instance, and
@@ -103,14 +103,20 @@ public:
                                bool* Recoverable = nullptr);
 
   ~Socket() noexcept override;
-  Socket(Socket&&) noexcept;
-  Socket& operator=(Socket&&) noexcept;
+  Socket(Socket&&) noexcept = default;
+  Socket& operator=(Socket&&) noexcept = default;
+
+  using BufferedChannel::read;
+  using BufferedChannel::write;
 
 protected:
   Socket(fd Handle, std::string Identifier, bool NeedsCleanup);
 
   std::string readImpl(std::size_t Bytes, bool& Continue) override;
   std::size_t writeImpl(std::string_view Buffer, bool& Continue) override;
+
+  std::size_t optimalReadSize() const noexcept override;
+  std::size_t optimalWriteSize() const noexcept override;
 
 private:
   /// Whether the current instance is \e owning a socket, i.e. controlling it

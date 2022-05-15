@@ -45,13 +45,13 @@ Terminal::Terminal(raw_fd InputStream, raw_fd OutputStream)
 
   std::ostringstream InName;
   std::ostringstream OutName;
-  InName << "<terminal/input> dup:" << InputStream;
-  OutName << "<terminal/output> dup:" << OutputStream;
+  InName << "<terminal/input: " << InputStream << '>';
+  OutName << "<terminal/output: " << OutputStream << '>';
 
   In = std::make_unique<Pipe>(
-    Pipe::wrap(fd::dup(InputStream), Pipe::Read, InName.str()));
+    Pipe::weakWrap(InputStream, Pipe::Read, InName.str()));
   Out = std::make_unique<Pipe>(
-    Pipe::wrap(fd::dup(OutputStream), Pipe::Write, OutName.str()));
+    Pipe::weakWrap(OutputStream, Pipe::Write, OutName.str()));
 }
 
 void Terminal::engage()
@@ -171,10 +171,10 @@ void Terminal::releaseClient()
   if (!AssociatedClient)
     return;
 
-  (*AssociatedClient).setDataCallback({});
-  (*AssociatedClient).setInputCallback({});
-  (*AssociatedClient).setExternalEventProcessor({});
-  (*AssociatedClient).setInputFile(fd::Invalid);
+  AssociatedClient->setDataCallback({});
+  AssociatedClient->setInputCallback({});
+  AssociatedClient->setExternalEventProcessor({});
+  AssociatedClient->setInputFile(fd::Invalid);
 
   AssociatedClient = nullptr;
 }
