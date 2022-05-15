@@ -19,6 +19,7 @@
 #pragma once
 #include <cassert>
 #include <map>
+#include <optional>
 #include <vector>
 
 #include <sys/epoll.h>
@@ -145,13 +146,16 @@ private:
   fd ScheduleFD;
   /// Contains the index in the \p Notifications vector, after a successful call
   /// to \p wait(), where the \p ScheduleFD's notification was placed.
-  std::size_t ScheduleFDNotifiedAtIndex;
+  std::optional<std::size_t> ScheduleFDNotifiedAtIndex;
 
   static const std::size_t FDLookupSize = 256;
   /// Contains the events that were manually scheduled by the client before a
   /// call to \p wait(). After \p wait() is called, the events are moved to
   /// the \p ScheduledResult list to be accessed appropriately.
   std::vector<POD<struct ::epoll_event>> ScheduledWaiting;
+  /// Map file descriptor values to existing records in the \p ScheduledWaiting
+  /// vector. Used only to de-duplicate the same file descriptor being scheduled
+  /// more than once.
   SmallIndexMap<decltype(ScheduledWaiting)::iterator,
                 FDLookupSize,
                 /* StoreInPlace =*/true,

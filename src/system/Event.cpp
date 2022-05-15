@@ -56,6 +56,7 @@ EPoll::~EPoll() { LOG_WITH_IDENTIFIER(debug) << "~EPoll"; }
 std::size_t EPoll::wait()
 {
   ScheduledResult.clear();
+  ScheduleFDNotifiedAtIndex.reset();
 
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "epoll_wait()...");
   auto MaybeFiredEventCount = CheckedPOSIX(
@@ -97,13 +98,11 @@ std::size_t EPoll::wait()
       const struct ::epoll_event& E = **(Notifications.begin() + I);
       if (E.data.fd == ScheduleFD)
       {
-        ScheduleFDNotifiedAtIndex = I;
+        ScheduleFDNotifiedAtIndex.emplace(I);
         break;
       }
     }
   }
-  else
-    ScheduleFDNotifiedAtIndex = -1;
 
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace)
                     << "epoll_wait()"
@@ -167,7 +166,8 @@ const struct ::epoll_event& EPoll::at(std::size_t Index) const
   Index -= ScheduledCount;
   // Skipping (as if never existed) the position where the eventfd(2) trigger
   // arrived.
-  if (Index < ScheduleFDNotifiedAtIndex)
+  if (!ScheduleFDNotifiedAtIndex.has_value() ||
+      Index < *ScheduleFDNotifiedAtIndex)
     return *Notifications.at(Index);
   return *Notifications.at(Index + 1);
 }

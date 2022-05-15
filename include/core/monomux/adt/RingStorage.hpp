@@ -23,8 +23,6 @@
 #include <string>
 #include <vector>
 
-#include <iostream>
-
 #include "monomux/adt/MemberFunctionHelper.hpp"
 #include "monomux/adt/UniqueScalar.hpp"
 
