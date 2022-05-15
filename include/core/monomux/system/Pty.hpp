@@ -62,20 +62,26 @@ public:
   /// \returns the name of the PTY interface that was created (e.g. /dev/pts/2).
   const std::string& name() const noexcept { return Name; }
 
-  /// Reads at most \p Bytes bytes from the standard output of the other end of
-  /// the PTY.
+  /// Returns the \p Pipe that can read from the standard output of the other
+  /// end of the PTY.
   ///
   /// \note Using this method is only valid once the PTY has established its
   /// master/slave status.
-  std::string read(std::size_t Bytes);
-  /// Sends the contents of \p Buffer into the standard input of the other end
-  /// of the PTY.
-  ///
-  /// \returns the number of bytes written.
+  Pipe& reader() noexcept
+  {
+    assert(Read);
+    return *Read;
+  }
+  /// Returns the \p Pipe that can write data into the standard input of the
+  /// other end of the PTY.
   ///
   /// \note Using this method is only valid once the PTY has established its
   /// master/slave status.
-  std::size_t write(std::string_view Buffer);
+  Pipe& writer() noexcept
+  {
+    assert(Write);
+    return *Write;
+  }
 
   /// Executes actions that configure the current PTY from the owning parent's
   /// point of view. This usually means that the PTS (pseudoterminal-slave)

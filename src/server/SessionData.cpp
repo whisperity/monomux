@@ -36,18 +36,33 @@ void SessionData::setProcess(Process&& Process) noexcept
   MainProcess.emplace(std::move(Process));
 }
 
+raw_fd SessionData::getIdentifyingFD() const noexcept
+{
+  if (!hasProcess() || !getProcess().hasPty())
+    return fd::Invalid;
+
+  auto& P = const_cast<Process&>(getProcess());
+  return P.getPty()->raw().get();
+}
+
 std::string SessionData::readOutput(std::size_t Size)
 {
   if (!hasProcess() || !getProcess().hasPty())
     return {};
-  return getProcess().getPty()->read(Size);
+  return getProcess().getPty()->reader().read(Size);
+}
+
+bool SessionData::stillHasOutput() noexcept
+{
+  return hasProcess() && getProcess().getPty() &&
+         getProcess().getPty()->reader().hasBufferedRead();
 }
 
 std::size_t SessionData::sendInput(std::string_view Data)
 {
   if (!hasProcess() || !getProcess().hasPty())
     return 0;
-  return getProcess().getPty()->write(Data);
+  return getProcess().getPty()->writer().write(Data);
 }
 
 ClientData* SessionData::getLatestClient() const

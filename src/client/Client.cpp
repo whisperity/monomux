@@ -218,10 +218,11 @@ void Client::loop()
     throw std::system_error{std::make_error_code(std::errc::not_connected),
                             "Client input callback is not registered."};
 
-  static constexpr std::size_t EventQueue = 1 << 9;
+  static constexpr std::size_t EventQueue = 1 << 4;
   Poll = std::make_unique<EPoll>(EventQueue);
 
   fd::addStatusFlag(ControlSocket.raw(), O_NONBLOCK);
+  fd::addStatusFlag(DataSocket->raw(), O_NONBLOCK);
 
   enableControlResponse();
   enableDataSocket();
@@ -229,6 +230,7 @@ void Client::loop()
 
   while (!TerminateLoop.get().load())
   {
+    ControlSocket.flushWrites();
     if (ExternalEventProcessor)
       // Process "external" events before blocking on "wait()".
       ExternalEventProcessor(*this);
@@ -236,8 +238,8 @@ void Client::loop()
     const std::size_t NumTriggeredFDs = Poll->wait();
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
-      raw_fd EventFD = Poll->fdAt(I);
-      if (EventFD == fd::Invalid)
+      auto Event = Poll->eventAt(I);
+      if (Event.FD == fd::Invalid)
       {
         LOG(error) << '#' << I
                    << " event received but there was no associated file";
@@ -246,17 +248,33 @@ void Client::loop()
 
       try
       {
-        if (EventFD == DataSocket->raw() && DataHandler)
+        if (Event.FD == DataSocket->raw())
         {
-          DataHandler(*this);
+          if (Event.Incoming)
+          {
+            if (DataHandler)
+              DataHandler(*this);
+
+            if (DataSocket->hasBufferedRead())
+              Poll->schedule(
+                DataSocket->raw(), /* Incoming =*/true, /* Outgoing =*/false);
+          }
+          if (Event.Outgoing)
+          {
+            DataSocket->flushWrites();
+            if (DataSocket->hasBufferedWrite())
+              Poll->schedule(
+                DataSocket->raw(), /* Incoming =*/false, /* Outgoing =*/true);
+          }
           continue;
         }
-        if (InputFile != fd::Invalid && EventFD == InputFile && InputHandler)
+        if (InputFile != fd::Invalid && Event.FD == InputFile)
         {
-          InputHandler(*this);
+          if (Event.Incoming && InputHandler)
+            InputHandler(*this);
           continue;
         }
-        if (EventFD == ControlSocket.raw())
+        if (Event.FD == ControlSocket.raw() && Event.Incoming)
         {
           controlCallback();
           continue;
@@ -280,51 +298,48 @@ void Client::controlCallback()
   using namespace monomux::message;
   std::string Data;
 
-  // Consume all the control messages that might be on the socket if a burst
-  // happened.
-  while (true)
+  try
   {
-    Data.clear();
-    try
-    {
-      Data = readPascalString(ControlSocket);
-    }
-    catch (const std::system_error& Err)
-    {
-      LOG(error) << "Reading CONTROL: " << Err.what();
-    }
+    Data = readPascalString(ControlSocket);
+  }
+  catch (const std::system_error& Err)
+  {
+    LOG(error) << "Reading CONTROL: " << Err.what();
+  }
 
-    if (ControlSocket.failed())
-    {
+  if (ControlSocket.failed())
+  {
+    exit(Failed, -1);
+    return;
+  }
+
+  if (ControlSocket.hasBufferedRead())
+    Poll->schedule(
+      ControlSocket.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+
+  if (Data.empty())
+    return;
+
+  Message MB = Message::unpack(Data);
+  auto Action =
+    Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
+  if (Action == Dispatch.end())
+  {
+    MONOMUX_TRACE_LOG(LOG(trace) << "Unknown message type "
+                                 << static_cast<int>(MB.Kind) << " received");
+    return;
+  }
+
+  MONOMUX_TRACE_LOG(LOG(data) << MB.RawData);
+  try
+  {
+    Action->second(*this, MB.RawData);
+  }
+  catch (const std::system_error& Err)
+  {
+    LOG(error) << "Error when handling message";
+    if (getControlSocket().failed())
       exit(Failed, -1);
-      return;
-    }
-
-    if (Data.empty())
-      return;
-
-    Message MB = Message::unpack(Data);
-    auto Action =
-      Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
-    if (Action == Dispatch.end())
-    {
-      MONOMUX_TRACE_LOG(LOG(trace) << "Unknown message type "
-                                   << static_cast<int>(MB.Kind) << " received");
-      continue;
-    }
-
-    MONOMUX_TRACE_LOG(LOG(data) << MB.RawData);
-    try
-    {
-      Action->second(*this, MB.RawData);
-    }
-    catch (const std::system_error& Err)
-    {
-      LOG(error) << "Error when handling message";
-      if (getControlSocket().failed())
-        exit(Failed, -1);
-      continue;
-    }
   }
 }
 
@@ -454,6 +469,10 @@ void Client::sendData(std::string_view Data)
     return;
   }
   DataSocket->write(Data);
+
+  if (DataSocket->hasBufferedWrite())
+    Poll->schedule(
+      DataSocket->raw(), /* Incoming =*/false, /* Outgoing =*/true);
 }
 
 void Client::sendSignal(int Signal)
@@ -465,6 +484,7 @@ void Client::sendSignal(int Signal)
   sendMessage(ControlSocket, M);
 }
 
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void Client::notifyWindowSize(unsigned short Rows, unsigned short Columns)
 {
   using namespace monomux::message;

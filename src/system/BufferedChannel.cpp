@@ -184,6 +184,8 @@ std::size_t BufferedChannel::write(std::string_view Data)
     Write->putBack(Data.data(), Data.size());
     return 0;
   }
+  if (Data.empty())
+    return 0;
 
   // If we are this point, the buffer should be clear and Data is still unsent.
   std::size_t BytesSent = 0;

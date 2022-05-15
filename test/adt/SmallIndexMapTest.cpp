@@ -81,6 +81,40 @@ TEST(SmallIndexMap, Integral)
   ASSERT_TRUE(M.isSmall());
 }
 
+TEST(SmallIndexMap, Clear)
+{
+  SmallIndexMap<int, 4> M;
+  ASSERT_EQ(M.size(), 0);
+  ASSERT_TRUE(M.isSmall());
+  M[0] = 1;
+  M[1] = 2;
+  M[2] = 3;
+  M[3] = 4;
+  ASSERT_EQ(M.size(), 4);
+  ASSERT_TRUE(M.isSmall());
+
+  EXPECT_EQ(M.get(0), 1);
+  EXPECT_EQ(M.get(1), 2);
+  EXPECT_EQ(M.get(2), 3);
+  EXPECT_EQ(M.get(3), 4);
+
+  M[Magic32] = Magic64;
+  M[Magic64] = Magic128;
+  ASSERT_EQ(M.size(), 6);
+  ASSERT_TRUE(M.isLarge());
+
+  M.clear();
+
+  EXPECT_EQ(M.tryGet(0), nullptr);
+  EXPECT_EQ(M.tryGet(1), nullptr);
+  EXPECT_EQ(M.tryGet(2), nullptr);
+  EXPECT_EQ(M.tryGet(3), nullptr);
+  EXPECT_EQ(M.tryGet(Magic32), nullptr);
+  EXPECT_EQ(M.tryGet(Magic64), nullptr);
+  ASSERT_EQ(M.size(), 0);
+  ASSERT_TRUE(M.isSmall());
+}
+
 TEST(SmallIndexMap, Pointer)
 {
   int* I1 = new int(1);

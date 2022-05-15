@@ -28,7 +28,7 @@
 #include "monomux/adt/Atomic.hpp"
 #include "monomux/adt/ScopeGuard.hpp"
 #include "monomux/adt/UniqueScalar.hpp"
-#include "monomux/system/EPoll.hpp"
+#include "monomux/system/Event.hpp"
 #include "monomux/system/Process.hpp"
 #include "monomux/system/Socket.hpp"
 

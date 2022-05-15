@@ -514,15 +514,13 @@ void printFeatures()
   std::cout << "Features:\n" << getHumanReadableConfiguration() << std::endl;
 }
 
-std::sig_atomic_t AlreadyTerminatingOnSignal;
-
 void coreDumped(SignalHandling::Signal SigNum,
                 ::siginfo_t* /* Info */,
                 const SignalHandling* Handling)
 {
-  if (AlreadyTerminatingOnSignal)
-    std::_Exit(-SigNum);
-  AlreadyTerminatingOnSignal = SigNum;
+  // Reset the signal handler for the current signal, so all other processes
+  // and logics properly receive the fact that we are ending, anyway...
+  SignalHandling::get().defaultCallback(SigNum);
 
   const volatile auto* ModulePtr = std::any_cast<const char*>(
     Handling->getObject(SignalHandling::ModuleObjName));

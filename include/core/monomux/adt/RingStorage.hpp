@@ -25,6 +25,7 @@
 
 #include <iostream>
 
+#include "monomux/adt/MemberFunctionHelper.hpp"
 #include "monomux/adt/UniqueScalar.hpp"
 
 namespace monomux
@@ -66,43 +67,6 @@ template <class T> class RingStorage
   using StorageType = std::unique_ptr<T[]>;
 
   static constexpr bool NothrowAssignable = std::is_nothrow_assignable_v<T, T>;
-
-#define NON_CONST_0(RETURN_TYPE, FUNCTION_NAME)                                \
-  RETURN_TYPE FUNCTION_NAME()                                                  \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME());                        \
-  }
-
-#define NON_CONST_0_NOEXCEPT(RETURN_TYPE, FUNCTION_NAME)                       \
-  RETURN_TYPE FUNCTION_NAME() noexcept                                         \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME());                        \
-  }
-
-#define NON_CONST_1(RETURN_TYPE, FUNCTION_NAME, ARG_1_TYPE, ARG_1_NAME)        \
-  RETURN_TYPE FUNCTION_NAME(ARG_1_TYPE ARG_1_NAME)                             \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME(ARG_1_NAME));              \
-  }
-
-#define NON_CONST_1_NOEXCEPT(                                                  \
-  RETURN_TYPE, FUNCTION_NAME, ARG_1_TYPE, ARG_1_NAME)                          \
-  RETURN_TYPE FUNCTION_NAME(ARG_1_TYPE ARG_1_NAME) noexcept                    \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME(ARG_1_NAME));              \
-  }
 
 public:
   RingStorage(std::size_t InitialSize)
@@ -172,7 +136,7 @@ public:
     return *translateIndex(Index);
   }
   /// \returns a reference to the element at the specified location \p Index.
-  NON_CONST_1(T&, at, std::size_t, Index);
+  MEMBER_FN_NON_CONST_1(T&, at, std::size_t, Index);
   /// \returns a reference to the element at the specified location \p Index.
   const T& operator[](std::size_t Index) const { return at(Index); }
   /// \returns a reference to the element at the specified location \p Index.
@@ -194,7 +158,7 @@ public:
     return at(0);
   }
   /// \returns a reference to the first element.
-  NON_CONST_0(T&, front);
+  MEMBER_FN_NON_CONST_0(T&, front);
   /// \returns a reference to the last element.
   const T& back() const
   {
@@ -203,7 +167,7 @@ public:
     return at(Size - 1);
   }
   /// \returns a reference to the last element.
-  NON_CONST_0(T&, back);
+  MEMBER_FN_NON_CONST_0(T&, back);
 
   /// Removes the first element (\p front()) from the buffer.
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -438,11 +402,6 @@ private:
     Origin = physicalBegin();
     End = Origin + Size;
   }
-
-#undef NON_CONST_1_NOEXCEPT
-#undef NON_CONST_1
-#undef NON_CONST_0_NOEXCEPT
-#undef NON_CONST_0
 };
 
 } // namespace monomux

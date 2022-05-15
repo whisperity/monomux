@@ -112,16 +112,18 @@ void Terminal::clientInput(Terminal* Term, Client& Client)
 {
   assert(Term->MovedFromCheck &&
          "Terminal object registered as callback was moved.");
-
   if (Client.getInputFile() != Term->input()->raw())
     throw std::invalid_argument{"Client InputFD != Terminal input"};
 
-  static constexpr std::size_t ReadSize = 1 << 10;
-  std::string Input = Term->input()->read(ReadSize);
-  if (Input.empty())
-    return;
+  do
+  {
+    static constexpr std::size_t ReadSize = 1 << 10;
+    std::string Input = Term->input()->read(ReadSize);
+    if (Input.empty())
+      return;
 
-  Client.sendData(Input);
+    Client.sendData(Input);
+  } while (Term->input()->hasBufferedRead());
 }
 
 void Terminal::clientOutput(Terminal* Term, Client& Client)
@@ -132,6 +134,9 @@ void Terminal::clientOutput(Terminal* Term, Client& Client)
   static constexpr std::size_t ReadSize = 1 << 10;
   std::string Output = Client.getDataSocket()->read(ReadSize);
   Term->output()->write(Output);
+
+  while (Term->output()->hasBufferedWrite())
+    Term->output()->flushWrites();
 }
 
 void Terminal::clientEventReady(Terminal* Term, Client& Client)

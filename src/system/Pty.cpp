@@ -56,24 +56,6 @@ Pty::Pty()
   Name = DeviceName;
 }
 
-std::string Pty::read(std::size_t Bytes)
-{
-  if (!Read)
-    throw std::system_error{std::make_error_code(std::errc::no_link),
-                            "Reading from Pty that has not established"};
-
-  return Read->read(Bytes);
-}
-
-std::size_t Pty::write(std::string_view Buffer)
-{
-  if (!Write)
-    throw std::system_error{std::make_error_code(std::errc::no_link),
-                            "Reading from Pty that has not established"};
-
-  return Write->write(Buffer);
-}
-
 void Pty::setupParentSide()
 {
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace)

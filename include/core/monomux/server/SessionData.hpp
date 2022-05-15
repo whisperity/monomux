@@ -63,9 +63,18 @@ public:
     return *MainProcess;
   }
 
+  /// \returns a file descriptor that can be used as a key to identify
+  /// the connection towards the session.
+  raw_fd getIdentifyingFD() const noexcept;
+
   /// Reads at most \p Size bytes from the output of the program running in the
   /// session, if any.
   std::string readOutput(std::size_t Size);
+
+  /// \returns whether there is buffered output available on the output pipe
+  /// from the session, i.e. further \p readOutput() calls could be made without
+  /// interacting with the underlying device.
+  bool stillHasOutput() noexcept;
 
   /// Sends the \p Data as input to the program running in the session, if any.
   /// \returns the number of bytes written.

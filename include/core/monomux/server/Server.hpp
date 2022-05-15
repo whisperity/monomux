@@ -27,7 +27,7 @@
 #include "monomux/adt/Atomic.hpp"
 #include "monomux/adt/SmallIndexMap.hpp"
 #include "monomux/adt/Tagged.hpp"
-#include "monomux/system/EPoll.hpp"
+#include "monomux/system/Event.hpp"
 #include "monomux/system/Process.hpp"
 #include "monomux/system/Socket.hpp"
 #include "monomux/system/fd.hpp"
@@ -121,7 +121,7 @@ private:
 
   Socket Sock;
 
-  static constexpr std::size_t FDLookupSize = 128;
+  static constexpr std::size_t FDLookupSize = 256;
   /// A quick lookup that associates a file descriptor to the data for the
   /// entity behind the file descriptor.
   SmallIndexMap<LookupVariant,

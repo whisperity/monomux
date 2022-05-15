@@ -26,6 +26,8 @@
 #include <variant>
 #include <vector>
 
+#include "monomux/adt/MemberFunctionHelper.hpp"
+
 namespace monomux
 {
 
@@ -88,43 +90,6 @@ class SmallIndexMap
   /// The number of mapped elements.
   std::size_t Size = 0;
 
-#define NON_CONST_0(RETURN_TYPE, FUNCTION_NAME)                                \
-  RETURN_TYPE FUNCTION_NAME()                                                  \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME());                        \
-  }
-
-#define NON_CONST_0_NOEXCEPT(RETURN_TYPE, FUNCTION_NAME)                       \
-  RETURN_TYPE FUNCTION_NAME() noexcept                                         \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME());                        \
-  }
-
-#define NON_CONST_1(RETURN_TYPE, FUNCTION_NAME, ARG_1_TYPE, ARG_1_NAME)        \
-  RETURN_TYPE FUNCTION_NAME(ARG_1_TYPE ARG_1_NAME)                             \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME(ARG_1_NAME));              \
-  }
-
-#define NON_CONST_1_NOEXCEPT(                                                  \
-  RETURN_TYPE, FUNCTION_NAME, ARG_1_TYPE, ARG_1_NAME)                          \
-  RETURN_TYPE FUNCTION_NAME(ARG_1_TYPE ARG_1_NAME) noexcept                    \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME(ARG_1_NAME));              \
-  }
-
 public:
   /// Initialises an empty \p SmallIndexMap that starts in the small
   /// representation.
@@ -143,13 +108,18 @@ public:
   /// representation. In this mode, access of data is a logarithmic operation.
   bool isLarge() const noexcept { return !isSmall(); }
 
-  /// Returns the size of the container, i.e. the number of elements added
+  /// \returns the size of the container, i.e. the number of elements added
   /// into it.
   ///
   /// This is a \e constant-time query.
   std::size_t size() const noexcept { return Size; }
 
-  /// Returns whether the \p Key is mapped.
+  /// \returns whether the container is empty.
+  ///
+  /// This is a \e constant-time query.
+  bool empty() const noexcept { return Size == 0; }
+
+  /// \returns whether the \p Key is mapped.
   bool contains(KeyTy Key) const noexcept
   {
     if (isSmall())
@@ -267,6 +237,29 @@ public:
     convertToSmallConditional();
   }
 
+  /// Deletes all mapped elements.
+  void clear()
+  {
+    if (isSmall())
+    {
+      for (KeyTy K = 0; K < N; ++K)
+      {
+        E& Elem = getSmallRepr()->at(K);
+        if constexpr (IntrusiveDefaultSentinel)
+          Elem = T{};
+        else
+          Elem.reset();
+      }
+
+      Size = 0;
+      return;
+    }
+
+    getLargeRepr()->clear();
+    Size = 0;
+    convertToSmall();
+  }
+
   /// Retrieve a non-mutable pointer to the element mapped for \p Key, or
   /// \p nullptr if \p Key is not mapped.
   const T* tryGet(KeyTy Key) const noexcept
@@ -290,7 +283,7 @@ public:
   }
   /// Retrieve a mutable pointer to the element mapped for \p Key, or
   /// \p nullptr if \p Key is not mapped.
-  NON_CONST_1_NOEXCEPT(T*, tryGet, KeyTy, Key);
+  MEMBER_FN_NON_CONST_1_NOEXCEPT(T*, tryGet, KeyTy, Key);
 
   /// Retrieve a non-mutable reference to the element mapped for \p Key.
   /// \throws std::out_of_range if \p Key is not mapped.
@@ -302,7 +295,7 @@ public:
     return *P;
   }
   /// Retrieve a mutable reference to the element mapped for \p Key.
-  NON_CONST_1(T&, get, KeyTy, Key);
+  MEMBER_FN_NON_CONST_1(T&, get, KeyTy, Key);
 
   /// Create a mutable reference to the element mapped for \p Key.
   /// If no such element exists, an appropriate default-constructed element is
@@ -389,18 +382,18 @@ private:
       return *Elem;
     }
   }
-  NON_CONST_1(T&, unwrap, E&, Elem);
+  MEMBER_FN_NON_CONST_1(T&, unwrap, E&, Elem);
 
   const SmallRepresentation* getSmallRepr() const noexcept
   {
     return std::get_if<SmallRepresentation>(&Storage);
   }
-  NON_CONST_0_NOEXCEPT(SmallRepresentation*, getSmallRepr);
+  MEMBER_FN_NON_CONST_0_NOEXCEPT(SmallRepresentation*, getSmallRepr);
   const LargeRepresentation* getLargeRepr() const noexcept
   {
     return std::get_if<LargeRepresentation>(&Storage);
   }
-  NON_CONST_0_NOEXCEPT(LargeRepresentation*, getLargeRepr);
+  MEMBER_FN_NON_CONST_0_NOEXCEPT(LargeRepresentation*, getLargeRepr);
 
   /// Fills the small representation \p std::array with default initialised
   /// values.
@@ -477,11 +470,6 @@ private:
     for (std::size_t I : IndicesToMove)
       LR.emplace(I, std::move(SR.at(I)));
   }
-
-#undef NON_CONST_1_NOEXCEPT
-#undef NON_CONST_1
-#undef NON_CONST_0_NOEXCEPT
-#undef NON_CONST_0
 };
 
 } // namespace monomux

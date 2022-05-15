@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <chrono>
+#include <iomanip>
 #include <thread>
 
 #include "monomux/adt/POD.hpp"
@@ -54,7 +55,7 @@ void Server::setExitIfNoMoreSessions(bool ExitIfNoMoreSessions)
 void Server::loop()
 {
   static constexpr std::size_t ListenQueue = 16;
-  static constexpr std::size_t EventQueue = 1 << 16;
+  static constexpr std::size_t EventQueue = 1 << 13;
   Sock.listen(ListenQueue);
 
   fd::addStatusFlag(Sock.raw(), O_NONBLOCK);
@@ -70,15 +71,15 @@ void Server::loop()
     MONOMUX_TRACE_LOG(LOG(data) << NumTriggeredFDs << " events received!");
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
-      raw_fd EventFD = Poll->fdAt(I);
-      if (EventFD == fd::Invalid)
+      auto Event = Poll->eventAt(I);
+      if (Event.FD == fd::Invalid)
       {
         LOG(error) << '#' << I
                    << " event received but there was no associated file";
         continue;
       }
 
-      if (EventFD == Sock.raw())
+      if (Event.FD == Sock.raw())
       {
         // Event occured on the main socket.
         std::error_code Error;
@@ -114,42 +115,62 @@ void Server::loop()
         ClientData* Client = makeClient(
           ClientData{std::make_unique<Socket>(std::move(*ClientSock))});
         acceptCallback(*Client);
+
+        continue;
       }
-      else
+
+      // Event occured on another (connected client or session) socket.
+      MONOMUX_TRACE_LOG(LOG(trace)
+                        << "Event on file descriptor " << Event.FD
+                        << " (incoming: " << std::boolalpha << Event.Incoming
+                        << ", outgoing: " << Event.Outgoing << std::noboolalpha
+                        << ')');
+
+      LookupVariant* Entity = FDLookup.tryGet(Event.FD);
+      if (!Entity)
       {
-        // Event occured on another (connected client) socket.
-        MONOMUX_TRACE_LOG(LOG(trace) << "Data on file descriptor " << EventFD);
+        LOG(error) << "\tFile descriptor " << Event.FD
+                   << " missing from lookup table? (Possible internal error "
+                      "or race condition!)";
+        continue;
+      }
 
-        LookupVariant* Entity = FDLookup.tryGet(EventFD);
-        if (!Entity)
-        {
-          LOG(error) << "\tFile descriptor " << EventFD
-                     << " missing from lookup table? (Possible internal error "
-                        "or race condition!)";
-          continue;
-        }
-
-        if (auto* Session = std::get_if<SessionConnection>(Entity))
-        {
+      if (auto* Session = std::get_if<SessionConnection>(Entity))
+      {
+        if (Event.Incoming)
           // First check for data coming from a session. This is the most
           // populous in terms of bandwidth.
           dataCallback(**Session);
-          continue;
-        }
-        if (auto* Data = std::get_if<ClientDataConnection>(Entity))
-        {
+        continue;
+      }
+
+      // Tries to flush the contents of the socket, and if the flushing fails,
+      // schedules it for the next iteration.
+      auto FlushAndReschedule = [this](Socket& S) {
+        S.flushWrites();
+        if (S.hasBufferedWrite())
+          Poll->schedule(S.raw(), /* Incoming =*/false, /* Outgoing =*/true);
+      };
+
+      if (auto* Data = std::get_if<ClientDataConnection>(Entity))
+      {
+        if (Event.Incoming)
           // Second, try to see if the data is coming from a client, like
           // keypresses and such. We expect to see many of these, too.
           dataCallback(**Data);
-          continue;
-        }
-        if (auto* Control = std::get_if<ClientControlConnection>(Entity))
-        {
+        if (Event.Outgoing)
+          FlushAndReschedule(*(**Data).getDataSocket());
+        continue;
+      }
+      if (auto* Control = std::get_if<ClientControlConnection>(Entity))
+      {
+        if (Event.Incoming)
           // Lastly, check if the receive is happening on the control
           // connection, where messages are small and far inbetween.
           controlCallback(**Control);
-          continue;
-        }
+        if (Event.Outgoing)
+          FlushAndReschedule((**Control).getControlSocket());
+        continue;
       }
     }
   }
@@ -286,56 +307,52 @@ void Server::controlCallback(ClientData& Client)
   Socket& ClientSock = Client.getControlSocket();
   std::string Data;
 
-  // Consume all the control messages that might be on the socket if a burst
-  // happened.
-  while (true)
+  try
   {
-    Data.clear();
-    try
-    {
-      Data = readPascalString(ClientSock);
-    }
-    catch (const std::system_error& Err)
-    {
-      LOG(error) << "Client \"" << Client.id()
-                 << "\": error when reading CONTROL: " << Err.what();
-    }
+    Data = readPascalString(ClientSock);
+  }
+  catch (const std::system_error& Err)
+  {
+    LOG(error) << "Client \"" << Client.id()
+               << "\": error when reading CONTROL: " << Err.what();
+  }
 
+  if (ClientSock.failed())
+  {
+    // We realise the client disconnected during an attempt to read.
+    exitCallback(Client);
+    return;
+  }
+
+  if (ClientSock.hasBufferedRead())
+    Poll->schedule(ClientSock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+
+  if (Data.empty())
+    return;
+
+  Message MB = Message::unpack(Data);
+  auto Action =
+    Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
+  if (Action == Dispatch.end())
+  {
+    MONOMUX_TRACE_LOG(LOG(trace) << "Client \"" << Client.id()
+                                 << "\": unknown message type "
+                                 << static_cast<int>(MB.Kind) << " received");
+    return;
+  }
+
+  MONOMUX_TRACE_LOG(LOG(data) << "Client \"" << Client.id() << "\"\n"
+                              << MB.RawData);
+  try
+  {
+    Action->second(*this, Client, MB.RawData);
+  }
+  catch (const std::system_error& Err)
+  {
+    LOG(error) << "Client \"" << Client.id()
+               << "\": error when handling message";
     if (ClientSock.failed())
-    {
-      // We realise the client disconnected during an attempt to read.
       exitCallback(Client);
-      return;
-    }
-
-    if (Data.empty())
-      return;
-
-    Message MB = Message::unpack(Data);
-    auto Action =
-      Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
-    if (Action == Dispatch.end())
-    {
-      MONOMUX_TRACE_LOG(LOG(trace) << "Client \"" << Client.id()
-                                   << "\": unknown message type "
-                                   << static_cast<int>(MB.Kind) << " received");
-      continue;
-    }
-
-    MONOMUX_TRACE_LOG(LOG(data) << "Client \"" << Client.id() << "\"\n"
-                                << MB.RawData);
-    try
-    {
-      Action->second(*this, Client, MB.RawData);
-    }
-    catch (const std::system_error& Err)
-    {
-      LOG(error) << "Client \"" << Client.id()
-                 << "\": error when handling message";
-      if (ClientSock.failed())
-        exitCallback(Client);
-      continue;
-    }
   }
 }
 
@@ -345,10 +362,11 @@ void Server::dataCallback(ClientData& Client)
 
   MONOMUX_TRACE_LOG(LOG(trace)
                     << "Client \"" << Client.id() << "\" sent DATA!");
+  Socket& DS = *Client.getDataSocket();
   std::string Data;
   try
   {
-    Data = Client.getDataSocket()->read(BufferSize);
+    Data = DS.read(BufferSize);
   }
   catch (const std::system_error& Err)
   {
@@ -357,7 +375,7 @@ void Server::dataCallback(ClientData& Client)
     return;
   }
 
-  if (Client.getDataSocket()->failed())
+  if (DS.failed())
   {
     // We realise the client disconnected during an attempt to read.
     exitCallback(Client);
@@ -370,6 +388,9 @@ void Server::dataCallback(ClientData& Client)
 
   if (SessionData* S = Client.getAttachedSession())
     S->sendInput(Data);
+
+  if (DS.hasBufferedRead())
+    Poll->schedule(DS.raw(), /* Incoming =*/true, /* Outgoing =*/false);
 }
 
 void Server::exitCallback(ClientData& Client)
@@ -393,7 +414,7 @@ void Server::createCallback(SessionData& Session)
   LOG(info) << "Session \"" << Session.name() << "\" created";
   if (Session.hasProcess() && Session.getProcess().hasPty())
   {
-    raw_fd FD = Session.getProcess().getPty()->raw();
+    raw_fd FD = Session.getIdentifyingFD();
 
     Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
     FDLookup[FD] = SessionConnection{&Session};
@@ -424,6 +445,7 @@ void Server::dataCallback(SessionData& Session)
 
   for (ClientData* C : Session.getAttachedClients())
     if (Socket* DS = C->getDataSocket())
+    {
       try
       {
         DS->write(Data);
@@ -441,6 +463,15 @@ void Server::dataCallback(SessionData& Session)
           continue;
         }
       }
+
+      if (DS->hasBufferedWrite())
+        Poll->schedule(DS->raw(), /* Incoming =*/false, /* Outgoing =*/true);
+    }
+
+  if (Session.stillHasOutput())
+    Poll->schedule(Session.getIdentifyingFD(),
+                   /* Incoming =*/true,
+                   /* Outgoing =*/false);
 }
 
 void Server::clientAttachedCallback(ClientData& Client, SessionData& Session)
