@@ -65,6 +65,8 @@ public:
     SessionExit,
     /// The client exit because the server shut down.
     ServerExit,
+    /// The client was kicked by the server.
+    ServerKicked,
   };
 
   /// The type of message handler functions.
@@ -138,6 +140,9 @@ public:
   /// \returns the exit code associated with the client-server connection
   /// exiting, if any. This field is not always meaningful.
   int exitCode() const noexcept { return ExitCode; }
+  /// \returns the message sent by the server when it decided to release the
+  /// client, if any. This field is not always meaningful.
+  std::string exitMessage() const noexcept { return ExitMessage; }
 
   /// Sends a request to the connected server to tell what sessions are running
   /// on the server.
@@ -249,9 +254,10 @@ private:
 
   ExitReason Exit = None;
   int ExitCode = 0;
+  std::string ExitMessage;
   /// Terminate the handling \p loop() of the client and set the exit status to
-  /// \p E and the exit code to \p ECODE.
-  void exit(ExitReason E, int ECode);
+  /// \p E, the exit code to \p ECode, and the exit message to \p Message.
+  void exit(ExitReason E, int ECode, std::string Message);
 
   mutable Atomic<bool> TerminateLoop = false;
   std::unique_ptr<EPoll> Poll;

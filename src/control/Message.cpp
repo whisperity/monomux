@@ -769,10 +769,15 @@ ENCODE(Detached)
     case ServerShutdown:
       Buf << "Server";
       break;
+    case Kicked:
+      Buf << "Booted";
+      break;
   }
   Buf << "</MODE>";
   if (Object.Mode == Exit)
     Buf << "<CODE>" << Object.ExitCode << "</CODE>";
+  if (Object.Mode == Kicked)
+    Buf << "<REASON>" << Object.Reason << "</REASON>";
   Buf << "</DETACHED>";
   return Buf.str();
 }
@@ -789,6 +794,8 @@ DECODE(Detached)
     Ret.Mode = Exit;
   else if (Mode == "Server")
     Ret.Mode = ServerShutdown;
+  else if (Mode == "Booted")
+    Ret.Mode = Kicked;
   else
     return std::nullopt;
 
@@ -797,6 +804,12 @@ DECODE(Detached)
     CONSUME_OR_NONE("<CODE>");
     EXTRACT_OR_NONE(ExitCode, "</CODE>");
     Ret.ExitCode = std::stoi(std::string{ExitCode});
+  }
+  else if (Ret.Mode == Kicked)
+  {
+    CONSUME_OR_NONE("<REASON>");
+    EXTRACT_OR_NONE(Reason, "</REASON>");
+    Ret.Reason = Reason;
   }
 
   FOOTER_OR_NONE("</DETACHED>");

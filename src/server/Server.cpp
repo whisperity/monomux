@@ -52,6 +52,22 @@ void Server::setExitIfNoMoreSessions(bool ExitIfNoMoreSessions)
   this->ExitIfNoMoreSessions = ExitIfNoMoreSessions;
 }
 
+/// Reschedules the overflown buffer identified by \p BO to the next iteration
+/// of \p Poll.
+static void rescheduleOverflow(EPoll& Poll, const buffer_overflow& BO)
+{
+  Poll.schedule(BO.fd(), BO.readOverflow(), BO.writeOverflow());
+}
+
+/// Tries to flush the contents of the socket, and if the flushing fails,
+/// schedules it for the next iteration of \p Poll.
+static void flushAndReschedule(EPoll& Poll, Socket& S)
+{
+  S.flushWrites();
+  if (S.hasBufferedWrite())
+    Poll.schedule(S.raw(), /* Incoming =*/false, /* Outgoing =*/true);
+}
+
 void Server::loop()
 {
   static constexpr std::size_t ListenQueue = 16;
@@ -62,6 +78,43 @@ void Server::loop()
   Poll = std::make_unique<EPoll>(EventQueue);
   Poll->listen(Sock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
 
+  auto NewClient = [this]() -> bool {
+    std::error_code Error;
+    bool Recoverable;
+    std::optional<Socket> ClientSock = Sock.accept(&Error, &Recoverable);
+    if (!ClientSock)
+    {
+      if (Recoverable)
+        LOG(warn) << "accept() did not succeed: " << Error;
+      else
+        LOG(error) << "accept() did not succeed: " << Error
+                   << " (not recoverable)";
+
+      if (Recoverable)
+      {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        return true;
+      }
+      return false;
+    }
+
+    // A new client was accepted.
+    if (ClientData* ExistingClient = getClient(ClientSock->raw()))
+    {
+      // The client with the same socket FD is already known.
+      // TODO: What is the good way of handling this?
+      LOG(debug) << "Stale socket of gone client, " << ClientSock->raw()
+                 << " left behind?";
+      exitCallback(*ExistingClient);
+      removeClient(*ExistingClient);
+    }
+
+    ClientData* Client =
+      makeClient(ClientData{std::make_unique<Socket>(std::move(*ClientSock))});
+    acceptCallback(*Client);
+    return false;
+  };
+
   while (!TerminateLoop.get().load())
   {
     // Process "external" events.
@@ -71,7 +124,15 @@ void Server::loop()
     MONOMUX_TRACE_LOG(LOG(data) << NumTriggeredFDs << " events received!");
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
-      auto Event = Poll->eventAt(I);
+      EPoll::EventWithMode Event;
+      try
+      {
+        Event = Poll->eventAt(I);
+      }
+      catch (...)
+      {
+        Event.FD = fd::Invalid;
+      }
       if (Event.FD == fd::Invalid)
       {
         LOG(error) << '#' << I
@@ -82,40 +143,9 @@ void Server::loop()
       if (Event.FD == Sock.raw())
       {
         // Event occured on the main socket.
-        std::error_code Error;
-        bool Recoverable;
-        std::optional<Socket> ClientSock = Sock.accept(&Error, &Recoverable);
-        if (!ClientSock)
-        {
-          if (Recoverable)
-            LOG(warn) << "accept() did not succeed: " << Error;
-          else
-            LOG(error) << "accept() did not succeed: " << Error
-                       << " (not recoverable)";
-
-          if (Recoverable)
-          {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            --I;
-          }
-          continue;
-        }
-
-        // A new client was accepted.
-        if (ClientData* ExistingClient = getClient(ClientSock->raw()))
-        {
-          // The client with the same socket FD is already known.
-          // TODO: What is the good way of handling this?
-          LOG(debug) << "Stale socket of gone client, " << ClientSock->raw()
-                     << " left behind?";
-          exitCallback(*ExistingClient);
-          removeClient(*ExistingClient);
-        }
-
-        ClientData* Client = makeClient(
-          ClientData{std::make_unique<Socket>(std::move(*ClientSock))});
-        acceptCallback(*Client);
-
+        bool Retry = NewClient();
+        if (Retry)
+          --I;
         continue;
       }
 
@@ -129,54 +159,84 @@ void Server::loop()
       LookupVariant* Entity = FDLookup.tryGet(Event.FD);
       if (!Entity)
       {
-        LOG(error) << "\tFile descriptor " << Event.FD
-                   << " missing from lookup table? (Possible internal error "
-                      "or race condition!)";
+        LOG(error) << "\tEntity for file descriptor " << Event.FD
+                   << " missing from lookup table? (Possible internal error, "
+                      "race condition, or mid-handling disconnect?)";
         continue;
       }
-
-      if (auto* Session = std::get_if<SessionConnection>(Entity))
+      try
       {
-        if (Event.Incoming)
-          // First check for data coming from a session. This is the most
-          // populous in terms of bandwidth.
-          dataCallback(**Session);
-        continue;
+        if (auto* Session = std::get_if<SessionConnection>(Entity))
+        {
+          if (Event.Incoming)
+            // First check for data coming from a session. This is the most
+            // populous in terms of bandwidth.
+            dataCallback(**Session);
+          if (Event.Outgoing)
+          {
+            try
+            {
+              (**Session).sendInput(std::string_view{});
+            }
+            catch (const buffer_overflow& BO)
+            {
+              rescheduleOverflow(*Poll, BO);
+            }
+          }
+          continue;
+        }
+        if (auto* Data = std::get_if<ClientDataConnection>(Entity))
+        {
+          if (Event.Incoming)
+            // Second, try to see if the data is coming from a client, like
+            // keypresses and such. We expect to see many of these, too.
+            dataCallback(**Data);
+          if (Event.Outgoing)
+            flushAndReschedule(*Poll, *(**Data).getDataSocket());
+          continue;
+        }
+        if (auto* Control = std::get_if<ClientControlConnection>(Entity))
+        {
+          if (Event.Incoming)
+            // Lastly, check if the receive is happening on the control
+            // connection, where messages are small and far inbetween.
+            controlCallback(**Control);
+          if (Event.Outgoing)
+            flushAndReschedule(*Poll, (**Control).getControlSocket());
+          continue;
+        }
       }
-
-      // Tries to flush the contents of the socket, and if the flushing fails,
-      // schedules it for the next iteration.
-      auto FlushAndReschedule = [this](Socket& S) {
-        S.flushWrites();
-        if (S.hasBufferedWrite())
-          Poll->schedule(S.raw(), /* Incoming =*/false, /* Outgoing =*/true);
-      };
-
-      if (auto* Data = std::get_if<ClientDataConnection>(Entity))
+      catch (const buffer_overflow& BO)
       {
-        if (Event.Incoming)
-          // Second, try to see if the data is coming from a client, like
-          // keypresses and such. We expect to see many of these, too.
-          dataCallback(**Data);
-        if (Event.Outgoing)
-          FlushAndReschedule(*(**Data).getDataSocket());
-        continue;
+        LOG(error) << "Generic handling error:\n\t" << BO.what();
+        rescheduleOverflow(*Poll, BO);
       }
-      if (auto* Control = std::get_if<ClientControlConnection>(Entity))
+      catch (const std::system_error& Err)
       {
-        if (Event.Incoming)
-          // Lastly, check if the receive is happening on the control
-          // connection, where messages are small and far inbetween.
-          controlCallback(**Control);
-        if (Event.Outgoing)
-          FlushAndReschedule((**Control).getControlSocket());
-        continue;
+        // Ignore the error on the sockets and pipes, and do not tear the
+        // server down just because of them.
+        LOG(error) << "Generic handling error:\n\t" << Err.what();
       }
     }
   }
 }
 
 void Server::interrupt() const noexcept { TerminateLoop.get().store(true); }
+
+static void sendKickClient(ClientData& Client, std::string Reason)
+{
+  try
+  {
+    Client.sendDetachReason(
+      monomux::message::notification::Detached::Kicked, 0, std::move(Reason));
+  }
+  // Ignore the error. It could be that the client got auto-detached when
+  // their associated session ended.
+  catch (const buffer_overflow&)
+  {}
+  catch (const std::system_error&)
+  {}
+}
 
 void Server::shutdown()
 {
@@ -189,11 +249,12 @@ void Server::shutdown()
       Client.sendDetachReason(
         monomux::message::notification::Detached::ServerShutdown);
     }
+    // Ignore the error. It could be that the client got auto-detached when
+    // their associated session ended.
+    catch (const buffer_overflow&)
+    {}
     catch (const std::system_error&)
-    {
-      // Ignore the error. It could be that the client got auto-detacehd when
-      // their associated session ended.
-    }
+    {}
     removeClient(Client);
   }
 
@@ -272,7 +333,6 @@ void Server::registerDeadChild(Process::raw_handle PID) const noexcept
 void Server::acceptCallback(ClientData& Client)
 {
   LOG(info) << "Client \"" << Client.id() << "\" connected";
-
   raw_fd FD = Client.getControlSocket().raw();
 
   // (8 is a good guesstimate because FDLookup usually counts from 5 or 6, not
@@ -311,6 +371,14 @@ void Server::controlCallback(ClientData& Client)
   {
     Data = readPascalString(ClientSock);
   }
+  catch (const buffer_overflow& BO)
+  {
+    LOG(trace) << "Client \"" << Client.id()
+               << "\": error when reading CONTROL: "
+               << "\n\t" << BO.what();
+    rescheduleOverflow(*Poll, BO);
+    return;
+  }
   catch (const std::system_error& Err)
   {
     LOG(error) << "Client \"" << Client.id()
@@ -347,6 +415,13 @@ void Server::controlCallback(ClientData& Client)
   {
     Action->second(*this, Client, MB.RawData);
   }
+  catch (const buffer_overflow& BO)
+  {
+    LOG(trace) << "Client \"" << Client.id()
+               << "\": error when handling message"
+               << "\n\t" << BO.what();
+    rescheduleOverflow(*Poll, BO);
+  }
   catch (const std::system_error& Err)
   {
     LOG(error) << "Client \"" << Client.id()
@@ -368,6 +443,17 @@ void Server::dataCallback(ClientData& Client)
   {
     Data = DS.read(BufferSize);
   }
+  catch (const buffer_overflow& BO)
+  {
+    LOG(error) << "Client \"" << Client.id() << "\": error when reading DATA: "
+               << "\n\t" << BO.what();
+    sendKickClient(Client,
+                   "Overflow when reading connection, " +
+                     std::to_string(BO.channel().readInBuffer()) +
+                     " bytes already pending");
+    exitCallback(Client);
+    return;
+  }
   catch (const std::system_error& Err)
   {
     LOG(error) << "Client \"" << Client.id()
@@ -382,15 +468,25 @@ void Server::dataCallback(ClientData& Client)
     return;
   }
 
+  if (DS.hasBufferedRead())
+    Poll->schedule(DS.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+
   Client.activity();
   MONOMUX_TRACE_LOG(LOG(data)
                     << "Client \"" << Client.id() << "\" data: " << Data);
 
   if (SessionData* S = Client.getAttachedSession())
-    S->sendInput(Data);
-
-  if (DS.hasBufferedRead())
-    Poll->schedule(DS.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+    try
+    {
+      S->sendInput(Data);
+    }
+    catch (const buffer_overflow& BO)
+    {
+      LOG(trace) << "Session \"" << S->name()
+                 << "\" when relaying input from client \"" << Client.id()
+                 << "\"\n\t" << BO.what();
+      rescheduleOverflow(*Poll, BO);
+    }
 }
 
 void Server::exitCallback(ClientData& Client)
@@ -432,12 +528,25 @@ void Server::dataCallback(SessionData& Session)
   {
     Data = Session.readOutput(BufferSize);
   }
+  catch (const buffer_overflow& BO)
+  {
+    LOG(error) << "Session \"" << Session.name()
+               << "\": error when reading DATA: "
+               << "\n\t" << BO.what();
+    rescheduleOverflow(*Poll, BO);
+    return;
+  }
   catch (const std::system_error& Err)
   {
     LOG(error) << "Session \"" << Session.name()
                << "\": error when reading DATA: " << Err.what();
     return;
   }
+
+  if (Session.stillHasOutput())
+    Poll->schedule(Session.getIdentifyingFD(),
+                   /* Incoming =*/true,
+                   /* Outgoing =*/false);
 
   Session.activity();
   MONOMUX_TRACE_LOG(LOG(data)
@@ -449,6 +558,18 @@ void Server::dataCallback(SessionData& Session)
       try
       {
         DS->write(Data);
+      }
+      catch (const buffer_overflow& BO)
+      {
+        // This is the part that can usually hang if there is too much data
+        // coming from the session that can't be sent to the clients in a
+        // timely manner.
+        sendKickClient(*C,
+                       "Overflow when sending, " +
+                         std::to_string(BO.channel().writeInBuffer()) +
+                         " bytes already pending");
+        exitCallback(*C);
+        continue;
       }
       catch (const std::system_error& Err)
       {
@@ -467,11 +588,6 @@ void Server::dataCallback(SessionData& Session)
       if (DS->hasBufferedWrite())
         Poll->schedule(DS->raw(), /* Incoming =*/false, /* Outgoing =*/true);
     }
-
-  if (Session.stillHasOutput())
-    Poll->schedule(Session.getIdentifyingFD(),
-                   /* Incoming =*/true,
-                   /* Outgoing =*/false);
 }
 
 void Server::clientAttachedCallback(ClientData& Client, SessionData& Session)

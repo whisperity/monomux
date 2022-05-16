@@ -251,6 +251,8 @@ struct Connection
 {
   MONOMUX_MESSAGE(ConnectionNotification, Connection);
   monomux::message::Boolean Accepted;
+  /// The reason why the connection cannot be established, if \p Accepted is
+  /// \p false.
   std::string Reason;
 };
 
@@ -264,15 +266,26 @@ struct Detached
     /// The client was gracefully detached upon a request.
     Detach,
     /// The session the client was attached do exited.
+    ///
+    /// \see ExitCode
     Exit,
     /// The server shut down.
-    ServerShutdown
+    ServerShutdown,
+    /// The server kicked the client because the client or its connection
+    /// misbehaved.
+    ///
+    /// \see Reason
+    Kicked,
   };
   DetachMode Mode = Detach;
 
   /// The exit code of the process running in the session that exited.
   /// Only meaningful if \p Mode is \p Exit.
   int ExitCode{};
+
+  /// The reason behind the server kicking the client ungracefully.
+  /// Only meaingful if \p Mode is \p Kicked.
+  std::string Reason;
 };
 
 /// A notification send by the client to the server indicating that its terminal

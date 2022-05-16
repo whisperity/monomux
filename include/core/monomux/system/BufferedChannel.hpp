@@ -46,11 +46,7 @@ class BufferedChannel : public Channel
 public:
   /// The initial size of the buffers that are allocated for a
   /// \p BufferedChannel.
-  static constexpr std::size_t BufferSize = 1ULL << 14; //  16 KiB
-  /// The size when the dynamic size of the buffer triggers a
-  /// \p buffer_overflow.
-  // FIXME: Actually use this!
-  static constexpr std::size_t BufferSizeMax = 1ULL << 29; // 500 MiB
+  static constexpr std::size_t BufferSize = 1ULL << 14; // 16 KiB
 
   /// Thrown if the \p Buffer of a \p BufferedChannel exceeds a (reasonable)
   /// size limit.
@@ -60,15 +56,29 @@ public:
     static std::string craftErrorMessage(const std::string& Identifier,
                                          std::size_t Size);
 
+    const BufferedChannel& Channel;
+    bool Read;
+    bool Write;
+
   public:
-    buffer_overflow(const std::string& Identifier, std::size_t Size)
-      : std::runtime_error(craftErrorMessage(Identifier, Size))
+    buffer_overflow(const BufferedChannel& Channel,
+                    const std::string& Identifier,
+                    std::size_t Size,
+                    bool Read,
+                    bool Write)
+      : std::runtime_error(craftErrorMessage(Identifier, Size)),
+        Channel(Channel), Read(Read), Write(Write)
     {}
 
     const char* what() const noexcept override
     {
       return std::runtime_error::what();
     }
+
+    const BufferedChannel& channel() const noexcept { return Channel; }
+    raw_fd fd() const noexcept { return Channel.raw(); }
+    bool readOverflow() const noexcept { return Read; }
+    bool writeOverflow() const noexcept { return Write; }
   };
 
   BufferedChannel() = delete;
@@ -83,6 +93,12 @@ public:
   ///
   /// Sufficiently sized requests do not interact with the buffer.
   ///
+  /// \throws buffer_overflow If the buffer is interacted with and exceeds the
+  /// limit \p BufferSizeMax, the command throws. \p BufferSizeMax is a soft
+  /// limit enforced by this class, not the underlying structure. The read data
+  /// is \e NOT lost, but stored into the buffer, however, care must be taken
+  /// so that system resources are not exhausted.
+  ///
   /// \see load
   std::string read(std::size_t Bytes);
 
@@ -95,12 +111,24 @@ public:
   /// \p Data, it will be added to the buffer.
   ///
   /// \returns the number of bytes of \p Data written to the channel.
+  ///
+  /// \throws buffer_overflow If the buffer is interacted with and exceeds the
+  /// limit \p BufferSizeMax, the command throws. \p BufferSizeMax is a soft
+  /// limit enforced by this class, not the underlying structure. The unwritten
+  /// data is \e NOT lost, but stored into the buffer, however, care must be
+  /// taken so that system resources are not exhausted.
   std::size_t write(std::string_view Data);
 
   /// Reads at \b least \p Bytes bytes from the underlying implementation,
   /// consuming it, and unconditionally placing it into the locally held buffer.
   ///
   /// \returns the number of writes read and placed.
+  ///
+  /// \throws buffer_overflow If the buffer is interacted with and exceeds the
+  /// limit \p BufferSizeMax, the command throws. \p BufferSizeMax is a soft
+  /// limit enforced by this class, not the underlying structure. The read data
+  /// is \e NOT lost, but stored into the buffer, however, care must be taken
+  /// so that system resources are not exhausted.
   ///
   /// \see read
   std::size_t load(std::size_t Bytes);
@@ -109,6 +137,9 @@ public:
   /// buffer. Not all data might be actually written out.
   ///
   /// \returns the number of bytes successfully written.
+  ///
+  /// This function is incapable of \e increasing the size of the buffer, and
+  /// thus will not throw \p buffer_overflow.
   std::size_t flushWrites();
 
   bool hasBufferedRead() const noexcept

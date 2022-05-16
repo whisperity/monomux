@@ -25,6 +25,7 @@
 namespace monomux::log
 {
 
+// clang-format off
 static constexpr const char* SeverityName[Min + 1] = {"           ",
                                                       "!!! FATAL  ",
                                                       " !! ERROR  ",
@@ -33,7 +34,8 @@ static constexpr const char* SeverityName[Min + 1] = {"           ",
                                                       "  > Debug  ",
                                                       " >> trace  ",
                                                       ">>> data   "};
-static constexpr const char InvalidSeverity[] = "??? Invalid";
+static constexpr const char InvalidSeverity[] =       "??? Invalid";
+// clang-format on
 
 const char* Logger::levelName(Severity S) noexcept
 {

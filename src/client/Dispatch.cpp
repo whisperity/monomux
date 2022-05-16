@@ -66,13 +66,16 @@ HANDLER(receivedDetachNotification)
   switch (Msg->Mode)
   {
     case Detached::Detach:
-      Client.exit(Detached, 0);
+      Client.exit(Detached, 0, "");
       break;
     case Detached::Exit:
-      Client.exit(SessionExit, Msg->ExitCode);
+      Client.exit(SessionExit, Msg->ExitCode, "");
       break;
     case Detached::ServerShutdown:
-      Client.exit(ServerExit, 0);
+      Client.exit(ServerExit, 0, "");
+      break;
+    case Detached::Kicked:
+      Client.exit(ServerKicked, 0, std::move(Msg->Reason));
       break;
   }
 }

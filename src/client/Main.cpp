@@ -515,6 +515,8 @@ ExitCode handleSessionCreateOrAttach(Options& Opts)
 
 int handleClientExitStatus(const Client& Client)
 {
+  std::cout << std::endl;
+
   switch (Client.exitReason())
   {
     case Client::None:
@@ -533,19 +535,24 @@ int handleClientExitStatus(const Client& Client)
       std::cout << "[detached";
       if (const SessionData* S = Client.attachedSession())
         std::cout << " (from session '" << S->Name << "')";
-      std::cout << "]" << std::endl;
+      std::cout << ']' << std::endl;
       return EXIT_Success;
     case Client::SessionExit:
       std::cout << "[exited";
       if (Client.exitCode())
-        std::cout << " (with return code " << Client.exitCode() << ")";
+        std::cout << " (with return code " << Client.exitCode() << ')';
       if (const SessionData* S = Client.attachedSession())
         std::cout << " (from session '" << S->Name << "')";
-      std::cout << "]" << std::endl;
+      std::cout << ']' << std::endl;
       return Client.exitCode();
     case Client::ServerExit:
       std::cout << "[server exited]" << std::endl;
       return EXIT_Success;
+    case Client::ServerKicked:
+      std::cout << "[booted from server";
+      if (!Client.exitMessage().empty())
+        std::cout << ": " << Client.exitMessage();
+      std::cout << ']' << std::endl;
   }
   return EXIT_Success;
 }

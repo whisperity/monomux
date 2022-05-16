@@ -132,7 +132,7 @@ Pipe Pipe::wrap(fd&& FD, Mode OpenMode, std::string Identifier)
     Identifier = Name.str();
   }
 
-  LOG(debug) << "Pipeified FD " << Identifier;
+  LOG(trace) << "Pipeified FD " << Identifier;
 
   Pipe P{std::move(FD), std::move(Identifier), false, OpenMode};
   return P;
@@ -149,7 +149,7 @@ Pipe Pipe::weakWrap(raw_fd FD, Mode OpenMode, std::string Identifier)
     Identifier = Name.str();
   }
 
-  LOG(debug) << "Weak-Pipeified FD " << Identifier;
+  LOG(trace) << "Weak-Pipeified FD " << Identifier;
 
   Pipe P{FD, std::move(Identifier), false, OpenMode};
   P.Weak = true;

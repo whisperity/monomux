@@ -238,7 +238,15 @@ void Client::loop()
     const std::size_t NumTriggeredFDs = Poll->wait();
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)
     {
-      auto Event = Poll->eventAt(I);
+      EPoll::EventWithMode Event;
+      try
+      {
+        Event = Poll->eventAt(I);
+      }
+      catch (...)
+      {
+        Event.FD = fd::Invalid;
+      }
       if (Event.FD == fd::Invalid)
       {
         LOG(error) << '#' << I
@@ -280,6 +288,10 @@ void Client::loop()
           continue;
         }
       }
+      catch (const buffer_overflow& BO)
+      {
+        Poll->schedule(BO.fd(), BO.readOverflow(), BO.writeOverflow());
+      }
       catch (const std::system_error&)
       {
         // Ignore the error on the sockets and pipes, and do not tear the
@@ -302,6 +314,14 @@ void Client::controlCallback()
   {
     Data = readPascalString(ControlSocket);
   }
+  catch (const buffer_overflow& BO)
+  {
+    LOG(error) << "Reading CONTROL: "
+               << "\n\t" << BO.what();
+    Poll->schedule(
+      ControlSocket.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+    return;
+  }
   catch (const std::system_error& Err)
   {
     LOG(error) << "Reading CONTROL: " << Err.what();
@@ -309,7 +329,7 @@ void Client::controlCallback()
 
   if (ControlSocket.failed())
   {
-    exit(Failed, -1);
+    exit(Failed, -1, "");
     return;
   }
 
@@ -335,11 +355,17 @@ void Client::controlCallback()
   {
     Action->second(*this, MB.RawData);
   }
+  catch (const buffer_overflow& BO)
+  {
+    LOG(error) << "Error when handling message"
+               << "\n\t" << BO.what();
+    Poll->schedule(BO.fd(), BO.readOverflow(), BO.writeOverflow());
+  }
   catch (const std::system_error& Err)
   {
     LOG(error) << "Error when handling message";
     if (getControlSocket().failed())
-      exit(Failed, -1);
+      exit(Failed, -1, "");
   }
 }
 
@@ -358,14 +384,15 @@ void Client::setExternalEventProcessor(std::function<RawCallbackFn> Callback)
   ExternalEventProcessor = std::move(Callback);
 }
 
-void Client::exit(ExitReason E, int ECode)
+void Client::exit(ExitReason E, int ECode, std::string Message)
 {
   if (Exit != None)
     return;
 
-  LOG(trace) << "Exit with reason " << E;
+  LOG(trace) << "Exit with reason " << E << ' ' << ECode << ' ' << Message;
   Exit = E;
   ExitCode = ECode;
+  ExitMessage = std::move(Message);
   Poll.reset();
   TerminateLoop.get().store(true);
 }
@@ -468,7 +495,14 @@ void Client::sendData(std::string_view Data)
     LOG(error) << "Trying to sendData() but the connection was not established";
     return;
   }
-  DataSocket->write(Data);
+  try
+  {
+    DataSocket->write(Data);
+  }
+  catch (const buffer_overflow& BO)
+  {
+    // Allow reschedule later.
+  }
 
   if (DataSocket->hasBufferedWrite())
     Poll->schedule(

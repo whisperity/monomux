@@ -42,15 +42,36 @@ void Server::setUpDispatch()
 #undef KIND
 }
 
+/// Reschedules the overflown buffer identified by \p BO to the next iteration
+/// of \p Poll.
+template <typename T>
+static std::size_t sendMessageAndRescheduleIfOverflow(EPoll& Poll,
+                                                      BufferedChannel& Channel,
+                                                      const T& Msg)
+{
+  try
+  {
+    return sendMessage(Channel, Msg);
+  }
+  catch (const buffer_overflow&)
+  {
+    Poll.schedule(Channel.raw(), /* Incoming =*/false, /* Outgoing =*/true);
+    return 0;
+  }
+}
+
 void Server::sendAcceptClient(ClientData& Client)
 {
-  sendMessage(Client.getControlSocket(), notification::Connection{{true}, {}});
+  sendMessageAndRescheduleIfOverflow(
+    *Poll, Client.getControlSocket(), notification::Connection{{true}, {}});
 }
 
 void Server::sendRejectClient(ClientData& Client, std::string Reason)
 {
-  sendMessage(Client.getControlSocket(),
-              notification::Connection{{false}, std::move(Reason)});
+  sendMessageAndRescheduleIfOverflow(
+    *Poll,
+    Client.getControlSocket(),
+    notification::Connection{{false}, std::move(Reason)});
 }
 
 #define HANDLER(NAME)                                                          \

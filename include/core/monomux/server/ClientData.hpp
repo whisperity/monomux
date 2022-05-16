@@ -76,8 +76,10 @@ public:
   ///
   /// \param EC The exit code of the session that is detaching from. Not always
   /// meaningful.
+  /// \param Reason The reason behind the detachment. Not always meaningful.
   void sendDetachReason(monomux::message::notification::Detached::DetachMode R,
-                        int EC = 0);
+                        int EC = 0,
+                        std::string Reason = {});
 
 private:
   std::size_t ID;

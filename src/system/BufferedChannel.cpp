@@ -18,8 +18,6 @@
  */
 #include <sstream>
 
-// #include "monomux/adt/POD.hpp"
-
 #include "monomux/system/BufferedChannel.hpp"
 
 #include "monomux/Log.hpp"
@@ -32,12 +30,18 @@ namespace monomux
 // We have need of this here.
 template class RingStorage<char>;
 
+/// The size when the dynamic size of the buffer triggers a
+/// \p buffer_overflow.
+static constexpr std::size_t BufferSizeMax = 1ULL << 31; // 2 GiB
+static_assert(BufferedChannel::BufferSize < BufferSizeMax,
+              "Default constructed buffer would throw");
+
 std::string BufferedChannel::buffer_overflow::craftErrorMessage(
   const std::string& Identifier, std::size_t Size)
 {
   std::ostringstream B;
   B << "Channel '" << Identifier << "' buffer overflow maximum size of "
-    << BufferedChannel::BufferSizeMax << " <= actual size " << Size;
+    << BufferSizeMax << " <= actual size " << Size;
   return B.str();
 }
 
@@ -152,6 +156,13 @@ std::string BufferedChannel::read(std::size_t Bytes)
     Bytes -= BytesFromRead;
   }
 
+  if (Read->size() > BufferSizeMax)
+  {
+    LOG_WITH_IDENTIFIER(trace) << "(read) "
+                               << "Buffer overflow!";
+    throw buffer_overflow(
+      *this, identifier() + "(read)", Read->size(), true, false);
+  }
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "read() "
                                                << "-> " << Return.size());
   return Return;
@@ -182,6 +193,13 @@ std::size_t BufferedChannel::write(std::string_view Data)
                       << "(write) "
                       << "Buffering " << Data.size() << " bytes");
     Write->putBack(Data.data(), Data.size());
+    if (Write->size() > BufferSizeMax)
+    {
+      LOG_WITH_IDENTIFIER(trace) << "(write) "
+                                 << "Buffer overflow!";
+      throw buffer_overflow(
+        *this, identifier() + "(write)", Write->size(), false, true);
+    }
     return 0;
   }
   if (Data.empty())
@@ -221,6 +239,13 @@ std::size_t BufferedChannel::write(std::string_view Data)
     Write->putBack(Data.data(), BytesToSave);
   }
 
+  if (Write->size() > BufferSizeMax)
+  {
+    LOG_WITH_IDENTIFIER(trace) << "(write) "
+                               << "Buffer overflow!";
+    throw buffer_overflow(
+      *this, identifier() + "(write)", Write->size(), false, true);
+  }
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "write() "
                                                << "-> " << BytesSent);
   return BytesSent;
@@ -266,6 +291,13 @@ std::size_t BufferedChannel::load(std::size_t Bytes)
     Bytes -= std::min(ReadSize, Bytes);
   }
 
+  if (Read->size() > BufferSizeMax)
+  {
+    LOG_WITH_IDENTIFIER(trace) << "(load) "
+                               << "Buffer overflow!";
+    throw buffer_overflow(
+      *this, identifier() + "(load)", Read->size(), true, false);
+  }
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "load() "
                                                << "-> " << ReadBytes);
   return ReadBytes;

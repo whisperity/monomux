@@ -304,22 +304,33 @@ TEST(ControlMessageSerialisation, DetachedNotification)
   using namespace monomux::message::notification;
   Detached Obj;
   Obj.ExitCode = 2;
+  Obj.Reason = "Test";
 
   Obj.Mode = Detached::Detach;
   EXPECT_EQ(encode(Obj), "<DETACHED><MODE>Detach</MODE></DETACHED>");
   EXPECT_EQ(codec(Obj).Mode, Detached::Detach);
   EXPECT_EQ(codec(Obj).ExitCode, 0);
+  EXPECT_TRUE(codec(Obj).Reason.empty());
 
   Obj.Mode = Detached::Exit;
   EXPECT_EQ(encode(Obj),
             "<DETACHED><MODE>Exit</MODE><CODE>2</CODE></DETACHED>");
   EXPECT_EQ(codec(Obj).Mode, Detached::Exit);
   EXPECT_EQ(codec(Obj).ExitCode, 2);
+  EXPECT_TRUE(codec(Obj).Reason.empty());
 
   Obj.Mode = Detached::ServerShutdown;
   EXPECT_EQ(encode(Obj), "<DETACHED><MODE>Server</MODE></DETACHED>");
   EXPECT_EQ(codec(Obj).Mode, Detached::ServerShutdown);
   EXPECT_EQ(codec(Obj).ExitCode, 0);
+  EXPECT_TRUE(codec(Obj).Reason.empty());
+
+  Obj.Mode = Detached::Kicked;
+  EXPECT_EQ(encode(Obj),
+            "<DETACHED><MODE>Booted</MODE><REASON>Test</REASON></DETACHED>");
+  EXPECT_EQ(codec(Obj).Mode, Detached::Kicked);
+  EXPECT_EQ(codec(Obj).ExitCode, 0);
+  EXPECT_EQ(codec(Obj).Reason, Obj.Reason);
 }
 
 TEST(ControlMessageSerialisation, SignalRequest)
