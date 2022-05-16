@@ -31,7 +31,7 @@ if (MONOMUX_BUILD_TESTS)
   add_executable(monomux_tests
     main.cpp
 
-    adt/RingStorageTest.cpp
+    adt/RingBufferTest.cpp
     adt/SmallIndexMapTest.cpp
     control/MessageSerialisationTest.cpp
     )

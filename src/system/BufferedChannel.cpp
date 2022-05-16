@@ -18,6 +18,8 @@
  */
 #include <sstream>
 
+#include "monomux/adt/RingBuffer.hpp"
+
 #include "monomux/system/BufferedChannel.hpp"
 
 #include "monomux/Log.hpp"
@@ -27,8 +29,16 @@
 namespace monomux
 {
 
-// We have need of this here.
-template class RingStorage<char>;
+namespace detail
+{
+
+class BufferedChannelBuffer : public RingBuffer<char>
+{
+public:
+  BufferedChannelBuffer(std::size_t SizeHint) : RingBuffer(SizeHint) {}
+};
+
+} // namespace detail
 
 /// The size when the dynamic size of the buffer triggers a
 /// \p buffer_overflow.
@@ -36,8 +46,9 @@ static constexpr std::size_t BufferSizeMax = 1ULL << 31; // 2 GiB
 static_assert(BufferedChannel::BufferSize < BufferSizeMax,
               "Default constructed buffer would throw");
 
-std::string BufferedChannel::buffer_overflow::craftErrorMessage(
-  const std::string& Identifier, std::size_t Size)
+std::string
+BufferedChannel::OverflowError::craftErrorMessage(const std::string& Identifier,
+                                                  std::size_t Size)
 {
   std::ostringstream B;
   B << "Channel '" << Identifier << "' buffer overflow maximum size of "
@@ -55,9 +66,9 @@ BufferedChannel::BufferedChannel(
   : Channel(std::move(Handle), std::move(Identifier), NeedsCleanup)
 {
   if (ReadBufferSize)
-    Read = new Buffer(ReadBufferSize);
+    Read = new OpaqueBufferType(ReadBufferSize);
   if (WriteBufferSize)
-    Write = new Buffer(WriteBufferSize);
+    Write = new OpaqueBufferType(WriteBufferSize);
 }
 
 BufferedChannel::~BufferedChannel()
@@ -66,6 +77,28 @@ BufferedChannel::~BufferedChannel()
   delete Write;
   Read = nullptr;
   Write = nullptr;
+}
+
+bool BufferedChannel::hasBufferedRead() const noexcept
+{
+  assert(Read && "Channel does not support reading");
+  return !Read->empty();
+}
+bool BufferedChannel::hasBufferedWrite() const noexcept
+{
+  assert(Write && "Channel does not support writing");
+  return !Write->empty();
+}
+
+std::size_t BufferedChannel::readInBuffer() const noexcept
+{
+  assert(Read && "Channel does not support reading");
+  return Read->size();
+}
+std::size_t BufferedChannel::writeInBuffer() const noexcept
+{
+  assert(Write && "Channel does not support writing");
+  return Write->size();
 }
 
 static void throwIfFailed(bool Failed)
@@ -113,6 +146,7 @@ std::string BufferedChannel::read(std::size_t Bytes)
   if (!Bytes)
     return Return;
 
+  bool BufferTouched = false;
   const std::size_t ChunkSize = optimalReadSize();
   bool ContinueReading = true;
   while (ContinueReading && Bytes > 0)
@@ -150,17 +184,23 @@ std::string BufferedChannel::read(std::size_t Bytes)
                         << "(read) "
                         << "Buffering " << BytesToSave << " bytes");
       Read->putBack(Chunk.data() + BytesFromRead, BytesToSave);
+      BufferTouched = true;
       ContinueReading = false;
     }
 
     Bytes -= BytesFromRead;
+  }
+  if (!BufferTouched)
+  {
+    Read->signalStatisticForSuccessfulUnbufferedAccess();
+    Read->tryCleanup();
   }
 
   if (Read->size() > BufferSizeMax)
   {
     LOG_WITH_IDENTIFIER(trace) << "(read) "
                                << "Buffer overflow!";
-    throw buffer_overflow(
+    throw OverflowError(
       *this, identifier() + "(read)", Read->size(), true, false);
   }
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "read() "
@@ -197,7 +237,7 @@ std::size_t BufferedChannel::write(std::string_view Data)
     {
       LOG_WITH_IDENTIFIER(trace) << "(write) "
                                  << "Buffer overflow!";
-      throw buffer_overflow(
+      throw OverflowError(
         *this, identifier() + "(write)", Write->size(), false, true);
     }
     return 0;
@@ -207,6 +247,7 @@ std::size_t BufferedChannel::write(std::string_view Data)
 
   // If we are this point, the buffer should be clear and Data is still unsent.
   std::size_t BytesSent = 0;
+  bool BufferTouched = false;
   ContinueWriting = true;
   while (ContinueWriting && !Data.empty())
   {
@@ -237,13 +278,19 @@ std::size_t BufferedChannel::write(std::string_view Data)
     MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace)
                       << "Buffering " << BytesToSave << " bytes");
     Write->putBack(Data.data(), BytesToSave);
+    BufferTouched = true;
+  }
+  if (!BufferTouched)
+  {
+    Write->signalStatisticForSuccessfulUnbufferedAccess();
+    Write->tryCleanup();
   }
 
   if (Write->size() > BufferSizeMax)
   {
     LOG_WITH_IDENTIFIER(trace) << "(write) "
                                << "Buffer overflow!";
-    throw buffer_overflow(
+    throw OverflowError(
       *this, identifier() + "(write)", Write->size(), false, true);
   }
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "write() "
@@ -295,7 +342,7 @@ std::size_t BufferedChannel::load(std::size_t Bytes)
   {
     LOG_WITH_IDENTIFIER(trace) << "(load) "
                                << "Buffer overflow!";
-    throw buffer_overflow(
+    throw OverflowError(
       *this, identifier() + "(load)", Read->size(), true, false);
   }
   MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace) << "load() "

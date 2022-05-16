@@ -23,15 +23,24 @@
 #include <string_view>
 #include <vector>
 
-#include "monomux/adt/RingStorage.hpp"
 #include "monomux/adt/UniqueScalar.hpp"
 #include "monomux/system/Channel.hpp"
 
 namespace monomux
 {
 
-/// The buffer for the \p BufferedChannel is a ring storage of bytes.
-extern template class RingStorage<char>;
+namespace detail
+{
+
+/// A ballooning buffer for read/write requests. In some implementations, the
+/// actual low-level read operation might consume (and thus make unavailable)
+/// and return more data than the user requested. This overflow is stored in
+/// this buffer, and served first at subsequent read requests. When writing,
+/// the buffer can store physically unsent data until it is possible to send
+/// everything.
+class BufferedChannelBuffer;
+
+} // namespace detail
 
 /// A special implementation of \p Channel that performs locally (userspace)
 /// buffered reads and writes.
@@ -43,6 +52,8 @@ extern template class RingStorage<char>;
 /// tail end is dropped.
 class BufferedChannel : public Channel
 {
+  using OpaqueBufferType = detail::BufferedChannelBuffer;
+
 public:
   /// The initial size of the buffers that are allocated for a
   /// \p BufferedChannel.
@@ -50,8 +61,7 @@ public:
 
   /// Thrown if the \p Buffer of a \p BufferedChannel exceeds a (reasonable)
   /// size limit.
-  class buffer_overflow // NOLINT(readability-identifier-naming)
-    : public std::runtime_error
+  class OverflowError : public std::runtime_error
   {
     static std::string craftErrorMessage(const std::string& Identifier,
                                          std::size_t Size);
@@ -61,11 +71,11 @@ public:
     bool Write;
 
   public:
-    buffer_overflow(const BufferedChannel& Channel,
-                    const std::string& Identifier,
-                    std::size_t Size,
-                    bool Read,
-                    bool Write)
+    OverflowError(const BufferedChannel& Channel,
+                  const std::string& Identifier,
+                  std::size_t Size,
+                  bool Read,
+                  bool Write)
       : std::runtime_error(craftErrorMessage(Identifier, Size)),
         Channel(Channel), Read(Read), Write(Write)
     {}
@@ -142,29 +152,19 @@ public:
   /// thus will not throw \p buffer_overflow.
   std::size_t flushWrites();
 
-  bool hasBufferedRead() const noexcept
-  {
-    assert(Read && "Channel does not support reading");
-    return !Read->empty();
-  }
-  bool hasBufferedWrite() const noexcept
-  {
-    assert(Write && "Channel does not support writing");
-    return !Write->empty();
-  }
-
-  std::size_t readInBuffer() const noexcept
-  {
-    assert(Read && "Channel does not support reading");
-    return Read->size();
-  }
-  std::size_t writeInBuffer() const noexcept
-  {
-    assert(Write && "Channel does not support writing");
-    return Write->size();
-  }
+  /// \returns whether there are buffered data read but not yet consumed.
+  bool hasBufferedRead() const noexcept;
+  /// \returns whether there are buffered data written but not yet flushed.
+  bool hasBufferedWrite() const noexcept;
+  /// \returns the number of bytes already read, but not yet consumed.
+  std::size_t readInBuffer() const noexcept;
+  /// \returns the number of bytes already written but not yet flushed.
+  std::size_t writeInBuffer() const noexcept;
 
 protected:
+  UniqueScalar<OpaqueBufferType*, nullptr> Read;
+  UniqueScalar<OpaqueBufferType*, nullptr> Write;
+
   /// Creates the buffering structure for the object.
   /// \param ReadBufferSize If non-zero, the size of the read buffer. If zero,
   /// a read buffer will not be created.
@@ -178,17 +178,6 @@ protected:
   BufferedChannel(BufferedChannel&&) noexcept = default;
   BufferedChannel& operator=(BufferedChannel&&) noexcept = default;
 
-  /// A ballooning buffer for read requests. In some implementations, the
-  /// actual low-level read operation might consume (and thus make unavailable)
-  /// and return more data than the user requested. This overflow is stored in
-  /// this buffer, and served first at subsequent read requests. When writing,
-  /// the buffer can store physically unsent data until it is possible to send
-  /// everything.
-  using Buffer = RingStorage<char>;
-
-  UniqueScalar<Buffer*, nullptr> Read;
-  UniqueScalar<Buffer*, nullptr> Write;
-
   /// \returns the size of low-level single read operations that are in some
   /// sense "optimal" for the underlying implementation.
   virtual std::size_t optimalReadSize() const noexcept { return BufferSize; }
@@ -197,6 +186,6 @@ protected:
   virtual std::size_t optimalWriteSize() const noexcept { return BufferSize; }
 };
 
-using buffer_overflow = BufferedChannel::buffer_overflow;
+using buffer_overflow = BufferedChannel::OverflowError;
 
 } // namespace monomux

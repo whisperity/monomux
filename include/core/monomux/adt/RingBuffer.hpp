@@ -18,8 +18,11 @@
  */
 #pragma once
 #include <algorithm>
+#include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,6 +31,182 @@
 
 namespace monomux
 {
+
+namespace detail
+{
+
+/// Helper class that contains the details of \p RingBuffer that is not
+/// dependent on the \p T template parameter, and also deals with calculating
+/// optimal shrinking resizes for the buffer.
+class RingBufferBase
+{
+  static constexpr std::size_t Kilo = 1024;
+
+  const std::size_t OriginalCapacity;
+
+  struct SuccessfulBufferlessAccess
+  {
+    std::chrono::time_point<std::chrono::system_clock> Created;
+    std::chrono::time_point<std::chrono::system_clock> Last;
+
+    SuccessfulBufferlessAccess() : Created(std::chrono::system_clock::now())
+    {
+      stamp();
+    }
+
+    void stamp() noexcept { Last = std::chrono::system_clock::now(); }
+  };
+
+public:
+  std::size_t capacity() const noexcept { return Capacity; }
+  std::size_t size() const noexcept { return Size; }
+  bool empty() const noexcept { return Size == 0; }
+
+  /// Clients to a \p RingBuffer might be able to do the associated operation
+  /// without making use of the buffer. The shrinking heuristic only calculates
+  /// if the buffer is accessed, which means that direct, buffer-not-using
+  /// operations will not trigger a potential \p shrink(), which keeps a grown
+  /// buffer's allocation alive even if there is no need for that much space.
+  ///
+  /// This method is used to signal the heuristic that the client was able to
+  /// do something without involving the buffer. Calling this method has no
+  /// effect on the actual contents of the buffer, if there is any.
+  void signalStatisticForSuccessfulUnbufferedAccess() noexcept
+  {
+    if (Size != 0)
+      return;
+    if (!SuccessfulBufferlessAccessCounter)
+      SuccessfulBufferlessAccessCounter.emplace();
+    else
+      SuccessfulBufferlessAccessCounter->stamp();
+    mayBeValley();
+  }
+
+protected:
+  /// The physical size of the allocated buffer.
+  std::size_t Capacity = 0;
+  /// The number of elements mapped.
+  std::size_t Size = 0;
+
+  RingBufferBase(std::size_t Capacity)
+    : OriginalCapacity(Capacity), Capacity(Capacity)
+  {
+    SizePeaks.resize(((Capacity / Kilo) + 2) * 1);
+  }
+
+  std::size_t originalCapacity() const noexcept { return OriginalCapacity; }
+
+  void incSize() noexcept
+  {
+    ++Size;
+    mayBePeak();
+  }
+  void decSize() noexcept
+  {
+    assert(Size != 0);
+    --Size;
+    mayBeValley();
+  }
+  void addSize(std::size_t N) noexcept
+  {
+    Size += N;
+    mayBePeak();
+  }
+  void subSize(std::size_t N) noexcept
+  {
+    assert(N <= Size);
+    Size -= N;
+    mayBeValley();
+  }
+  void zeroSize() noexcept
+  {
+    Size = 0;
+    mayBeValley();
+  }
+
+  /// \returns whether the \p RingBuffer should shrink itself back to the
+  /// \p originalCapacity() because most of the recent buffer uses did not
+  /// exceed it meaningfully.
+  bool shouldShrink() const noexcept
+  {
+    if (Capacity <= OriginalCapacity)
+      return false;
+
+    // For each KiB of buffer space, we need at least this many successful
+    // small accesses before the shrinking of the buffer is considered.
+    static constexpr std::size_t TimeThreshold = 30;
+    if (SuccessfulBufferlessAccessCounter &&
+        SuccessfulBufferlessAccessCounter->Last -
+            SuccessfulBufferlessAccessCounter->Created >=
+          std::chrono::seconds(TimeThreshold))
+      // Consider the buffer for shrinking if operations were successful without
+      // it "too many" times.
+      return true;
+
+    std::size_t ZeroPeaks = 0;
+    std::size_t SufficientlySmallPeaks = 0;
+    for (std::size_t Peak : SizePeaks)
+      if (Peak == 0)
+        ++ZeroPeaks;
+      else if (Peak <= OriginalCapacity)
+        ++SufficientlySmallPeaks;
+
+    const std::size_t Threshold = (SizePeaks.size() - ZeroPeaks) / 2 + 1;
+    return SufficientlySmallPeaks > Threshold;
+  }
+
+  void resetPeaks() noexcept
+  {
+    for (std::size_t& SPV : SizePeaks)
+      SPV = 0;
+    CurrentPeakIndex = 0;
+    SuccessfulBufferlessAccessCounter.reset();
+    mayBePeak();
+  }
+
+private:
+  /// Contains a list of maximum sizes that were observed between two zeroing
+  /// points (calls to \p resetSize()).
+  std::vector<std::size_t> SizePeaks;
+  std::size_t CurrentPeakIndex = 0;
+
+  std::optional<SuccessfulBufferlessAccess> SuccessfulBufferlessAccessCounter;
+
+  /// Marks the current size as the peak of the current zone, if sufficient.
+  void mayBePeak() noexcept
+  {
+    if (Size == 0 || Capacity <= OriginalCapacity)
+      return;
+
+    SuccessfulBufferlessAccessCounter.reset();
+    if (Size > SizePeaks[CurrentPeakIndex])
+      SizePeaks[CurrentPeakIndex] = Size;
+  }
+
+  /// "Commits" the previous peak and starts counting the size for the next peak
+  /// after the current size has reached zero.
+  void mayBeValley() noexcept
+  {
+    if (Size != 0 || Capacity <= OriginalCapacity)
+      return;
+    if (SizePeaks[CurrentPeakIndex] == 0)
+      return;
+
+    ++CurrentPeakIndex;
+    if (CurrentPeakIndex >= SizePeaks.size())
+    {
+      // If reached the end of the measurement, drop half of the measurement
+      // data.
+      auto NewMiddle = std::rotate(SizePeaks.begin(),
+                                   SizePeaks.begin() + SizePeaks.size() / 2 + 1,
+                                   SizePeaks.end());
+      std::fill(NewMiddle, SizePeaks.end(), 0);
+      CurrentPeakIndex = NewMiddle - SizePeaks.begin();
+    }
+  }
+};
+
+} // namespace detail
 
 /// A ring buffer based backing store that can contain an arbitrary count of
 /// objects of a type.
@@ -60,27 +239,22 @@ namespace monomux
 ///
 /// \tparam T The element type to store. Ring storage works best if T is
 /// default-constructible and this construction is cheap.
-template <class T> class RingStorage
+template <class T> class RingBuffer : public detail::RingBufferBase
 {
   using StorageType = std::unique_ptr<T[]>;
-
   static constexpr bool NothrowAssignable = std::is_nothrow_assignable_v<T, T>;
 
 public:
-  RingStorage(std::size_t InitialSize)
-    : Storage(new T[InitialSize]), Capacity(InitialSize),
+  RingBuffer(std::size_t Capacity)
+    : RingBufferBase(Capacity), StorageWithOriginalCapacity(new T[Capacity]),
       Origin(physicalBegin()), End(physicalBegin())
   {}
 
-  RingStorage(std::initializer_list<T> Init) : RingStorage(Init.size())
+  RingBuffer(std::initializer_list<T> Init) : RingBuffer(Init.size())
   {
     for (auto& E : Init)
       emplace_back(std::move(E));
   }
-
-  std::size_t capacity() const noexcept { return Capacity; }
-  std::size_t size() const noexcept { return Size; }
-  bool empty() const noexcept { return Size == 0; }
 
   /// Copies the element \p V to the end of the buffer.
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -100,7 +274,7 @@ public:
     *InsertPos = T{std::forward<Args>(Argv)...};
 
     End = InsertPos + 1;
-    ++Size;
+    incSize();
   }
 
   /// Copies the element \p V to the beginning of the buffer.
@@ -121,7 +295,7 @@ public:
     *InsertPos = T{std::forward<Args>(Argv)...};
 
     Origin = InsertPos;
-    ++Size;
+    incSize();
   }
 
   /// \returns a reference to the element at the specified location \p Index.
@@ -130,7 +304,6 @@ public:
     if (Index >= Size)
       throw std::out_of_range{std::string{"idx "} + std::to_string(Index) +
                               " >= size " + std::to_string(Size)};
-
     return *translateIndex(Index);
   }
   /// \returns a reference to the element at the specified location \p Index.
@@ -142,10 +315,10 @@ public:
 
   void clear() noexcept(NothrowAssignable)
   {
-    for (std::size_t I = 0; I < Size; ++I)
-      *translateIndex(I) = T{};
-    Size = 0;
-    resetToPhysicalOriginIfEmpty();
+    for (std::size_t I = 0; I < originalCapacity(); ++I)
+      StorageWithOriginalCapacity[I] = T{};
+    zeroSize();
+    tryCleanup();
   }
 
   /// \returns a reference to the first element.
@@ -179,9 +352,8 @@ public:
     ++Origin;
     if (Origin == physicalEnd())
       Origin = physicalBegin();
-    --Size;
-
-    resetToPhysicalOriginIfEmpty();
+    decSize();
+    tryCleanup();
   }
   /// Removes the first element (\p front()) from the buffer.
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -196,9 +368,8 @@ public:
       End = physicalEnd();
     else
       --End;
-    --Size;
-
-    resetToPhysicalOriginIfEmpty();
+    decSize();
+    tryCleanup();
   }
 
   /// Consume at most \p N elements from the beginning of the buffer.
@@ -217,12 +388,11 @@ public:
   void dropFront(std::size_t N)
   {
     if (N > Size)
-      Size = N;
+      N = Size;
 
     Origin = translateIndex(N);
-    Size -= N;
-
-    resetToPhysicalOriginIfEmpty();
+    subSize(N);
+    tryCleanup();
   }
 
   /// Copy out at most \p N elements from the beginning of the buffer, but
@@ -274,7 +444,7 @@ public:
         P = physicalBegin();
     }
 
-    Size += N;
+    addSize(N);
     End = P;
   }
 
@@ -298,19 +468,42 @@ public:
         P = physicalBegin();
     }
 
-    Size += N;
+    addSize(N);
     End = P;
   }
 
-private:
-  StorageType Storage;
-  /// The physical size of the allocated buffer.
-  std::size_t Capacity;
-  /// The number of elements mapped.
-  std::size_t Size = 0;
+  /// Attempts to heuristically release associated resources if the buffer was
+  /// not used for a while.
+  void tryCleanup()
+  {
+    if (!empty())
+      return;
 
-  T* physicalBegin() const noexcept { return Storage.get(); }
-  T* physicalEnd() const noexcept { return (Storage.get()) + Capacity; }
+    if (shouldShrink())
+      shrink(originalCapacity());
+    Origin.get() = End.get() = physicalBegin();
+  }
+
+private:
+  /// This storage is created at initialisation and is not freed until the
+  /// destructor. It has the original capacity as intended by the client.
+  StorageType StorageWithOriginalCapacity;
+  /// In case the ring buffer would overflow its \b original capacity, a
+  /// new storage is created here. When the buffer is \p shrink()ed, access
+  /// returns to the original buffer.
+  StorageType GrowingStorage;
+
+  /// Whether the \p RingBuffer is using the growing storage or the original
+  /// one.
+  UniqueScalar<bool, false> UsingGrowingStorage;
+  const StorageType& getStorage() const noexcept
+  {
+    return UsingGrowingStorage ? GrowingStorage : StorageWithOriginalCapacity;
+  }
+  MEMBER_FN_NON_CONST_0(StorageType&, getStorage);
+
+  T* physicalBegin() const noexcept { return getStorage().get(); }
+  T* physicalEnd() const noexcept { return (getStorage().get()) + Capacity; }
 
   /// The \p Origin represents the logical \e Begin point of the buffer, the
   /// place where the first element is (if there are any).
@@ -358,14 +551,6 @@ private:
     return physicalBegin() + (((Origin - physicalBegin()) + I) % Capacity);
   }
 
-  void resetToPhysicalOriginIfEmpty()
-  {
-    if (!empty())
-      return;
-
-    Origin.get() = End.get() = physicalBegin();
-  }
-
   /// Compacts the elements to the left side of the buffer, making the physical
   /// begin and the logical begin start at the beginning of the array.
   void rotateToPhysical()
@@ -391,14 +576,53 @@ private:
       while (NewCapacity < NewCapacityAtLeast)
         NewCapacity *= 2;
 
+    if (NewCapacity <= Capacity)
+      return;
+
     StorageType New{new T[NewCapacity]};
     for (std::size_t I = 0; I < Size; ++I)
-      New[I] = std::move(Storage[I]);
-    std::swap(Storage, New);
+      New[I] = std::move(getStorage()[I]);
+
+    if (UsingGrowingStorage)
+      std::swap(GrowingStorage, New);
+    else
+    {
+      std::fill(StorageWithOriginalCapacity.get(),
+                StorageWithOriginalCapacity.get() + originalCapacity(),
+                T{});
+
+      GrowingStorage = std::move(New);
+      UsingGrowingStorage = true;
+    }
 
     Capacity = NewCapacity;
     Origin = physicalBegin();
     End = Origin + Size;
+  }
+
+  /// Shrinks the buffer to be able to store exactly \p NewCapacity elements.
+  void shrink(std::size_t NewCapacity)
+  {
+    assert(empty() && "shrink() when buffer was not empty!");
+    if (!empty())
+      return;
+    if (Capacity == NewCapacity)
+      return;
+
+    resetPeaks();
+    if (NewCapacity <= originalCapacity())
+    {
+      UsingGrowingStorage = false;
+      GrowingStorage.reset();
+    }
+    else
+    {
+      UsingGrowingStorage = true;
+      StorageType New{new T[NewCapacity]};
+      std::swap(GrowingStorage, New);
+    }
+
+    Capacity = NewCapacity;
   }
 };
 

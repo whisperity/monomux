@@ -117,7 +117,7 @@ void Terminal::clientInput(Terminal* Term, Client& Client)
 
   do
   {
-    static constexpr std::size_t ReadSize = 1 << 10;
+    static constexpr std::size_t ReadSize = BUFSIZ;
     std::string Input = Term->input()->read(ReadSize);
     if (Input.empty())
       return;
@@ -131,7 +131,7 @@ void Terminal::clientOutput(Terminal* Term, Client& Client)
   assert(Term->MovedFromCheck &&
          "Terminal object registered as callback was moved.");
 
-  static constexpr std::size_t ReadSize = 1 << 10;
+  static constexpr std::size_t ReadSize = BUFSIZ;
   std::string Output = Client.getDataSocket()->read(ReadSize);
   Term->output()->write(Output);
 
