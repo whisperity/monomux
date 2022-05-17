@@ -4,6 +4,7 @@ Checks: >-
   bugprone-*,
   bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,
+  -bugprone-unchecked-optional-access,
   cert-*,
   google-build-namespaces,
   llvm-header-guard,

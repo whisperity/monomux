@@ -11,6 +11,7 @@ on:
       - '**.ipp'
       - '.github/codechecker/**'
       - '.github/workflows/codechecker.yml'
+      - '.clang-tidy'
     branches:
       - '**'
     tags:
