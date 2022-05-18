@@ -44,43 +44,10 @@ class RingBufferBase
 
   const std::size_t OriginalCapacity;
 
-  struct SuccessfulBufferlessAccess
-  {
-    std::chrono::time_point<std::chrono::system_clock> Created;
-    std::chrono::time_point<std::chrono::system_clock> Last;
-
-    SuccessfulBufferlessAccess() : Created(std::chrono::system_clock::now())
-    {
-      stamp();
-    }
-
-    void stamp() noexcept { Last = std::chrono::system_clock::now(); }
-  };
-
 public:
   std::size_t capacity() const noexcept { return Capacity; }
   std::size_t size() const noexcept { return Size; }
   bool empty() const noexcept { return Size == 0; }
-
-  /// Clients to a \p RingBuffer might be able to do the associated operation
-  /// without making use of the buffer. The shrinking heuristic only calculates
-  /// if the buffer is accessed, which means that direct, buffer-not-using
-  /// operations will not trigger a potential \p shrink(), which keeps a grown
-  /// buffer's allocation alive even if there is no need for that much space.
-  ///
-  /// This method is used to signal the heuristic that the client was able to
-  /// do something without involving the buffer. Calling this method has no
-  /// effect on the actual contents of the buffer, if there is any.
-  void signalStatisticForSuccessfulUnbufferedAccess() noexcept
-  {
-    if (Size != 0)
-      return;
-    if (!SuccessfulBufferlessAccessCounter)
-      SuccessfulBufferlessAccessCounter.emplace();
-    else
-      SuccessfulBufferlessAccessCounter->stamp();
-    mayBeValley();
-  }
 
 protected:
   /// The physical size of the allocated buffer.
@@ -91,6 +58,7 @@ protected:
   RingBufferBase(std::size_t Capacity)
     : OriginalCapacity(Capacity), Capacity(Capacity)
   {
+    markAccess();
     SizePeaks.resize(((Capacity / Kilo) + 2) * 1);
   }
 
@@ -99,23 +67,27 @@ protected:
   void incSize() noexcept
   {
     ++Size;
+    markAccess();
     mayBePeak();
   }
   void decSize() noexcept
   {
     assert(Size != 0);
     --Size;
+    markAccess();
     mayBeValley();
   }
   void addSize(std::size_t N) noexcept
   {
     Size += N;
+    markAccess();
     mayBePeak();
   }
   void subSize(std::size_t N) noexcept
   {
     assert(N <= Size);
     Size -= N;
+    markAccess();
     mayBeValley();
   }
   void zeroSize() noexcept
@@ -132,17 +104,17 @@ protected:
     if (Capacity <= OriginalCapacity)
       return false;
 
-    // For each KiB of buffer space, we need at least this many successful
-    // small accesses before the shrinking of the buffer is considered.
-    static constexpr std::size_t TimeThreshold = 30;
-    if (SuccessfulBufferlessAccessCounter &&
-        SuccessfulBufferlessAccessCounter->Last -
-            SuccessfulBufferlessAccessCounter->Created >=
-          std::chrono::seconds(TimeThreshold))
+    static constexpr std::size_t TimeThresholdSeconds = 60;
+    if (std::chrono::system_clock::now() - LastAccess >=
+        std::chrono::seconds(TimeThresholdSeconds))
       // Consider the buffer for shrinking if operations were successful without
-      // it "too many" times.
+      // accessing the buffer for a sufficient amount of time.
       return true;
 
+    // Otherwise, if the buffer is continously used for a sufficient amount of
+    // time, consider shrinking it in case at least half of the recent peaks
+    // (inbetween each valley, i.e. zeroing the size) would've fit into the
+    // original buffer capacity too.
     std::size_t ZeroPeaks = 0;
     std::size_t SufficientlySmallPeaks = 0;
     for (std::size_t Peak : SizePeaks)
@@ -160,7 +132,6 @@ protected:
     for (std::size_t& SPV : SizePeaks)
       SPV = 0;
     CurrentPeakIndex = 0;
-    SuccessfulBufferlessAccessCounter.reset();
     mayBePeak();
   }
 
@@ -170,7 +141,9 @@ private:
   std::vector<std::size_t> SizePeaks;
   std::size_t CurrentPeakIndex = 0;
 
-  std::optional<SuccessfulBufferlessAccess> SuccessfulBufferlessAccessCounter;
+  std::chrono::time_point<std::chrono::system_clock> LastAccess;
+
+  void markAccess() noexcept { LastAccess = std::chrono::system_clock::now(); }
 
   /// Marks the current size as the peak of the current zone, if sufficient.
   void mayBePeak() noexcept
@@ -178,7 +151,6 @@ private:
     if (Size == 0 || Capacity <= OriginalCapacity)
       return;
 
-    SuccessfulBufferlessAccessCounter.reset();
     if (Size > SizePeaks[CurrentPeakIndex])
       SizePeaks[CurrentPeakIndex] = Size;
   }
@@ -194,15 +166,9 @@ private:
 
     ++CurrentPeakIndex;
     if (CurrentPeakIndex >= SizePeaks.size())
-    {
-      // If reached the end of the measurement, drop half of the measurement
-      // data.
-      auto NewMiddle = std::rotate(SizePeaks.begin(),
-                                   SizePeaks.begin() + SizePeaks.size() / 2 + 1,
-                                   SizePeaks.end());
-      std::fill(NewMiddle, SizePeaks.end(), 0);
-      CurrentPeakIndex = NewMiddle - SizePeaks.begin();
-    }
+      // If we reached the end of the measurement vector, restart from the
+      // start. This is a little ring buffer of itself. :)
+      CurrentPeakIndex = 0;
   }
 };
 

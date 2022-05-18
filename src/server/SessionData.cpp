@@ -45,26 +45,6 @@ raw_fd SessionData::getIdentifyingFD() const noexcept
   return P.getPty()->raw().get();
 }
 
-std::string SessionData::readOutput(std::size_t Size)
-{
-  if (!hasProcess() || !getProcess().hasPty())
-    return {};
-  return getProcess().getPty()->reader().read(Size);
-}
-
-bool SessionData::stillHasOutput() noexcept
-{
-  return hasProcess() && getProcess().getPty() &&
-         getProcess().getPty()->reader().hasBufferedRead();
-}
-
-std::size_t SessionData::sendInput(std::string_view Data)
-{
-  if (!hasProcess() || !getProcess().hasPty())
-    return 0;
-  return getProcess().getPty()->writer().write(Data);
-}
-
 ClientData* SessionData::getLatestClient() const
 {
   MONOMUX_TRACE_LOG(LOG(trace) << "Searching latest active client of \"" << Name

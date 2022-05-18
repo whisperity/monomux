@@ -234,6 +234,8 @@ void Client::loop()
     if (ExternalEventProcessor)
       // Process "external" events before blocking on "wait()".
       ExternalEventProcessor(*this);
+    ControlSocket.tryFreeResources();
+    DataSocket->tryFreeResources();
 
     const std::size_t NumTriggeredFDs = Poll->wait();
     for (std::size_t I = 0; I < NumTriggeredFDs; ++I)

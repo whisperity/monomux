@@ -161,6 +161,11 @@ public:
   /// \returns the number of bytes already written but not yet flushed.
   std::size_t writeInBuffer() const noexcept;
 
+  /// Attempts to automatically free auto-growing memory resources associated
+  /// with the buffer(s), if it is possible and deemed meaningful. This is a
+  /// heuristics-based call that does not always actually free resources.
+  void tryFreeResources();
+
 protected:
   UniqueScalar<OpaqueBufferType*, nullptr> Read;
   UniqueScalar<OpaqueBufferType*, nullptr> Write;

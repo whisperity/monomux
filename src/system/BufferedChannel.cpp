@@ -146,7 +146,6 @@ std::string BufferedChannel::read(std::size_t Bytes)
   if (!Bytes)
     return Return;
 
-  bool BufferTouched = false;
   const std::size_t ChunkSize = optimalReadSize();
   bool ContinueReading = true;
   while (ContinueReading && Bytes > 0)
@@ -184,16 +183,10 @@ std::string BufferedChannel::read(std::size_t Bytes)
                         << "(read) "
                         << "Buffering " << BytesToSave << " bytes");
       Read->putBack(Chunk.data() + BytesFromRead, BytesToSave);
-      BufferTouched = true;
       ContinueReading = false;
     }
 
     Bytes -= BytesFromRead;
-  }
-  if (!BufferTouched)
-  {
-    Read->signalStatisticForSuccessfulUnbufferedAccess();
-    Read->tryCleanup();
   }
 
   if (Read->size() > BufferSizeMax)
@@ -247,7 +240,6 @@ std::size_t BufferedChannel::write(std::string_view Data)
 
   // If we are this point, the buffer should be clear and Data is still unsent.
   std::size_t BytesSent = 0;
-  bool BufferTouched = false;
   ContinueWriting = true;
   while (ContinueWriting && !Data.empty())
   {
@@ -278,12 +270,6 @@ std::size_t BufferedChannel::write(std::string_view Data)
     MONOMUX_TRACE_LOG(LOG_WITH_IDENTIFIER(trace)
                       << "Buffering " << BytesToSave << " bytes");
     Write->putBack(Data.data(), BytesToSave);
-    BufferTouched = true;
-  }
-  if (!BufferTouched)
-  {
-    Write->signalStatisticForSuccessfulUnbufferedAccess();
-    Write->tryCleanup();
   }
 
   if (Write->size() > BufferSizeMax)
@@ -385,6 +371,14 @@ std::size_t BufferedChannel::flushWrites()
                                                << "-> " << BytesSent);
 
   return BytesSent;
+}
+
+void BufferedChannel::tryFreeResources()
+{
+  if (Read)
+    Read->tryCleanup();
+  if (Write)
+    Write->tryCleanup();
 }
 
 } // namespace monomux

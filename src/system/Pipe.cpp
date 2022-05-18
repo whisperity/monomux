@@ -88,7 +88,7 @@ Pipe::AnonymousPipe Pipe::create(bool InheritInChild)
   LOG(debug) << "Created anonymous pipe";
 
   std::ostringstream RName;
-  RName << "<anonpipe:" << PipeFDs[0] << "+" << PipeFDs[1] << "/";
+  RName << "<anonpipe:" << PipeFDs[0] << ',' << PipeFDs[1] << '/';
 
   std::ostringstream WName;
   WName << RName.str();

@@ -124,6 +124,7 @@ void Terminal::clientInput(Terminal* Term, Client& Client)
 
     Client.sendData(Input);
   } while (Term->input()->hasBufferedRead());
+  Term->input()->tryFreeResources();
 }
 
 void Terminal::clientOutput(Terminal* Term, Client& Client)
@@ -137,6 +138,7 @@ void Terminal::clientOutput(Terminal* Term, Client& Client)
 
   while (Term->output()->hasBufferedWrite())
     Term->output()->flushWrites();
+  Term->output()->tryFreeResources();
 }
 
 void Terminal::clientEventReady(Terminal* Term, Client& Client)

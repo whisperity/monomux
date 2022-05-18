@@ -67,18 +67,22 @@ public:
   /// the connection towards the session.
   raw_fd getIdentifyingFD() const noexcept;
 
-  /// Reads at most \p Size bytes from the output of the program running in the
-  /// session, if any.
-  std::string readOutput(std::size_t Size);
-
-  /// \returns whether there is buffered output available on the output pipe
-  /// from the session, i.e. further \p readOutput() calls could be made without
-  /// interacting with the underlying device.
-  bool stillHasOutput() noexcept;
-
-  /// Sends the \p Data as input to the program running in the session, if any.
-  /// \returns the number of bytes written.
-  std::size_t sendInput(std::string_view Data);
+  /// \returns the connection through which data can be read from the session,
+  /// if there is any.
+  Pipe* getReader() noexcept
+  {
+    if (!hasProcess() || !getProcess().hasPty())
+      return nullptr;
+    return &getProcess().getPty()->reader();
+  }
+  /// \returns the connection through which data can be sent to the session,
+  /// if there is any.
+  Pipe* getWriter() noexcept
+  {
+    if (!hasProcess() || !getProcess().hasPty())
+      return nullptr;
+    return &getProcess().getPty()->writer();
+  }
 
   const std::vector<ClientData*>& getAttachedClients() const noexcept
   {

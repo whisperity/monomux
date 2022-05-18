@@ -168,15 +168,20 @@ void Server::loop()
       {
         if (auto* Session = std::get_if<SessionConnection>(Entity))
         {
+          SessionData& S = **Session;
           if (Event.Incoming)
+          {
             // First check for data coming from a session. This is the most
             // populous in terms of bandwidth.
-            dataCallback(**Session);
+            dataCallback(S);
+            S.getReader()->tryFreeResources();
+          }
           if (Event.Outgoing)
           {
             try
             {
-              (**Session).sendInput(std::string_view{});
+              S.getWriter()->flushWrites();
+              S.getWriter()->tryFreeResources();
             }
             catch (const buffer_overflow& BO)
             {
@@ -187,22 +192,34 @@ void Server::loop()
         }
         if (auto* Data = std::get_if<ClientDataConnection>(Entity))
         {
+          ClientData& C = **Data;
+          auto ClientID = C.id();
+
           if (Event.Incoming)
             // Second, try to see if the data is coming from a client, like
             // keypresses and such. We expect to see many of these, too.
-            dataCallback(**Data);
+            dataCallback(C);
           if (Event.Outgoing)
-            flushAndReschedule(*Poll, *(**Data).getDataSocket());
+            flushAndReschedule(*Poll, *C.getDataSocket());
+
+          if (Clients.find(ClientID) != Clients.end())
+            C.getDataSocket()->tryFreeResources();
           continue;
         }
         if (auto* Control = std::get_if<ClientControlConnection>(Entity))
         {
+          ClientData& C = **Control;
+          auto ClientID = C.id();
+
           if (Event.Incoming)
             // Lastly, check if the receive is happening on the control
             // connection, where messages are small and far inbetween.
-            controlCallback(**Control);
+            controlCallback(C);
           if (Event.Outgoing)
-            flushAndReschedule(*Poll, (**Control).getControlSocket());
+            flushAndReschedule(*Poll, C.getControlSocket());
+
+          if (Clients.find(ClientID) != Clients.end())
+            C.getControlSocket().tryFreeResources();
           continue;
         }
       }
@@ -394,6 +411,8 @@ void Server::controlCallback(ClientData& Client)
 
   if (ClientSock.hasBufferedRead())
     Poll->schedule(ClientSock.raw(), /* Incoming =*/true, /* Outgoing =*/false);
+  else
+    ClientSock.tryFreeResources();
 
   if (Data.empty())
     return;
@@ -478,7 +497,7 @@ void Server::dataCallback(ClientData& Client)
   if (SessionData* S = Client.getAttachedSession())
     try
     {
-      S->sendInput(Data);
+      S->getWriter()->write(Data);
     }
     catch (const buffer_overflow& BO)
     {
@@ -526,7 +545,7 @@ void Server::dataCallback(SessionData& Session)
   std::string Data;
   try
   {
-    Data = Session.readOutput(BufferSize);
+    Data = Session.getReader()->read(BufferSize);
   }
   catch (const buffer_overflow& BO)
   {
@@ -543,7 +562,7 @@ void Server::dataCallback(SessionData& Session)
     return;
   }
 
-  if (Session.stillHasOutput())
+  if (Session.getReader()->hasBufferedRead())
     Poll->schedule(Session.getIdentifyingFD(),
                    /* Incoming =*/true,
                    /* Outgoing =*/false);
