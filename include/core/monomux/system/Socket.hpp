@@ -109,14 +109,14 @@ public:
   using BufferedChannel::read;
   using BufferedChannel::write;
 
+  std::size_t optimalReadSize() const noexcept override;
+  std::size_t optimalWriteSize() const noexcept override;
+
 protected:
   Socket(fd Handle, std::string Identifier, bool NeedsCleanup);
 
   std::string readImpl(std::size_t Bytes, bool& Continue) override;
   std::size_t writeImpl(std::string_view Buffer, bool& Continue) override;
-
-  std::size_t optimalReadSize() const noexcept override;
-  std::size_t optimalWriteSize() const noexcept override;
 
 private:
   /// Whether the current instance is \e owning a socket, i.e. controlling it

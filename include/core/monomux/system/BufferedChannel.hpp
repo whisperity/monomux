@@ -161,6 +161,13 @@ public:
   /// \returns the number of bytes already written but not yet flushed.
   std::size_t writeInBuffer() const noexcept;
 
+  /// \returns the size of low-level single read operations that are in some
+  /// sense "optimal" for the underlying implementation.
+  virtual std::size_t optimalReadSize() const noexcept { return BufferSize; }
+  /// \returns the size of low-level single write operations that are in some
+  /// sense "optimal" for the underlying implementation.
+  virtual std::size_t optimalWriteSize() const noexcept { return BufferSize; }
+
   /// Attempts to automatically free auto-growing memory resources associated
   /// with the buffer(s), if it is possible and deemed meaningful. This is a
   /// heuristics-based call that does not always actually free resources.
@@ -182,13 +189,6 @@ protected:
                   std::size_t WriteBufferSize = BufferSize);
   BufferedChannel(BufferedChannel&&) noexcept = default;
   BufferedChannel& operator=(BufferedChannel&&) noexcept = default;
-
-  /// \returns the size of low-level single read operations that are in some
-  /// sense "optimal" for the underlying implementation.
-  virtual std::size_t optimalReadSize() const noexcept { return BufferSize; }
-  /// \returns the size of low-level single write operations that are in some
-  /// sense "optimal" for the underlying implementation.
-  virtual std::size_t optimalWriteSize() const noexcept { return BufferSize; }
 };
 
 using buffer_overflow = BufferedChannel::OverflowError;

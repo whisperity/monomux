@@ -452,7 +452,6 @@ void Server::controlCallback(ClientData& Client)
 
 void Server::dataCallback(ClientData& Client)
 {
-  static constexpr std::size_t BufferSize = 1024;
 
   MONOMUX_TRACE_LOG(LOG(trace)
                     << "Client \"" << Client.id() << "\" sent DATA!");
@@ -460,7 +459,7 @@ void Server::dataCallback(ClientData& Client)
   std::string Data;
   try
   {
-    Data = DS.read(BufferSize);
+    Data = DS.read(DS.optimalReadSize());
   }
   catch (const buffer_overflow& BO)
   {
@@ -538,14 +537,12 @@ void Server::createCallback(SessionData& Session)
 
 void Server::dataCallback(SessionData& Session)
 {
-  static constexpr std::size_t BufferSize = 1024;
-
   MONOMUX_TRACE_LOG(LOG(trace)
                     << "Session \"" << Session.name() << "\" sent DATA!");
   std::string Data;
   try
   {
-    Data = Session.getReader()->read(BufferSize);
+    Data = Session.getReader()->read(Session.getReader()->optimalReadSize());
   }
   catch (const buffer_overflow& BO)
   {
