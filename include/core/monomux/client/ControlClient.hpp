@@ -32,6 +32,10 @@ namespace monomux::client
 class ControlClient
 {
 public:
+  /// Allows operation in a \p ControlClient \b without attaching to a session.
+  ControlClient(Client& C);
+  /// Attaches the \p ControlClient to \p Session to allow session-specific
+  /// operations.
   ControlClient(Client& C, std::string Session);
 
   const std::string& sessionName() const noexcept { return SessionName; }
@@ -45,6 +49,13 @@ public:
   /// Send a request to the server to gracefully detach every client from the
   /// session.
   void requestDetachAllClients();
+
+  /// Sends a request to the server to gather statistical information and reply
+  /// it back to this \p Client.
+  ///
+  /// \throws std::runtime_error Thrown if communication with the server failed
+  /// and it did not produce a response that the client could understand.
+  std::string requestStatistics();
 
 private:
   Client& BackingClient;

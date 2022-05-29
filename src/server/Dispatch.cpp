@@ -16,11 +16,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "monomux/system/Process.hpp"
-
 #include "monomux/control/Message.hpp"
 #include "monomux/control/PascalString.hpp"
 #include "monomux/system/Environment.hpp"
+#include "monomux/system/Process.hpp"
 
 #include "monomux/server/Server.hpp"
 
@@ -281,6 +280,13 @@ HANDLER(redrawNotified)
     return;
   if (S->hasProcess() && S->getProcess().hasPty())
     S->getProcess().getPty()->setSize(Msg->Rows, Msg->Columns);
+}
+
+HANDLER(statisticsRequest)
+{
+  MSG(request::Statistics);
+  sendMessage(Client.getControlSocket(),
+              response::Statistics{Server.statistics()});
 }
 
 #undef HANDLER

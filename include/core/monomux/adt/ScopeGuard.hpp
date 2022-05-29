@@ -27,7 +27,9 @@ namespace monomux
 ///
 /// Example:
 ///
-///     scope_guard RAII{[] { enter(); }, [] { exit(); }};
+///   \code{.cpp}
+///   scope_guard RAII{[] { enter(); }, [] { exit(); }};
+///   \endcode
 template <typename EnterFunction, typename ExitFunction> struct ScopeGuard
 {
   ScopeGuard(EnterFunction&& Enter, ExitFunction&& Exit) : Exit(Exit)

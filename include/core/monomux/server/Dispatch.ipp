@@ -15,4 +15,6 @@ DISPATCH(SignalRequest, signalSession)
 
 DISPATCH(RedrawNotification, redrawNotified)
 
+DISPATCH(StatisticsRequest, statisticsRequest)
+
 #undef DISPATCH

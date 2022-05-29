@@ -61,6 +61,7 @@ struct ::option LongOptions[] = {
   {"interactive", no_argument,       nullptr, 'i'},
   {"detach",      no_argument,       nullptr, 'd'},
   {"detach-all",  no_argument,       nullptr, 'D'},
+  {"statistics",  no_argument,       nullptr, 0},
   {"no-daemon",   no_argument,       nullptr, 'N'},
   {"keepalive",   no_argument,       nullptr, 'k'},
   {nullptr,       0,                 nullptr, 0}
@@ -129,6 +130,10 @@ int main(int ArgC, char* ArgV[])
           {
             ServerOpts.ServerMode = true;
             ClientOpts.ClientMode = false;
+          }
+          else if (Opt == "statistics")
+          {
+            ClientOpts.StatisticsRequest = true;
           }
           else
           {
@@ -471,6 +476,7 @@ Client options:
                                   to an existing session, this flag is ignored!
                                   This flag may be specified multiple times for
                                   multiple environment variables.
+    -s PATH, --socket PATH      - Path of the server socket to connect to.
     -n NAME, --name NAME        - Name of the remote session to attach to or
                                   create. (Defaults to an automatically
                                   generated value.)
@@ -483,7 +489,6 @@ Client options:
                                   server. (The default behaviour is to
                                   automatically create a session or attach in
                                   this case.)
-    -s PATH, --socket PATH      - Path of the server socket to connect to.
 
 
 In-session options:

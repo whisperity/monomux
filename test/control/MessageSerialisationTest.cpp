@@ -349,7 +349,28 @@ TEST(ControlMessageSerialisation, RedrawNotification)
 
   {
     auto Decode = codec(Obj);
+    EXPECT_EQ(encode(Obj),
+              "<WINDOW-SIZE-CHANGE><ROWS>24</ROWS><COLS>80</COLS>"
+              "</WINDOW-SIZE-CHANGE>");
     EXPECT_EQ(Decode.Rows, Obj.Rows);
     EXPECT_EQ(Decode.Columns, Obj.Columns);
+  }
+}
+
+TEST(ControlMessageSerialisation, StatisticsRequest)
+{
+  monomux::message::request::Statistics Obj;
+  EXPECT_EQ(encode(Obj), "<SEND-STATISTICS />");
+}
+
+TEST(ControlMessageSerialisation, StatisticsResponse)
+{
+  monomux::message::response::Statistics Obj;
+  Obj.Contents = "Foo";
+
+  {
+    auto Decode = codec(Obj);
+    EXPECT_EQ(encode(Obj), "<STATISTICS Size=\"3\">Foo</STATISTICS>");
+    EXPECT_EQ(Decode.Contents, Obj.Contents);
   }
 }

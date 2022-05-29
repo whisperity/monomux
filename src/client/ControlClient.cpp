@@ -24,6 +24,8 @@
 namespace monomux::client
 {
 
+ControlClient::ControlClient(Client& C) : BackingClient(C) {}
+
 ControlClient::ControlClient(Client& C, std::string Session)
   : BackingClient(C), SessionName(std::move(Session))
 {
@@ -52,6 +54,20 @@ void ControlClient::requestDetachAllClients()
   sendMessage(BackingClient.getControlSocket(),
               request::Detach{request::Detach::All});
   receiveMessage<response::Detach>(BackingClient.getControlSocket());
+}
+
+std::string ControlClient::requestStatistics()
+{
+  using namespace monomux::message;
+
+  auto X = BackingClient.inhibitControlResponse();
+  sendMessage(BackingClient.getControlSocket(), request::Statistics{});
+  auto Response =
+    receiveMessage<response::Statistics>(BackingClient.getControlSocket());
+
+  if (!Response)
+    throw std::runtime_error{"Failed to receive a valid response!"};
+  return std::move(Response)->Contents;
 }
 
 } // namespace monomux::client

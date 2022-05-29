@@ -49,6 +49,24 @@ public:
   std::size_t size() const noexcept { return Size; }
   bool empty() const noexcept { return Size == 0; }
 
+  std::size_t originalCapacity() const noexcept { return OriginalCapacity; }
+  std::chrono::time_point<std::chrono::system_clock> lastAccess() const noexcept
+  {
+    return LastAccess;
+  }
+
+  /// \returns the profiling data of size peaks between buffer emptying
+  /// gathered.
+  auto peakStats() const
+  {
+    std::vector<std::size_t> Peaks = SizePeaks;
+    if (Peaks.back() > 0 && CurrentPeakIndex != 0)
+      // Put the last measurement to the beginning of the data structure,
+      // undoing the inner "ring buffer" used.
+      std::rotate(Peaks.begin(), Peaks.begin() + CurrentPeakIndex, Peaks.end());
+    return Peaks;
+  }
+
 protected:
   /// The physical size of the allocated buffer.
   std::size_t Capacity = 0;
@@ -61,8 +79,6 @@ protected:
     markAccess();
     SizePeaks.resize(((Capacity / Kilo) + 2) * 1);
   }
-
-  std::size_t originalCapacity() const noexcept { return OriginalCapacity; }
 
   void incSize() noexcept
   {

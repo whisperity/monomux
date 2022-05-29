@@ -25,10 +25,9 @@
 namespace monomux
 {
 
-/// Tags a type at compile-time with a scalar value that is only descript to
-/// clients consuming this object. Otherwise, behaves the same as \p T.
-/// Tags a pointer pointing to any type with an indicatory numeric value
-/// statically.
+/// Tags a pointer to a type at compile-time with a scalar value that is only
+/// descript to clients consuming this object.
+/// Otherwise, behaves the same as \p T*.
 template <std::size_t N, typename T> class Tagged
 {
   static constexpr std::size_t Kind = N;

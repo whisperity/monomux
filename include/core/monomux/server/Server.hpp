@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -77,6 +78,12 @@ public:
 
   ~Server();
 
+  std::chrono::time_point<std::chrono::system_clock>
+  whenStarted() const noexcept
+  {
+    return WhenStarted;
+  }
+
   /// Override the default handling logic for the specified message \p Kind to
   /// fire the user-given \p Handler \b instead \b of the built-in default.
   void registerMessageHandler(std::uint16_t Kind,
@@ -120,6 +127,7 @@ private:
                                      SessionConnection>;
 
   Socket Sock;
+  std::chrono::time_point<std::chrono::system_clock> WhenStarted;
 
   static constexpr std::size_t FDLookupSize = 256;
   /// A quick lookup that associates a file descriptor to the data for the
@@ -233,6 +241,10 @@ public:
   /// This method takes care of associating that in the \p Clients map.
   void turnClientIntoDataOfOtherClient(ClientData& MainClient,
                                        ClientData& DataClient);
+
+  /// \returns a statistical breakdown of the state of the server and the
+  /// connections handled. This data is not meant to be machine-readable!
+  std::string statistics() const;
 
 private:
   /// Maps \p MessageKind to handler functions.

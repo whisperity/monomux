@@ -559,6 +559,18 @@ DECODE(Signal)
   return Ret;
 }
 
+ENCODE(Statistics)
+{
+  (void)Object;
+  return "<SEND-STATISTICS />";
+}
+DECODE(Statistics)
+{
+  if (Buffer == "<SEND-STATISTICS />")
+    return Statistics{};
+  return std::nullopt;
+}
+
 } // namespace request
 
 namespace response
@@ -713,6 +725,32 @@ DECODE(Detach)
   if (Buffer == "<DETACH />")
     return Detach{};
   return std::nullopt;
+}
+
+ENCODE(Statistics)
+{
+  std::ostringstream Buf;
+  Buf << "<STATISTICS Size=\"" << Object.Contents.size() << "\">";
+  Buf << Object.Contents;
+  Buf << "</STATISTICS>";
+  return Buf.str();
+}
+DECODE(Statistics)
+{
+  Statistics Ret;
+  HEADER_OR_NONE("<STATISTICS Size=\"");
+
+  {
+    EXTRACT_OR_NONE(SizeStr, "\">");
+    if (std::size_t Size = std::stoull(std::string{SizeStr}))
+    {
+      Ret.Contents.reserve(Size);
+      Ret.Contents = splice(View, Size);
+    }
+  }
+
+  FOOTER_OR_NONE("</STATISTICS>");
+  return Ret;
 }
 
 } // namespace response

@@ -26,8 +26,8 @@ namespace monomux::server
 {
 
 ClientData::ClientData(std::unique_ptr<Socket> Connection)
-  : ID(Connection->raw()), ControlConnection(std::move(Connection)),
-    AttachedSession(nullptr)
+  : ID(Connection->raw()), Created(std::chrono::system_clock::now()),
+    ControlConnection(std::move(Connection)), AttachedSession(nullptr)
 {}
 
 static std::size_t NonceCounter = 0; // FIXME: Remove this.

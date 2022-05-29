@@ -62,6 +62,11 @@ struct Options
   /// \note This is a control-mode flag.
   bool DetachRequestAll : 1;
 
+  /// Whether it was requested to gather statistics from the running server.
+  ///
+  /// \note This is a control-mode flag.
+  bool StatisticsRequest : 1;
+
   /// The path to the server socket where the client should connect to.
   std::optional<std::string> SocketPath;
 

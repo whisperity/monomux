@@ -18,11 +18,13 @@
  */
 #include <chrono>
 #include <iomanip>
+#include <set>
 #include <thread>
 
 #include "monomux/adt/POD.hpp"
 #include "monomux/control/PascalString.hpp"
 #include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/system/Time.hpp"
 
 #include "monomux/server/Server.hpp"
 
@@ -72,6 +74,8 @@ void Server::loop()
 {
   static constexpr std::size_t ListenQueue = 16;
   static constexpr std::size_t EventQueue = 1 << 13;
+
+  WhenStarted = std::chrono::system_clock::now();
   Sock.listen(ListenQueue);
 
   fd::addStatusFlag(Sock.raw(), O_NONBLOCK);
@@ -684,6 +688,162 @@ void Server::reapDeadChildren()
 
     PID = Process::Invalid;
   }
+}
+
+std::string Server::statistics() const
+{
+  std::ostringstream Output;
+  std::size_t IndentSize = 0;
+  const auto Indented = [&Output, &IndentSize]() -> std::ostringstream& {
+    Output << std::string(IndentSize, ' ');
+    return Output;
+  };
+  const auto Reindent = [&Indented](const std::string& S) {
+    std::string::size_type Pos1 = 0;
+    std::string::size_type Pos2 = S.find('\n');
+
+    while (Pos1 < S.size() && Pos2 < S.size() && Pos2 != std::string::npos)
+    {
+      Indented() << S.substr(Pos1, Pos2 - Pos1) << '\n';
+      Pos1 = Pos2 + 1;
+      Pos2 = S.find('\n', Pos1);
+    }
+  };
+  const auto AddIndent = [&IndentSize](const std::size_t Value) -> std::string {
+    IndentSize += Value;
+    return "";
+  };
+  const auto ResetIndent = [&IndentSize] { IndentSize = 0; };
+  /// Save the indentation state at the moment of constructing this instance,
+  /// and restore it when it is destroyed.
+  struct IndentRAII
+  {
+    std::size_t& OutVariable;
+    std::size_t SavedIndent;
+
+    IndentRAII(std::size_t& Indent) : OutVariable(Indent), SavedIndent(Indent)
+    {}
+    ~IndentRAII() { OutVariable = SavedIndent; }
+  };
+  const auto IndentScope = [&IndentSize]() -> IndentRAII {
+    return {IndentSize};
+  };
+
+  const auto DumpOneClient =
+    [&Output, &AddIndent, &Indented, &Reindent, &IndentScope](
+      const ClientData& C) {
+      auto X = IndentScope();
+      Output << "Client " << '\'' << C.id() << '\'' << '\n';
+      AddIndent(2);
+      Indented() << "* Connected         : " << formatTime(C.whenCreated())
+                 << '\n';
+      Indented() << "* LastActive        : " << formatTime(C.lastActive())
+                 << '\n';
+
+      auto& Cl = const_cast<ClientData&>(C);
+      Indented() << "* Control Connection:" << '\n';
+      {
+        auto X = IndentScope();
+        AddIndent(4);
+        Reindent(Cl.getControlSocket().statistics());
+      }
+
+      if (auto* DS = Cl.getDataSocket())
+      {
+        Indented() << "* Data    Connection:" << '\n';
+
+        auto X = IndentScope();
+        AddIndent(4);
+        Reindent(DS->statistics());
+      }
+    };
+
+  Output << "MonoMux Server Statistics\n";
+
+  AddIndent(2);
+  Indented() << "on " << '\'' << Sock.identifier() << '\'' << '\n';
+  Indented() << "started at " << formatTime(whenStarted()) << '\n';
+  AddIndent(2);
+  Output << '\n';
+  Indented() << "* Attached clients               : " << Clients.size() << '\n';
+  Indented() << "* Running sessions               : " << Sessions.size()
+             << '\n';
+  Indented() << "* Open file descriptors in total : " << FDLookup.size()
+             << '\n';
+
+  std::set<std::size_t> AlreadyDumpedAttachedClients;
+  Output << '\n'
+         << "- = - = - = - = -"
+         << "         Sessions        "
+         << "- = - = - = - = -" << '\n';
+  ResetIndent();
+  AddIndent(2);
+  for (const auto& E : Sessions)
+  {
+    const SessionData& S = *E.second;
+    auto X = IndentScope();
+
+    Indented() << "# Session " << '\'' << S.name() << '\'' << '\n';
+    AddIndent(2);
+    Indented() << "* Created     : " << formatTime(S.whenCreated()) << '\n';
+    Indented() << "* LastActive  : " << formatTime(S.lastActive()) << '\n';
+
+    if (S.hasProcess())
+    {
+      auto& P = const_cast<Process&>(S.getProcess());
+      Indented() << "* Running PID : " << P.raw() << '\n';
+      if (P.hasPty())
+      {
+        Indented() << "* Communication "
+                   << "reader" << '\n';
+        {
+          auto X = IndentScope();
+          AddIndent(4);
+          Reindent(P.getPty()->reader().statistics());
+        }
+        Indented() << "* Communication "
+                   << "writer" << '\n';
+        {
+          auto X = IndentScope();
+          AddIndent(4);
+          Reindent(P.getPty()->writer().statistics());
+        }
+      }
+      else
+        Indented() << "! Associated Process does not have a PTY\n";
+    }
+    else
+      Indented() << "! No process associated with Session\n";
+
+    Indented() << "* Attached client #: " << S.getAttachedClients().size()
+               << '\n';
+    AddIndent(4);
+    for (const ClientData* C : S.getAttachedClients())
+    {
+      Indented() << '*' << ' ';
+      DumpOneClient(*C);
+      AlreadyDumpedAttachedClients.emplace(C->id());
+    }
+  }
+
+  Output << '\n'
+         << "- = - = - = - = -"
+         << "   Unassociated Clients   "
+         << "- = - = - = - = -" << '\n';
+  ResetIndent();
+  AddIndent(2);
+  for (const auto& E : Clients)
+  {
+    const ClientData& C = *E.second;
+    if (AlreadyDumpedAttachedClients.find(C.id()) !=
+        AlreadyDumpedAttachedClients.end())
+      continue;
+
+    Indented() << '#' << ' ';
+    DumpOneClient(C);
+  }
+
+  return Output.str();
 }
 
 } // namespace monomux::server

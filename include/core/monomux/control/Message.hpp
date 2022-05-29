@@ -182,6 +182,13 @@ struct Signal
   int SigNum{};
 };
 
+/// A request from a client to the server to respond with statistical
+/// information.
+struct Statistics
+{
+  MONOMUX_MESSAGE(StatisticsRequest, Statistics);
+};
+
 } // namespace request
 
 namespace response
@@ -238,6 +245,17 @@ struct Attach
 struct Detach
 {
   MONOMUX_MESSAGE(DetachResponse, Detach);
+};
+
+/// The response ot the \p request::Statistics containing the response data.
+struct Statistics
+{
+  MONOMUX_MESSAGE(StatisticsResponse, Statistics);
+  /// The verbatim reply from the server.
+  ///
+  /// \warning This text is \b NOT meant to be machine-readable, and only useful
+  /// for development and debugging by a human!
+  std::string Contents;
 };
 
 } // namespace response

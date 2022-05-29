@@ -43,7 +43,8 @@ namespace monomux::client
 
 Options::Options()
   : ClientMode(false), OnlyListSessions(false), InteractiveSessionMenu(false),
-    DetachRequestLatest(false), DetachRequestAll(false)
+    DetachRequestLatest(false), DetachRequestAll(false),
+    StatisticsRequest(false)
 {}
 
 std::vector<std::string> Options::toArgv() const
@@ -70,6 +71,8 @@ std::vector<std::string> Options::toArgv() const
     Ret.emplace_back("--detach");
   if (DetachRequestAll)
     Ret.emplace_back("--detach-all");
+  if (StatisticsRequest)
+    Ret.emplace_back("--statistics");
 
   if (Program)
   {
@@ -99,7 +102,7 @@ std::vector<std::string> Options::toArgv() const
 
 bool Options::isControlMode() const noexcept
 {
-  return DetachRequestLatest || DetachRequestAll;
+  return DetachRequestLatest || DetachRequestAll || StatisticsRequest;
 }
 
 std::optional<Client>
@@ -421,6 +424,22 @@ SessionSelectionResult selectSession(const std::string& ClientID,
 /// Handles operations through a \p ControlClient -only connection.
 ExitCode mainForControlClient(Options& Opts)
 {
+  if (Opts.StatisticsRequest)
+  {
+    ControlClient CC{*Opts.Connection};
+    try
+    {
+      std::string Stats = CC.requestStatistics();
+      std::cout << Stats << std::endl;
+      return EXIT_Success;
+    }
+    catch (const std::runtime_error& Err)
+    {
+      std::cerr << Err.what() << std::endl;
+      return EXIT_SystemError;
+    }
+  }
+
   if (!Opts.SessionData)
     Opts.SessionData = MonomuxSession::loadFromEnv();
   if (!Opts.SessionData)

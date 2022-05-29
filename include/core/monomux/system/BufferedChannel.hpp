@@ -173,6 +173,10 @@ public:
   /// heuristics-based call that does not always actually free resources.
   void tryFreeResources();
 
+  /// \returns statistical information, formatted to be human-readable, about
+  /// the underlying buffer implementation.
+  std::string statistics() const;
+
 protected:
   UniqueScalar<OpaqueBufferType*, nullptr> Read;
   UniqueScalar<OpaqueBufferType*, nullptr> Write;

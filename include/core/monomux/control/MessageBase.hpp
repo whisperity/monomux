@@ -86,6 +86,12 @@ enum class MessageKind : std::uint16_t
   /// A notification to the server to apply window resize/redraw to an attached
   /// session.
   RedrawNotification,
+
+  /// A request to the server to respond with statistical information about the
+  /// execution.
+  StatisticsRequest,
+  /// A response to the \p StatisticsRequest.
+  StatisticsResponse,
 };
 
 /// Helper class that contains the parsed \p MessageKind of a \p Message, and

@@ -68,7 +68,7 @@ jobs:
             compiler: "gcc"
             library-type: "shared"
           - distribution: "ubuntu-18.04"
-            compiler: "gcc"
+            compiler: "clang"
             library-type: "unity"
     name: "${{ matrix.distribution }}, ${{ matrix.compiler }}, ${{ matrix.library-type }} libs"
     runs-on: ${{ matrix.distribution }}

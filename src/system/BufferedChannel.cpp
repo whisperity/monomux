@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "monomux/adt/RingBuffer.hpp"
+#include "monomux/system/Time.hpp"
 
 #include "monomux/system/BufferedChannel.hpp"
 
@@ -379,6 +380,49 @@ void BufferedChannel::tryFreeResources()
     Read->tryCleanup();
   if (Write)
     Write->tryCleanup();
+}
+
+std::string BufferedChannel::statistics() const
+{
+  std::ostringstream Output;
+  const auto FormatOneBuffer = [&Output](const OpaqueBufferType& Buf) {
+    Output << "InitialCapacity = " << Buf.originalCapacity()
+           << ", Capacity = " << Buf.capacity() << '\n'
+           << "      "
+           << "Size = " << Buf.size()
+           << ", LastAccessed = " << formatTime(Buf.lastAccess()) << '\n'
+           << "      "
+           << "BufferPeaks: " << '[';
+    std::vector<std::size_t> BufferPeaks = Buf.peakStats();
+    for (auto It = BufferPeaks.begin(); It != BufferPeaks.end(); ++It)
+    {
+      Output << *It;
+      if (It != BufferPeaks.end() - 1)
+        Output << ',' << ' ';
+    }
+    Output << ']' << '\n';
+  };
+
+  Output << "BufferedChannel " << '\'' << identifier() << '\'' << '\n';
+  if (Read)
+  {
+    Output << " <- "
+           << "Read" << ':' << '\n'
+           << "      "
+           << "OptimalChunkSize = " << optimalReadSize() << ',' << ' ';
+    FormatOneBuffer(*Read);
+  }
+
+  if (Write)
+  {
+    Output << " -> "
+           << "Write" << ':' << '\n'
+           << "      "
+           << "OptimalChunkSize = " << optimalWriteSize() << ',' << ' ';
+    FormatOneBuffer(*Write);
+  }
+
+  return Output.str();
 }
 
 } // namespace monomux
