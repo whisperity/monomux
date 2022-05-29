@@ -30,17 +30,21 @@ std::string getHumanReadableConfiguration()
 
   Buf << " * " << MONOMUX_BUILD_TYPE << " build\n";
 
-#ifndef MONOMUX_BUILD_SHARED_LIBS
-  Buf << " * STATIC library\n";
-#else
+#ifdef MONOMUX_BUILD_SHARED_LIBS
   Buf << " * SHARED (dynamic) library\n";
-#endif
+#else /* !MONOMUX_BUILD_SHARED_LIBS */
+#ifdef MONOMUX_BUILD_UNITY
+  Buf << " * UNITY library\n";
+#else  /* !MONOMUX_BUILD_UNITY */
+  Buf << " * STATIC library\n";
+#endif /* MONOMUX_BUILD_UNITY */
+#endif /* MONOMUX_BUILD_SHARED_LIBS */
 
 #ifndef MONOMUX_NON_ESSENTIAL_LOGS
   Buf << " - Non-essential trace logs\n";
-#else
+#else  /* !MONOMUX_NON_ESSENTIAL_LOGS */
   Buf << " + Non-essential trace logs\n";
-#endif
+#endif /* MONOMUX_NON_ESSENTIAL_LOGS */
 
   std::string S = Buf.str();
 

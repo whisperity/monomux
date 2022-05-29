@@ -33,11 +33,11 @@
  * It has been turned \e ON in this build.
  */
 #define MONOMUX_DEBUG(X) MONOMUX_DETAIL_CONDITIONALLY_TRUE(X)
-#else
+#else /* NDEBUG */
 /* Convenience macro that is defined to its parameter if the program is
  * compiled in debug mode, and nothing otherwise, similarly to \p assert().
  *
  * It has been turned \p OFF in this build.
  */
 #define MONOMUX_DEBUG(X) MONOMUX_DETAIL_CONDITIONALLY_FALSE(X)
-#endif
+#endif /* NDEBUG */

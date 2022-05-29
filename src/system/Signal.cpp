@@ -100,9 +100,9 @@ const char* SignalHandling::signalName(SignalHandling::Signal S) noexcept
     case SIGPWR:
       return "SIGPWR (Power failure)";
   }
-#else
+#else  /* !MONOMUX_NON_ESSENTIAL_LOGS */
   (void)S;
-#endif
+#endif /* MONOMUX_NON_ESSENTIAL_LOGS */
 
   return "<unknown signal>";
 }

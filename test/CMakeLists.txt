@@ -8,6 +8,12 @@ set(MONOMUX_BUILD_TESTS ${MONOMUX_BUILD_TESTS_DEFAULT} CACHE BOOL
   "Whether to build the test framework when building the project.")
 
 if (MONOMUX_BUILD_TESTS)
+  if (MONOMUX_BUILD_UNITY)
+    message(WARNING "Unity build is not compatible with testing, but MONOMUX_BUILD_TESTS was supplied. Prioritising unity build and disabling tests...")
+    set(MONOMUX_BUILD_TESTS OFF)
+    return()
+  endif()
+
   include(FetchContent)
   FetchContent_Declare(
     googletest

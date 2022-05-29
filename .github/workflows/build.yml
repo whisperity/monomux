@@ -67,6 +67,9 @@ jobs:
           - distribution: "ubuntu-18.04"
             compiler: "gcc"
             library-type: "shared"
+          - distribution: "ubuntu-18.04"
+            compiler: "gcc"
+            library-type: "unity"
     name: "${{ matrix.distribution }}, ${{ matrix.compiler }}, ${{ matrix.library-type }} libs"
     runs-on: ${{ matrix.distribution }}
     steps:
@@ -88,8 +91,9 @@ jobs:
           cmake -S . -B Build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DMONOMUX_BUILD_SHARED_LIBS=${{ matrix.library-type == 'static' && 'OFF' || 'ON' }} \
-            -DMONOMUX_BUILD_TESTS=ON
+            -DMONOMUX_BUILD_SHARED_LIBS=${{ (matrix.library-type == 'static' || matrix.library-type == 'unity') && 'OFF' || 'ON' }} \
+            -DMONOMUX_BUILD_UNITY=${{ matrix.library-type == 'unity' && 'ON' || 'OFF' }} \
+            -DMONOMUX_BUILD_TESTS=${{ matrix.library-type == 'unity' && 'OFF' || 'ON' }}
       - name: "Build"
         run: |
           cmake --build ./Build -- -j
@@ -102,6 +106,7 @@ jobs:
           ./Build/monomux -VV | grep "^ \* " | grep "library$" | \
             grep -i "${{ matrix.library-type }}"
       - name: "Test"
+        if: matrix.library-type != 'unity'
         run: |
           cmake --build ./Build -- -j check
       - name: "Package"
@@ -144,7 +149,7 @@ jobs:
             echo "::warning title=Debian Package self-check skipped::The package failed to assemble and thus wasn't tested."
           fi
       - name: "Upload packaging errors for triage"
-        if: steps.binary-package.outcome == 'failure' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
+        if: steps.binary-package.outcome == 'failure' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
           path: "Build/_CPack_Packages"
@@ -152,7 +157,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
       - name: "Upload binary package artefacts: Tarball"
-        if: steps.binary-package.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
+        if: steps.binary-package.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
@@ -160,7 +165,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: "Upload binary package artefacts: Debian package"
-        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
+        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
@@ -168,7 +173,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: "Upload binary package artefacts: Debian package (debug symbols)"
-        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'static'
+        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
           path: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.ddeb"

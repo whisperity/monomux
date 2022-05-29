@@ -1,6 +1,10 @@
 #ifndef MONOMUX_CONFIG_H
 #define MONOMUX_CONFIG_H
 
+/* This file contains the CMake-level configuration variables that are exposed
+ * to the compilers executed.
+ */
+
 /* If set, the built binaries will be composed of several shared library (.so,
  * .dll) for reusability in other projects.
  *
@@ -8,6 +12,14 @@
  * implementation tool (normally it is).
  */
 #cmakedefine MONOMUX_BUILD_SHARED_LIBS
+
+/* If set, the built binary will be created from a single translation unit of
+ * the entire project.
+ *
+ * This allows for greater optimisations to be performed by the compiler at the
+ * expence of a substantial drag on compiler performance.
+ */
+#cmakedefine MONOMUX_BUILD_UNITY
 
 /* If set, the built binary will contain some additional log outputs that are
  * needed for verbose debugging of the project.

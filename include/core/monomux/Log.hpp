@@ -168,13 +168,13 @@ MONOMUX_LOGGER_SHORTCUT(data, Data);
  * It has been turned \e ON in this build, and trace logging is compiled.
  */
 #define MONOMUX_TRACE_LOG(X) MONOMUX_DETAIL_CONDITIONALLY_TRUE(X)
-#else
+#else /* !MONOMUX_NON_ESSENTIAL_LOGS */
 /* Wrap logging code into this macro to suppress building it if config option
  * \p MONOMUX_NON_ESSENTIAL_LOGS is turned off.
  *
  * It has been turned \b OFF in this build, and trace logging is stripped.
  */
 #define MONOMUX_TRACE_LOG(X) MONOMUX_DETAIL_CONDITIONALLY_FALSE(X)
-#endif
+#endif /* MONOMUX_NON_ESSENTIAL_LOGS */
 
 } // namespace monomux::log

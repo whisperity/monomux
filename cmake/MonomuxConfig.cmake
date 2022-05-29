@@ -18,6 +18,21 @@ else()
   set(MONOMUX_LIBRARY_TYPE "SHARED")
 endif()
 
+set(MONOMUX_BUILD_UNITY OFF CACHE BOOL
+  "If set, the built binary will be created from a SINGLE translation unit, which usually improves run-time performance a great deal, at the expence of significant drag on compiler performance.")
+if (MONOMUX_BUILD_UNITY)
+  if (MONOMUX_LIBRARY_TYPE STREQUAL "SHARED")
+    message(WARNING "Unity build with shared libraries does not make much sense. Prioritising unity build.")
+  endif()
+
+  set(MONOMUX_LIBRARY_TYPE "UNITY")
+  set(CMAKE_UNITY_BUILD ON)
+  set(CMAKE_UNITY_BUILD_BATCH_SIZE 0)
+else()
+  unset(CMAKE_UNITY_BUILD CACHE)
+  unset(CMAKE_UNITY_BUILD_BATCH_SIZE CACHE)
+endif()
+
 set(MONOMUX_NON_ESSENTIAL_LOGS ON CACHE BOOL
   "If set, the built binary will contain some additional log outputs that are needed for verbose debugging of the project. Turn off to cut down further on the binary size for production."
   )

@@ -79,16 +79,17 @@ sudo apt-get -y update
 if [[ "${DISTRO}" == "ubuntu-18.04" ]]
 then
     # We need a newer version of CMake than supplied by Ubuntu...
-    # FetchContent is only available 3.11 and onwards, Ubuntu 18 gives only
-    # 3.10.
+    #  * FetchContent is only available 3.11 and onwards.
+    #  * Unity build is only available in 3.16 and onwards.
+    # Ubuntu 18 gives only 3.10.
     sudo apt-get -y install \
-        cmake="3.15.0-0kitware1" \
-        cmake-data="3.15.0-0kitware1"
+        cmake="3.16.5-0kitware1" \
+        cmake-data="3.16.5-0kitware1"
 elif [[ "${DISTRO}" == "ubuntu-20.04" ]]
 then
     # The lowest version available on the Kitware PPA for Ubuntu 20.04.
     sudo apt-get -y install \
-        cmake="3.17.2-0kitware1ubuntu20.04.1" \
-        cmake-data="3.17.2-0kitware1ubuntu20.04.1"
+        cmake="3.17.3-0kitware1ubuntu20.04.1" \
+        cmake-data="3.17.3-0kitware1ubuntu20.04.1"
 fi
 echo "::endgroup::"
