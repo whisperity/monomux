@@ -125,8 +125,10 @@ void EPoll::schedule(raw_fd FD, bool Incoming, bool Outgoing)
 {
   auto SetupEvent = [=](struct ::epoll_event& E) {
     E.data.fd = FD;
-    E.events |= Incoming ? EPOLLIN : 0;
-    E.events |= Outgoing ? EPOLLOUT : 0;
+    if (Incoming)
+      E.events |= EPOLLIN;
+    if (Outgoing)
+      E.events |= EPOLLOUT;
   };
 
   auto* MaybeIt = ScheduledWaitingMap.tryGet(FD);

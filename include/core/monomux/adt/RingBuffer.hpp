@@ -60,10 +60,11 @@ public:
   auto peakStats() const
   {
     std::vector<std::size_t> Peaks = SizePeaks;
-    if (Peaks.back() > 0 && CurrentPeakIndex != 0)
-      // Put the last measurement to the beginning of the data structure,
-      // undoing the inner "ring buffer" used.
-      std::rotate(Peaks.begin(), Peaks.begin() + CurrentPeakIndex, Peaks.end());
+    if (CurrentPeakIndex < Peaks.size() - 1)
+      // Put the oldest measurement to the beginning of the data structure,
+      // undoing the inner "ring buffer" used for the Peaks vector.
+      std::rotate(
+        Peaks.begin(), Peaks.begin() + CurrentPeakIndex + 1, Peaks.end());
     return Peaks;
   }
 
