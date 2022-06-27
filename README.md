@@ -26,12 +26,14 @@ Installation
 
 ### Ubuntu (18.04, 20.04)
 
-Download the `.deb` (and optionally the `.ddeb`) file for the release, and install it using
+Download the `.deb` (and optionally the `.ddeb`) file for the release, and install the standard way:
 
 ~~~{.bash}
 sudo dpkg --install monomux-*.*deb
 ~~~
 
+Alternatively, a `.tar.gz` archive might be used.
+The application consists of a single self-contained binary.
 
 Usage
 -----
@@ -54,6 +56,7 @@ The client can be fine-tuned during its start-up with several flags:
  * `monomux -- /bin/myshell -a -b --arg-to-shell` will start the specified program with command-line arguments, if a new session is created.
    (If the started program takes `-` or `--` arguments, an _explicit_ separator `--` must be given **BEFORE** the program's name!)
  * `monomux -n SESSION_NAME` will attach or start the session `SESSION_NAME`, bypassing the interactive menu.
+ * Environment variables can be specified or removed via `-e VARIABLE=Value -u UNSET_VARIABLE`.
 
 A server can be started explicitly via `monomux --server`, in which case no client creation and attachment will be done.
 
