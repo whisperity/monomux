@@ -34,6 +34,9 @@ then
     elif [[ "${DISTRO}" == "ubuntu-20.04" ]]
     then
         CC="gcc-10"
+    elif [[ "${DISTRO}" == "ubuntu-22.04" ]]
+    then
+        CC="gcc-12"
     fi
 
     CXX=$(echo ${CC} | sed 's/gcc/g++/')
@@ -47,6 +50,9 @@ then
     elif [[ "${DISTRO}" == "ubuntu-20.04" ]]
     then
         CC="clang-12"
+    elif [[ "${DISTRO}" == "ubuntu-22.04" ]]
+    then
+        CC="clang-14"
     fi
 
     CXX=$(echo ${CC} | sed 's/clang/clang++/')
@@ -65,16 +71,20 @@ echo "::group::Installing CMake"
 # like to **EXPLICITLY** install via the package manager...
 sudo rm -v $(which cmake) $(which cpack)
 
-sudo apt-get install -y \
-    lsb-release \
-    wget
-wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
-    2>/dev/null \
-    | gpg --dearmor - \
-    | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
-sudo apt-add-repository -y \
-    "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
-sudo apt-get -y update
+if [[ "${DISTRO}" == "ubuntu-18.04" || "${DISTRO}" == "ubuntu-20.04" ]]
+then
+    sudo apt-get install -y \
+        lsb-release \
+        software-properties-common \
+        wget
+    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
+        2>/dev/null \
+        | gpg --dearmor - \
+        | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+    sudo apt-add-repository -y \
+        "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+    sudo apt-get -y update
+fi
 
 if [[ "${DISTRO}" == "ubuntu-18.04" ]]
 then
@@ -91,5 +101,13 @@ then
     sudo apt-get -y install \
         cmake="3.17.3-0kitware1ubuntu20.04.1" \
         cmake-data="3.17.3-0kitware1ubuntu20.04.1"
+elif [[ "${DISTRO}" == "ubuntu-22.04" ]]
+then
+    # The lowest version available for Ubuntu 22.04.
+    # At the time of writing, the PPA did not contain an entry for this
+    # distribution.
+    sudo apt-get -y install \
+        cmake="3.22.1-1ubuntu1" \
+        cmake-data="3.22.1-1ubuntu1"
 fi
 echo "::endgroup::"

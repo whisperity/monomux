@@ -2,6 +2,12 @@ name: "Build and continuous Package"
 
 on:
   push:
+    branches:
+    tags:
+  pull_request:
+    branches:
+      - master
+      - "release/**"
 
 jobs:
   style:
@@ -54,22 +60,18 @@ jobs:
       matrix:
         distribution: [
           "ubuntu-18.04",
-          "ubuntu-20.04"
+          "ubuntu-20.04",
+          "ubuntu-22.04"
         ]
         compiler: [
           "gcc",
           "clang"
         ]
         library-type: [
-          "static"
+          "static",
+          "shared",
+          "unity"
         ]
-        include:
-          - distribution: "ubuntu-18.04"
-            compiler: "gcc"
-            library-type: "shared"
-          - distribution: "ubuntu-18.04"
-            compiler: "clang"
-            library-type: "unity"
     name: "${{ matrix.distribution }}, ${{ matrix.compiler }}, ${{ matrix.library-type }} libs"
     runs-on: ${{ matrix.distribution }}
     steps:
@@ -129,11 +131,11 @@ jobs:
 
           echo "::set-output name=PACKAGE_VERSION::$(cat Build/Version.txt)"
           mv -v Build/MonoMux-*-Linux-MonomuxUserGroup.tar.gz \
-            "./monomux-$(cat Build/Version.txt)-${{ matrix.compiler }}.tgz"
+            "./monomux-$(cat Build/Version.txt)-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
           mv -v Build/MonoMux-*-Linux-MonomuxUserGroup.deb \
-            "./monomux-$(cat Build/Version.txt)-${{ matrix.compiler }}.deb"
+            "./monomux-$(cat Build/Version.txt)-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
           mv -v Build/MonoMux-*-Linux-MonomuxUserGroup-dbgsym.ddeb \
-            "./monomux-dbgsym-$(cat Build/Version.txt)-${{ matrix.compiler }}.ddeb"
+            "./monomux-dbgsym-$(cat Build/Version.txt)-${{ matrix.distribution }}-${{ matrix.compiler }}.ddeb"
       - name: "Check whether the Debian package is installable"
         id: deb-install
         # This condition is disabled so running the CI locally via `act` executes this, and further, step.
@@ -142,41 +144,41 @@ jobs:
           if [[ "${{ steps.binary-package.outcome }}" == "success" ]]
           then
             sudo apt-get -fy install \
-              "./monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
+              "./monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
             sudo apt-get -fy install \
-              "./monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.ddeb"
+              "./monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.ddeb"
           else
             echo "::warning title=Debian Package self-check skipped::The package failed to assemble and thus wasn't tested."
           fi
       - name: "Upload packaging errors for triage"
-        if: steps.binary-package.outcome == 'failure' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
+        if: steps.binary-package.outcome == 'failure' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
           path: "Build/_CPack_Packages"
           name: "${{ matrix.distribution }}-${{ matrix.compiler }} packaging fail"
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 7
       - name: "Upload binary package artefacts: Tarball"
-        if: steps.binary-package.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
+        if: steps.binary-package.outcome == 'success' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
-          path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
-          name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.tgz"
+          path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
+          name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 30
       - name: "Upload binary package artefacts: Debian package"
-        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
+        if: steps.binary-package.outcome == 'success' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
-          path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
-          name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.deb"
+          path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
+          name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 30
       - name: "Upload binary package artefacts: Debian package (debug symbols)"
-        if: steps.binary-package.outcome == 'success' && steps.deb-install.outcome == 'success' && matrix.distribution == 'ubuntu-18.04' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
+        if: steps.binary-package.outcome == 'success' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
         uses: actions/upload-artifact@v2
         with:
-          path: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.ddeb"
-          name: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.compiler }}.ddeb"
+          path: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.ddeb"
+          name: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.ddeb"
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 30

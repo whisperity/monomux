@@ -24,7 +24,7 @@ There are no other dependencies.
 Installation
 ------------
 
-### Ubuntu (18.04, 20.04)
+### Ubuntu (18.04, 20.04, 22.04)
 
 Download the `.deb` (and optionally the `.ddeb`) file for the release, and install the standard way:
 
