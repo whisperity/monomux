@@ -225,7 +225,7 @@ int main(int ArgC, char* ArgV[])
           ServerOpts.Background = false;
           ServerOpts.ExitOnLastSessionTerminate = false;
           break;
-        case 'K':
+        case 'k':
           ServerOpts.ExitOnLastSessionTerminate = false;
           break;
       }
