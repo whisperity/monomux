@@ -228,6 +228,13 @@ int main(int ArgC, char* ArgV[])
         case 'k':
           ServerOpts.ExitOnLastSessionTerminate = false;
           break;
+        default:
+          std::cerr << ArgV[0] << ": "
+                    << "option '-" << static_cast<char>(Opt)
+                    << "' is registered to be accepted, but the associated "
+                       "handler is not found\n\tThe flag will be "
+                       "ignored! Please report this as a bug!\n";
+          break;
       }
     }
 
