@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.15.0)
 
+# Just simply do not let the user do this, because this litters the project
+# tree with weird contents that are not verbosely elaborated in a .gitignore...
+set(CMAKE_DISABLE_SOURCE_CHANGES ON)
+set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+  file(REMOVE "CMakeCache.txt")
+  file(REMOVE_RECURSE "CMakeFiles")
+
+  message(FATAL_ERROR "Raw in-tree builds are not supported, please use a dedicated 'Build' directory!"
+                      "\nDue to technical detail, 'CMakeCache.txt' and 'CMakeFiles/' will still be created as trash in your directory now, and you should remove them!")
+endif()
+
 list(APPEND CMAKE_MODULE_PATH
   "${CMAKE_SOURCE_DIR}/cmake"
   )

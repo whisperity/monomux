@@ -19,6 +19,8 @@
 #pragma once
 #include <cstdint>
 #include <iosfwd>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,12 +29,63 @@ namespace monomux
 {
 
 /// Handler for formatting a raw "Segmentation fault" or "Aborted" crash message
-/// into something meaningful that aids in debugging.
+/// into something meaningful that aids with debugging.
 class Backtrace
 {
 public:
+  /// Contains the results of the \p backtrace() operation as raw sub-strings
+  /// into the runtime's output.
+  ///
+  /// \note These views are valid only if the \p SymbolDataBuffer is valid.
+  struct RawData
+  {
+    /// The symbolic representation of each address consists of the function
+    /// name (if this can be determined), a hexademical offset into the
+    /// function, and the actual return address (in hexadecimal).
+    std::string_view Full;
+
+    /// The hexadecimal address string of the instruction in the loaded binary.
+    std::string_view HexAddress;
+    /// The name of the binary the symbol is loaded from.
+    std::string_view Binary;
+    /// The name of the symbol.
+    std::string_view Symbol;
+    /// The hexadecimal offset from the symbol label (or if there is no symbol,
+    /// from the start of the image) for the instruction of the stack frame.
+    std::string_view Offset;
+  };
+
+  struct Symbol
+  {
+    /// The symbol name associated with the frame, as returned by a symboliser.
+    std::string Name;
+    /// The location extracted from the executing image where the frame's
+    /// executed instruction is compiled from. Requires the existence of debug
+    /// information.
+    std::string Filename;
+    std::size_t Line, Column;
+
+    /// Symbols might be inlined into each other if an optimised build is
+    /// set up. If such is true for \p this then this field will contain the
+    /// data for the inlining, potentially recursively.
+    std::unique_ptr<Symbol> InlinedBy;
+
+    /// Merges symbol information in a sensible fashion from another symboliser
+    /// result.
+    void mergeFrom(Symbol&& RHS);
+
+    /// Creates the inlining symbol's instance and returns it for data filling.
+    Symbol& startInlineInfo();
+
+    /// \returns whether the Symbol instance, or anything in the \p InlinedBy
+    /// chain conveys meaningful information.
+    bool hasMeaningfulInformation() const;
+  };
+
   struct Frame
   {
+    /// The index of the stack frame. This is decremented, so the latest stack
+    /// frame has the highest index.
     std::size_t Index;
 
     /// Each item in the array pointed to by \p buffer is of type \p void*, and
@@ -46,24 +99,15 @@ public:
     /// \see prettify()
     const void* ImageOffset;
 
-    /// The symbolic representation of each address consists of the function
-    /// name (if this can be determined), a hexademical offset into the
-    /// function, and the actual return address (in hexadecimal).
-    std::string_view SymbolData;
+    /// Contains the raw data returned by the runtime about the machine-level
+    /// symbol information.
+    RawData Data;
 
-    /// The hexadecimal address string of the instruction in the loaded binary.
-    std::string_view HexAddress;
-    /// The name of the binary the symbol is loaded from.
-    std::string_view Binary;
-    /// The name of the symbol.
-    std::string_view Symbol;
-    /// The hexadecimal offset from the symbol label (or if there is no symbol,
-    /// from the start of the image) for the instruction of the stack frame.
-    std::string_view Offset;
-
-    /// The prettified version of the raw \p SymbolData, returned by symbolisers
-    /// such as \p addr2line or \p llvm-symbolizer.
-    std::string Pretty;
+    /// The location of the executed instruction, in the source code, if such
+    /// information was available. This is conditional on having a debug-like
+    /// build, access to the source files in the debug information, and a
+    /// symboliser (e.g., \p addr2line) capable of retrieving these details.
+    std::optional<Symbol> Info;
   };
 
   /// The maximum size supported for generating a backtrace. Larger \p Depth
@@ -77,11 +121,16 @@ public:
 
   ~Backtrace();
 
+  /// \returns the stack frames created and stored when the \p Backtrace
+  /// instance was constructed. These frames are allocated in the usual order,
+  /// with the most recent stack frame being the first (index 0) in the vector.
   const std::vector<Frame>& getFrames() const noexcept { return Frames; }
 
   /// Prettify the stack symbol information and fill \p Pretty for each \p Frame
   /// by calling system binaries such as \p addr2line on the collected raw data.
   void prettify();
+
+  const std::size_t IgnoredFrameCount;
 
 private:
   std::vector<Frame> Frames;
@@ -91,10 +140,11 @@ private:
   const char* const* SymbolDataBuffer;
 };
 
-/// Prints \p Trace to the output \p OS using a default formatting logic.
+/// Prints \p Trace to the output \p OS using the default formatting logic.
 void printBacktrace(std::ostream& OS, const Backtrace& Trace);
 
-/// Generate a backtrace and print it to \p OS.
+/// Generate a backtrace right now, and print it to \p OS with the default
+/// formatting logic.
 void printBacktrace(std::ostream& OS, bool Prettify = true);
 
 } // namespace monomux
