@@ -821,7 +821,10 @@ public:
       if (F.Info)
         formatPrettySymbolData(F);
       else
-        formatRawSymbolData(F.Data);
+      {
+        OS << "    ";
+        formatRawSymbolData(F.Data, true);
+      }
 
       OS << std::endl;
     }
@@ -849,12 +852,11 @@ private:
       OS << '|';
   }
 
-  void formatRawSymbolData(const Backtrace::RawData& D)
+  void formatRawSymbolData(const Backtrace::RawData& D, bool PrintName)
   {
-    OS << "   ";
-    if (D.Symbol.empty() && !D.Offset.empty())
+    if ((D.Symbol.empty() || !PrintName) && !D.Offset.empty())
       OS << '[' << D.Offset << ']';
-    else if (!D.Symbol.empty())
+    else if (!D.Symbol.empty() && PrintName)
     {
       OS << D.Symbol;
       if (!D.Offset.empty())
@@ -888,9 +890,16 @@ private:
       OS << S.Name;
 
     if (S.Filename.empty())
-      OS << " in " << D.Binary;
+    {
+      if (!S.Name.empty() || !D.Symbol.empty())
+        OS << ' ';
+      formatRawSymbolData(D, false);
+    }
     else
     {
+      if (!D.Symbol.empty() && !D.Offset.empty())
+        OS << " + " << D.Offset;
+
       OS << " in " << S.Filename;
       if (S.Line)
         OS << ", line " << S.Line;
@@ -1017,7 +1026,6 @@ private:
       OS << *Reader;
       if (S.Column && CurrentLineNo == S.Line && !TokenApproximated)
       {
-        char C = *Reader;
         if (CurrentColumnNo >= S.Column)
           switch (*Reader)
           {
