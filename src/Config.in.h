@@ -28,6 +28,12 @@
  */
 #cmakedefine MONOMUX_NON_ESSENTIAL_LOGS
 
+/* The system platform that the current build is being done on. */
+#define MONOMUX_PLATFORM "${MONOMUX_PLATFORM}"
+
+/* If set, the PLATFORM is "UNIX". */
+#cmakedefine MONOMUX_PLATFORM_UNIX
+
 /* The build type for the current build. */
 #define MONOMUX_BUILD_TYPE "${CMAKE_BUILD_TYPE}"
 

@@ -39,7 +39,7 @@ if (MONOMUX_BUILD_TESTS)
 
     adt/RingBufferTest.cpp
     adt/SmallIndexMapTest.cpp
-    control/MessageSerialisationTest.cpp
+    message/MessageSerialisationTest.cpp
     )
   target_include_directories(monomux_tests PUBLIC
     ${CMAKE_SOURCE_DIR}/include
@@ -47,6 +47,7 @@ if (MONOMUX_BUILD_TESTS)
     )
   target_link_libraries(monomux_tests PRIVATE
     monomuxCore
+    monomux${MONOMUX_PLATFORM}Platform
     monomuxImplementation
     )
   target_link_libraries(monomux_tests PUBLIC

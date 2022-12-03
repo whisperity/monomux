@@ -54,6 +54,7 @@ jobs:
         id: codechecker
         continue-on-error: true
         with:
+          version: '6.19.0'
           llvm-version: 'latest'
 
           config: .github/codechecker/config.json

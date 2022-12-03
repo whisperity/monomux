@@ -20,10 +20,10 @@
 #include <optional>
 
 #include "monomux/adt/UniqueScalar.hpp"
+#include "monomux/system/Handle.hpp"
 #include "monomux/system/Pipe.hpp"
-#include "monomux/system/fd.hpp"
 
-namespace monomux
+namespace monomux::system
 {
 
 /// Responsible for wrapping a low-level psuedo terminal teletypewriter (PTTY)
@@ -31,9 +31,10 @@ namespace monomux
 /// physical typewriter and printer machines were connected to computers.
 class Pty
 {
+protected:
   UniqueScalar<bool, false> IsMaster;
-  fd Master;
-  fd Slave;
+  Handle Master;
+  Handle Slave;
   std::string Name;
 
   /// A \p Pipe for reading from the other side. Only established \b AFTER
@@ -43,9 +44,10 @@ class Pty
   /// setting up either as parent or childside.
   std::unique_ptr<Pipe> Write;
 
+  Pty() = default;
+
 public:
-  /// Creates a new PTY-pair.
-  Pty();
+  virtual ~Pty() = default;
 
   /// \returns whether the current instance is open on the master (PTM, control)
   /// side.
@@ -57,7 +59,7 @@ public:
 
   /// \returns the raw file descriptor for the \p Pty side that is currently
   /// open.
-  fd& raw() noexcept { return isMaster() ? Master : Slave; }
+  Handle& raw() noexcept { return isMaster() ? Master : Slave; }
 
   /// \returns the name of the PTY interface that was created (e.g. /dev/pts/2).
   const std::string& name() const noexcept { return Name; }
@@ -86,7 +88,7 @@ public:
   /// Executes actions that configure the current PTY from the owning parent's
   /// point of view. This usually means that the PTS (pseudoterminal-slave)
   /// file descriptor is closed.
-  void setupParentSide();
+  virtual void setupParentSide() = 0;
 
   /// Executes actions that configure the current PTY from a running child
   /// process's standpoint, turning it into the controlling terminal of a
@@ -94,10 +96,10 @@ public:
   ///
   /// Normally, after a call to this function, it is expected for the child
   /// process to be replaced with another one.
-  void setupChildrenSide();
+  virtual void setupChildrenSide() = 0;
 
   /// Sets the size of the pseudoterminal device to have the given dimensions.
-  void setSize(unsigned short Rows, unsigned short Columns);
+  virtual void setSize(unsigned short Rows, unsigned short Columns) = 0;
 };
 
-} // namespace monomux
+} // namespace monomux::system

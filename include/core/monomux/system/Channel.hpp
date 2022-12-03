@@ -22,9 +22,9 @@
 #include <vector>
 
 #include "monomux/adt/UniqueScalar.hpp"
-#include "monomux/system/fd.hpp"
+#include "monomux/system/Handle.hpp"
 
-namespace monomux
+namespace monomux::system
 {
 
 /// Wraps a system resource used for communication. This is a very low-level
@@ -35,11 +35,11 @@ public:
   Channel() = delete;
 
   /// \returns the raw, unmanaged file descriptor for the underlying resource.
-  raw_fd raw() const noexcept { return Handle.get(); }
+  Handle::Raw raw() const noexcept { return FD.get(); }
 
   /// Steal the \p Handle file descriptor from the current communication channel
   /// marking it failed and preventing the cleanup of the resource.
-  fd release() &&;
+  Handle release() &&;
 
   /// \returns the user-friendly identifier of the communication channel. This
   /// might be empty, a transient label, or sometimes a path on the filesystem.
@@ -47,7 +47,7 @@ public:
 
   /// \returns whether an operation failed and indicated that the underlying
   /// resource had broken.
-  bool failed() const noexcept { return !Handle.has() || Failed; }
+  bool failed() const noexcept { return !FD.has() || Failed; }
 
   /// Read at maximum \p Bytes bytes of data from the communication channel.
   ///
@@ -71,7 +71,7 @@ public:
   virtual ~Channel() noexcept = default;
 
 protected:
-  Channel(fd Handle, std::string Identifier, bool NeedsCleanup);
+  Channel(Handle FD, std::string Identifier, bool NeedsCleanup);
   Channel(Channel&&) noexcept = default;
   Channel& operator=(Channel&&) noexcept = default;
 
@@ -89,7 +89,7 @@ protected:
   bool needsCleanup() const noexcept { return EntityCleanup; }
   void setFailed() noexcept { Failed = true; }
 
-  fd Handle;
+  Handle FD;
   std::string Identifier;
 
 private:
@@ -97,4 +97,4 @@ private:
   UniqueScalar<bool, false> Failed;
 };
 
-} // namespace monomux
+} // namespace monomux::system

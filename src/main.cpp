@@ -25,22 +25,22 @@
 #include <getopt.h>
 #include <unistd.h>
 
+#include "monomux/CheckedErrno.hpp"
+#include "monomux/FrontendExitCode.hpp"
 #include "monomux/Version.hpp"
 #include "monomux/client/Main.hpp"
 #include "monomux/server/Main.hpp"
-#include "monomux/system/CheckedPOSIX.hpp"
-#include "monomux/system/Crash.hpp"
+#include "monomux/system/Backtrace.hpp"
 #include "monomux/system/Environment.hpp"
 #include "monomux/system/Process.hpp"
-#include "monomux/system/Signal.hpp"
+#include "monomux/system/SignalHandling.hpp"
+#include "monomux/system/UnixBacktrace.hpp"
+#include "monomux/system/UnixProcess.hpp"
 
 #include "Config.hpp"
-#include "ExitCode.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("main")
-
-using namespace monomux;
 
 namespace
 {
@@ -88,20 +88,24 @@ struct MainOptions
   std::int8_t VerbosityQuietnessDifferential = 0;
 
   /// \p -v and \p -q translated to \p Severity choice.
-  log::Severity Severity;
+  monomux::log::Severity Severity;
 };
 
 void printHelp();
 void printVersion();
 void printFeatures();
-void coreDumped(SignalHandling::Signal SigNum,
+// FIXME: Ifdef UNIX...
+void coreDumped(monomux::system::SignalHandling::Signal SigNum,
                 ::siginfo_t* Info,
-                const SignalHandling* Handling);
+                const monomux::system::SignalHandling* Handling);
 
 } // namespace
 
 int main(int ArgC, char* ArgV[])
 {
+  using namespace monomux;
+  using namespace monomux::system;
+
   server::Options ServerOpts{};
   client::Options ClientOpts{};
 
@@ -241,14 +245,14 @@ int main(int ArgC, char* ArgV[])
     if (MainOpts.ShowHelp)
     {
       printHelp();
-      return EXIT_Success;
+      return static_cast<int>(FrontendExitCode::Success);
     }
     if (MainOpts.ShowVersion)
     {
       printVersion();
       if (MainOpts.ShowElaborateBuildInformation)
         printFeatures();
-      return EXIT_Success;
+      return static_cast<int>(FrontendExitCode::Success);
     }
 
     {
@@ -309,7 +313,7 @@ int main(int ArgC, char* ArgV[])
     }
 
     if (HadErrors)
-      return EXIT_InvocationError;
+      return static_cast<int>(FrontendExitCode::InvocationError);
 
     log::Logger::get().setLimit(MainOpts.Severity);
   }
@@ -335,15 +339,16 @@ int main(int ArgC, char* ArgV[])
       std::optional<MonomuxSession> Sess = MonomuxSession::loadFromEnv();
       if (Sess)
       {
-        ClientOpts.SocketPath = Sess->Socket.toString();
+        ClientOpts.SocketPath = Sess->Socket.to_string();
         ClientOpts.SessionData = std::move(Sess);
       }
     }
 
-    SocketPath SocketPath = ClientOpts.SocketPath.has_value()
-                              ? SocketPath::absolutise(*ClientOpts.SocketPath)
-                              : SocketPath::defaultSocketPath();
-    ClientOpts.SocketPath = SocketPath.toString();
+    Platform::SocketPath SocketPath =
+      ClientOpts.SocketPath.has_value()
+        ? Platform::SocketPath::absolutise(*ClientOpts.SocketPath)
+        : Platform::SocketPath::defaultSocketPath();
+    ClientOpts.SocketPath = SocketPath.to_string();
     ServerOpts.SocketPath = ClientOpts.SocketPath;
 
     LOG(debug) << "Using socket: \"" << *ClientOpts.SocketPath << '"';
@@ -351,7 +356,7 @@ int main(int ArgC, char* ArgV[])
 
   // --------------------- Dispatch to appropriate handler ---------------------
   if (ServerOpts.ServerMode)
-    return server::main(ServerOpts);
+    return static_cast<int>(server::main(ServerOpts));
 
   // The default behaviour in the client is to always try establishing a
   // connection to a server. However, it is very likely that the current process
@@ -372,13 +377,14 @@ int main(int ArgC, char* ArgV[])
     {
       LOG(info) << "No running server found, starting one automatically...";
       ServerOpts.ServerMode = true;
-      Process::fork([] { /* Parent: noop. */ },
-                    [&ServerOpts, &ArgV] {
-                      // Perform the server restart in the child, so it gets
-                      // disowned when we eventually exit, and we can remain the
-                      // client.
-                      server::exec(ServerOpts, ArgV[0]);
-                    });
+      // FIXME: Ifdef UNIX...
+      unix::Process::fork([] { /* Parent: noop. */ },
+                          [&ServerOpts, &ArgV] {
+                            // Perform the server restart in the child,
+                            // so it gets disowned when we eventually
+                            // exit, and we can remain the client.
+                            server::exec(ServerOpts, ArgV[0]);
+                          });
 
       // Give some time for the server to spawn...
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -395,7 +401,7 @@ int main(int ArgC, char* ArgV[])
     {
       std::cerr << "FATAL: Connecting to the server failed:\n\t"
                 << FailureReason << std::endl;
-      return EXIT_SystemError;
+      return static_cast<int>(FrontendExitCode::SystemError);
     }
 
     ClientOpts.Connection = std::move(ToServer);
@@ -518,18 +524,22 @@ Server options:
 
 void printVersion()
 {
-  std::cout << "MonoMux version " << getFullVersion() << std::endl;
+  std::cout << "MonoMux version " << monomux::getFullVersion() << std::endl;
 }
 
 void printFeatures()
 {
-  std::cout << "Features:\n" << getHumanReadableConfiguration() << std::endl;
+  std::cout << "Features:\n"
+            << monomux::getHumanReadableConfiguration() << std::endl;
 }
 
-void coreDumped(SignalHandling::Signal SigNum,
+void coreDumped(monomux::system::SignalHandling::Signal SigNum,
                 ::siginfo_t* /* Info */,
-                const SignalHandling* Handling)
+                const monomux::system::SignalHandling* Handling)
 {
+  using namespace monomux;
+  using namespace monomux::system;
+
   // Reset the signal handler for the current signal, so all other processes
   // and logics properly receive the fact that we are ending, anyway...
   SignalHandling::get().defaultCallback(SigNum);
@@ -540,7 +550,7 @@ void coreDumped(SignalHandling::Signal SigNum,
   LOG(fatal) << "in '" << Module << "' - FATAL SIGNAL " << SigNum << " '"
              << SignalHandling::signalName(SigNum) << "' RECEIVED!";
 
-  Backtrace BT;
+  unix::Backtrace BT;
   BT.prettify();
 
   std::cerr << "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - "

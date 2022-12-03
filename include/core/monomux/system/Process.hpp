@@ -23,13 +23,14 @@
 #include <string>
 #include <vector>
 
-#include <unistd.h>
-
-#include "monomux/system/CheckedPOSIX.hpp"
+#include "monomux/system/CurrentPlatform.hpp"
+#include "monomux/system/ProcessTraits.hpp"
 #include "monomux/system/Pty.hpp"
 
-namespace monomux
+namespace monomux::system
 {
+
+using PlatformSpecificProcessTraits = ProcessTraits<CurrentPlatform>;
 
 /// Responsible for creating, executing, and handling processes on the
 /// system.
@@ -37,9 +38,7 @@ class Process
 {
 public:
   /// Type alias for the raw process handle type on the platform.
-  using raw_handle = ::pid_t;
-
-  static constexpr raw_handle Invalid = -1;
+  using Raw = PlatformSpecificProcessTraits::RawTy;
 
   struct SpawnOptions
   {
@@ -54,21 +53,23 @@ public:
     /// inherited standard stream will be closed.
     ///
     /// This option has no effect if \p CreatePTY is \p true.
-    std::optional<raw_fd> StandardInput, StandardOutput, StandardError;
+    std::optional<Handle::Raw> StandardInput, StandardOutput, StandardError;
   };
 
-  raw_handle raw() const noexcept { return Handle; }
-  bool hasPty() const noexcept { return PTY.has_value(); }
+  virtual ~Process() = default;
+
+  Raw raw() const noexcept { return Handle; }
+  bool hasPty() const noexcept { return static_cast<bool>(PTY); }
   Pty* getPty() noexcept { return hasPty() ? &*PTY : nullptr; }
 
   /// \returns Checks if the process had died, and if so, returns \p true.
   ///
   /// \note This call does not block. If the process died, the operating system
   /// \b MAY remove associated information at the invocation of this call.
-  bool reapIfDead();
+  virtual bool reapIfDead() = 0;
 
   /// Blocks until the current process instance has terminated.
-  void wait();
+  virtual void wait() = 0;
 
   /// \returns whether the child process has been \b OBSERVED to be dead.
   bool dead() const noexcept { return Dead; }
@@ -83,26 +84,26 @@ public:
   }
 
   /// Send the \p Signal to the underlying process.
-  void signal(int Signal);
+  virtual void signal(int Signal) = 0;
 
-private:
-  raw_handle Handle = Invalid;
+protected:
+  Raw Handle = PlatformSpecificProcessTraits::Invalid;
   bool Dead = false;
   int ExitCode = 0;
   /// The \p Pty assocaited with the process, if \p SpawnOptions::CreatePTY was
   /// true.
-  std::optional<Pty> PTY;
+  std::unique_ptr<Pty> PTY;
 
 public:
   /// \returns the PID handle of the currently executing process.
-  static raw_handle thisProcess();
+  static Raw thisProcess();
 
   /// \returns the address of the currently executing binary, queried from the
   /// kernel.
   static std::string thisProcessPath();
 
   /// Sends the \p Signal to the process identified by \p PID.
-  static void signal(raw_handle Handle, int Signal);
+  static void signal(Raw Handle, int Signal);
 
   /// Replaces the current process (as if by calling the \p exec() family) in
   /// the system with the started one. This is a low-level operation that
@@ -120,24 +121,7 @@ public:
   /// parent.
   ///
   /// \note This call does \b NOT return in the child!
-  static Process spawn(const SpawnOptions& Opts);
-
-  /// \p fork(): Ask the kernel to create an exact duplicate of the current
-  /// process. The specified callbacks \p ParentAction and \p ChildAction will
-  /// be run in the parent and the child process, respectively.
-  ///
-  /// \note Execution continues normally after the callbacks retur return!
-  template <typename ParentFn, typename ChildFn>
-  static void fork(ParentFn ParentAction, ChildFn ChildAction)
-  {
-    auto ForkResult = CheckedPOSIXThrow([] { return ::fork(); }, "fork()", -1);
-    if (ForkResult == 0)
-      ChildAction();
-    else
-      ParentAction();
-  }
+  static std::unique_ptr<Process> spawn(const SpawnOptions& Opts);
 };
 
-using raw_pid = Process::raw_handle;
-
-} // namespace monomux
+} // namespace monomux::system

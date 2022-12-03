@@ -21,6 +21,8 @@
 
 #include "monomux/adt/SmallIndexMap.hpp"
 
+// NOLINTBEGIN(cert-err58-cpp)
+
 using namespace monomux;
 
 static constexpr int Magic32 = 32;
@@ -452,3 +454,5 @@ TEST(SmallIndexMap, LargeMap)
   EXPECT_EQ(M.size(), 4096 / 2);
   EXPECT_TRUE(M.isSmall());
 }
+
+// NOLINTEND(cert-err58-cpp)

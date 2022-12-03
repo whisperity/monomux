@@ -93,7 +93,9 @@ private:
 ///
 /// Example:
 ///
-///     auto MyLazy = makeLazy([]() -> some_type { return some_type_maker(); });
+///   \code{.cpp}
+///   auto MyLazy = makeLazy([]() -> some_type { return some_type_maker(); });
+///   \endcode
 template <typename EnterFunction>
 auto makeLazy(EnterFunction&& Enter) noexcept(
   std::is_nothrow_move_constructible_v<EnterFunction>)

@@ -25,6 +25,9 @@ project(monomux
 
 if (NOT UNIX)
   message(FATAL_ERROR "This project supports only POSIX Unix/Linux platforms!")
+else()
+  set(MONOMUX_PLATFORM "Unix")
+  set(MONOMUX_PLATFORM_UNIX ON)
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -64,9 +67,12 @@ endif()
 message(STATUS "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - ")
 message(STATUS "        MonoMux (v${MONOMUX_VERSION_STRING})")
 message(STATUS "------------------------------------------------------------------------------")
-message(STATUS "Build type:                                         ${CMAKE_BUILD_TYPE}")
+message(STATUS "Platform:                                           ${MONOMUX_PLATFORM}")
 message(STATUS "System:                                             ${CMAKE_SYSTEM_PROCESSOR} (${CMAKE_SYSTEM_NAME})")
+# message(STATUS "")
+message(STATUS "Build type:                                         ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ standard:                                       C++${CMAKE_CXX_STANDARD}")
+# message(STATUS "")
 message(STATUS "Library type:                                       ${MONOMUX_LIBRARY_TYPE}")
 message(STATUS "Non-essential log output:                           ${MONOMUX_NON_ESSENTIAL_LOGS}")
 message(STATUS "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - ")
@@ -75,9 +81,16 @@ message(STATUS "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * 
 
 include_directories(
   "${CMAKE_SOURCE_DIR}/include/core"
+  "${CMAKE_SOURCE_DIR}/include/frontend"
   "${CMAKE_SOURCE_DIR}/include/implementation"
   "${CMAKE_BINARY_DIR}/include"
   )
+
+if (MONOMUX_PLATFORM_UNIX)
+  include_directories(
+    "${CMAKE_SOURCE_DIR}/include/unix"
+    )
+endif()
 
 add_subdirectory(include)
 add_subdirectory(src)

@@ -1,9 +1,11 @@
-
 set(MONOMUX_CORE_LIBRARY_NAME "MonomuxCoreLibrary")
 set(MONOMUX_CORE_LIBRARY_DEV_NAME "MonomuxCoreLibraryDevelopoment")
 
-set(MONOMUX_IMPLEMENTATION_LIBRARY_NAME "MonomuxLibrary")
-set(MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME "MonomuxLibraryDevelopment")
+set(MONOMUX_PLATFORM_LIBRARY_NAME "MonomuxPlatformLibrary")
+set(MONOMUX_PLATFORM_LIBRARY_DEV_NAME "MonomuxPlatformLibraryDevelopoment")
+
+set(MONOMUX_FRONTEND_LIBRARY_NAME "MonomuxFrontendLibrary")
+set(MONOMUX_FRONTEND_LIBRARY_DEV_NAME "MonomuxFrontendLibraryDevelopment")
 
 set(MONOMUX_NAME "Monomux")
 set(MONOMUX_DEV_NAME "MonomuxDevelopment")

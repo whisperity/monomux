@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "monomux/adt/MemberFunctionHelper.hpp"
+#include "monomux/adt/FunctionExtras.hpp"
 #include "monomux/adt/UniqueScalar.hpp"
 
 namespace monomux
@@ -57,7 +57,7 @@ public:
 
   /// \returns the profiling data of size peaks between buffer emptying
   /// gathered.
-  auto peakStats() const
+  std::vector<std::size_t> peakStats() const
   {
     std::vector<std::size_t> Peaks = SizePeaks;
     if (CurrentPeakIndex < Peaks.size() - 1)

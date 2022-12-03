@@ -3,7 +3,9 @@ name: "Build and continuous Package"
 on:
   push:
     branches:
+      - '**'
     tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
   pull_request:
     branches:
       - master
@@ -21,38 +23,38 @@ jobs:
         with:
           check-path: src
 
-  # docs:
-  #   name: "Documentation"
-  #   runs-on: ubuntu-20.04
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - name: "Install dependencies"
-  #       run: |
-  #         sudo apt-get -y update
-  #         sudo apt-get -y install \
-  #           doxygen \
-  #           graphviz
-  #     - name: "Prepare build with CMake"
-  #       run: |
-  #         cmake --version
-  #
-  #         cmake -S . -B Build \
-  #           -DCMAKE_BUILD_TYPE=Debug \
-  #           -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
-  #           -DMONOMUX_BUILD_DOCS=ON \
-  #           -DMONOMUX_BUILD_SHARED_LIBS=OFF \
-  #           -DMONOMUX_BUILD_TESTS=OFF \
-  #           -DMONOMUX_NON_ESSENTIAL_LOGS=ON
-  #     - name: "Doxygen"
-  #       run: |
-  #         cmake --build ./Build -- -j docs
-  #     - name: "Upload artefacts: Doxygen"
-  #       uses: actions/upload-artifact@v2
-  #       with:
-  #         path: "Build/docs/html"
-  #         name: "Implementation reference"
-  #         if-no-files-found: warn
-  #         retention-days: 14
+  docs:
+    name: "Documentation"
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: "Install dependencies"
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install \
+            doxygen \
+            graphviz
+      - name: "Prepare build with CMake"
+        run: |
+          cmake --version
+
+          cmake -S . -B Build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
+            -DMONOMUX_BUILD_DOCS=ON \
+            -DMONOMUX_BUILD_SHARED_LIBS=OFF \
+            -DMONOMUX_BUILD_TESTS=OFF \
+            -DMONOMUX_NON_ESSENTIAL_LOGS=ON
+      - name: "Doxygen"
+        run: |
+          cmake --build ./Build -- -j docs
+      - name: "Upload artefacts: Doxygen"
+        uses: actions/upload-artifact@v2
+        with:
+          path: "Build/docs/html"
+          name: "Implementation reference"
+          if-no-files-found: warn
+          retention-days: 14
 
   lts-linux:
     strategy:

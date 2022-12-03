@@ -21,6 +21,8 @@
 
 #include "monomux/adt/RingBuffer.hpp"
 
+// NOLINTBEGIN(cert-err58-cpp)
+
 using namespace monomux;
 
 static constexpr int Magic32 = 32;
@@ -247,3 +249,5 @@ TEST(RingBuffer, PeekAndDrop)
   EXPECT_EQ(RB[0], 3);
   EXPECT_EQ(RB[1], 4);
 }
+
+// NOLINTEND(cert-err58-cpp)

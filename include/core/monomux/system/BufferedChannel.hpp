@@ -26,7 +26,7 @@
 #include "monomux/adt/UniqueScalar.hpp"
 #include "monomux/system/Channel.hpp"
 
-namespace monomux
+namespace monomux::system
 {
 
 namespace detail
@@ -86,7 +86,7 @@ public:
     }
 
     const BufferedChannel& channel() const noexcept { return Channel; }
-    raw_fd fd() const noexcept { return Channel.raw(); }
+    Handle::Raw fd() const noexcept { return Channel.raw(); }
     bool readOverflow() const noexcept { return Read; }
     bool writeOverflow() const noexcept { return Write; }
   };
@@ -186,7 +186,7 @@ protected:
   /// a read buffer will not be created.
   /// \param WriteBufferSize If non-zero, the size of the write buffer. If zero,
   /// a write buffer will not be created.
-  BufferedChannel(fd Handle,
+  BufferedChannel(Handle FD,
                   std::string Identifier,
                   bool NeedsCleanup,
                   std::size_t ReadBufferSize = BufferSize,
@@ -195,6 +195,4 @@ protected:
   BufferedChannel& operator=(BufferedChannel&&) noexcept = default;
 };
 
-using buffer_overflow = BufferedChannel::OverflowError;
-
-} // namespace monomux
+} // namespace monomux::system

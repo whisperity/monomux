@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 
-#include "monomux/system/Crash.hpp"
+#include "monomux/system/Backtrace.hpp"
 
 void stackTrace(int Signal)
 {
@@ -29,7 +29,7 @@ void stackTrace(int Signal)
   (void)std::signal(Signal, SIG_DFL);
 
   std::cerr << "FATAL! " << Signal << '\n';
-  monomux::printBacktrace(std::cerr);
+  monomux::system::printBacktrace(std::cerr);
   std::cerr << std::endl;
 }
 

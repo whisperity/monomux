@@ -26,7 +26,7 @@
 #include <variant>
 #include <vector>
 
-#include "monomux/adt/MemberFunctionHelper.hpp"
+#include "monomux/adt/FunctionExtras.hpp"
 
 namespace monomux
 {
