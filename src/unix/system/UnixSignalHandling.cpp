@@ -103,7 +103,7 @@ const char* SignalHandling::signalName(SignalHandling::Signal S) noexcept
   return "<unknown signal>";
 }
 
-void SignalTraits<PlatformTag::UNIX>::signalDispatch(Signal SigNum,
+void SignalTraits<PlatformTag::Unix>::signalDispatch(Signal SigNum,
                                                      ::siginfo_t* Info,
                                                      void* /*Context*/)
 {
@@ -131,7 +131,7 @@ void SignalTraits<PlatformTag::UNIX>::signalDispatch(Signal SigNum,
   }
 }
 
-void SignalTraits<PlatformTag::UNIX>::setSignalHandled(SignalHandling::Signal S)
+void SignalTraits<PlatformTag::Unix>::setSignalHandled(SignalHandling::Signal S)
 {
   POD<struct ::sigaction> SigAct;
   SigAct->sa_flags = SA_SIGINFO;
@@ -145,7 +145,7 @@ void SignalTraits<PlatformTag::UNIX>::setSignalHandled(SignalHandling::Signal S)
                     << SignalHandling::signalName(S) << " set to handle");
 }
 
-void SignalTraits<PlatformTag::UNIX>::setSignalDefault(SignalHandling::Signal S)
+void SignalTraits<PlatformTag::Unix>::setSignalDefault(SignalHandling::Signal S)
 {
   POD<struct ::sigaction> SigAct;
   SigAct->sa_handler = SIG_DFL;
@@ -158,7 +158,7 @@ void SignalTraits<PlatformTag::UNIX>::setSignalDefault(SignalHandling::Signal S)
                     << SignalHandling::signalName(S) << " set to default");
 }
 
-void SignalTraits<PlatformTag::UNIX>::setSignalIgnored(SignalHandling::Signal S)
+void SignalTraits<PlatformTag::Unix>::setSignalIgnored(SignalHandling::Signal S)
 {
   POD<struct ::sigaction> SigAct;
   SigAct->sa_handler = SIG_IGN;

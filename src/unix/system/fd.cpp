@@ -41,13 +41,13 @@ std::size_t Handle::maxHandles()
   return Limits->rlim_cur;
 }
 
-void HandleTraits<PlatformTag::UNIX>::close(raw_fd FD) noexcept
+void HandleTraits<PlatformTag::Unix>::close(raw_fd FD) noexcept
 {
   MONOMUX_TRACE_LOG(LOG(data) << "Closing FD #" << FD << "...");
   CheckedErrno([FD] { return ::close(FD); }, -1);
 }
 
-std::string HandleTraits<PlatformTag::UNIX>::to_string(raw_fd FD)
+std::string HandleTraits<PlatformTag::Unix>::to_string(raw_fd FD)
 {
   return std::to_string(FD);
 }

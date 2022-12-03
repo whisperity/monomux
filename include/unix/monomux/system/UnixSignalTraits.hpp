@@ -27,7 +27,7 @@ namespace monomux::system
 
 class SignalHandling;
 
-template <> struct SignalTraits<PlatformTag::UNIX>
+template <> struct SignalTraits<PlatformTag::Unix>
 {
   /// Type alias for the raw signal identifier type on the platform.
   using RawTy = argument_t<1, decltype(::signal)>;

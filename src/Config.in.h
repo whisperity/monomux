@@ -31,7 +31,7 @@
 /* The system platform that the current build is being done on. */
 #define MONOMUX_PLATFORM "${MONOMUX_PLATFORM}"
 
-/* If set, the PLATFORM is "UNIX". */
+/* If set, the PLATFORM is "Unix". */
 #cmakedefine MONOMUX_PLATFORM_UNIX
 
 /* The build type for the current build. */

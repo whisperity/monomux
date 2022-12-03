@@ -29,7 +29,7 @@ enum class PlatformTag
   Unknown = 0,
 
   /// Standard UNIX and POSIX systems, most importantly Linux.
-  UNIX = 1
+  Unix = 1
 };
 
 /// Dummy class that is implemented by platform-specific details to provide

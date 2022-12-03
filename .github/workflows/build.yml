@@ -16,45 +16,45 @@ jobs:
     name: "Style checks"
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: "Code style (clang-format)"
         id: clang-format
         uses: jidicula/clang-format-action@v4.6.2
         with:
           check-path: src
 
-  docs:
-    name: "Documentation"
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-      - name: "Install dependencies"
-        run: |
-          sudo apt-get -y update
-          sudo apt-get -y install \
-            doxygen \
-            graphviz
-      - name: "Prepare build with CMake"
-        run: |
-          cmake --version
-
-          cmake -S . -B Build \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
-            -DMONOMUX_BUILD_DOCS=ON \
-            -DMONOMUX_BUILD_SHARED_LIBS=OFF \
-            -DMONOMUX_BUILD_TESTS=OFF \
-            -DMONOMUX_NON_ESSENTIAL_LOGS=ON
-      - name: "Doxygen"
-        run: |
-          cmake --build ./Build -- -j docs
-      - name: "Upload artefacts: Doxygen"
-        uses: actions/upload-artifact@v2
-        with:
-          path: "Build/docs/html"
-          name: "Implementation reference"
-          if-no-files-found: warn
-          retention-days: 14
+  # docs:
+  #   name: "Documentation"
+  #   runs-on: ubuntu-20.04
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: "Install dependencies"
+  #       run: |
+  #         sudo apt-get -y update
+  #         sudo apt-get -y install \
+  #           doxygen \
+  #           graphviz
+  #     - name: "Prepare build with CMake"
+  #       run: |
+  #         cmake --version
+  #
+  #         cmake -S . -B Build \
+  #           -DCMAKE_BUILD_TYPE=Debug \
+  #           -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
+  #           -DMONOMUX_BUILD_DOCS=ON \
+  #           -DMONOMUX_BUILD_SHARED_LIBS=OFF \
+  #           -DMONOMUX_BUILD_TESTS=OFF \
+  #           -DMONOMUX_NON_ESSENTIAL_LOGS=ON
+  #     - name: "Doxygen"
+  #       run: |
+  #         cmake --build ./Build -- -j docs
+  #     - name: "Upload artefacts: Doxygen"
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         path: "Build/docs/html"
+  #         name: "Implementation reference"
+  #         if-no-files-found: warn
+  #         retention-days: 14
 
   lts-linux:
     strategy:
@@ -77,7 +77,7 @@ jobs:
     name: "${{ matrix.distribution }}, ${{ matrix.compiler }}, ${{ matrix.library-type }} libs"
     runs-on: ${{ matrix.distribution }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: "Install dependencies"
         id: dependencies
         env:
@@ -131,7 +131,7 @@ jobs:
 
           cd ..
 
-          echo "::set-output name=PACKAGE_VERSION::$(cat Build/Version.txt)"
+          echo "PACKAGE_VERSION=$(cat Build/Version.txt)" >> "$GITHUB_OUTPUT"
           mv -v Build/MonoMux-*-Linux-MonomuxUserGroup.tar.gz \
             "./monomux-$(cat Build/Version.txt)-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
           mv -v Build/MonoMux-*-Linux-MonomuxUserGroup.deb \
@@ -154,7 +154,7 @@ jobs:
           fi
       - name: "Upload packaging errors for triage"
         if: steps.binary-package.outcome == 'failure' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: "Build/_CPack_Packages"
           name: "${{ matrix.distribution }}-${{ matrix.compiler }} packaging fail"
@@ -162,7 +162,7 @@ jobs:
           retention-days: 7
       - name: "Upload binary package artefacts: Tarball"
         if: steps.binary-package.outcome == 'success' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
           name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.tgz"
@@ -170,7 +170,7 @@ jobs:
           retention-days: 30
       - name: "Upload binary package artefacts: Debian package"
         if: steps.binary-package.outcome == 'success' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
           name: "monomux-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.deb"
@@ -178,7 +178,7 @@ jobs:
           retention-days: 30
       - name: "Upload binary package artefacts: Debian package (debug symbols)"
         if: steps.binary-package.outcome == 'success' && matrix.compiler == 'clang' && matrix.library-type == 'unity'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.ddeb"
           name: "monomux-dbgsym-${{ steps.binary-package.outputs.PACKAGE_VERSION }}-${{ matrix.distribution }}-${{ matrix.compiler }}.ddeb"

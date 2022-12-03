@@ -33,7 +33,7 @@ namespace monomux::system::unix
 class fd : public Handle // NOLINT(readability-identifier-naming)
 {
 public:
-  using Traits = HandleTraits<PlatformTag::UNIX>;
+  using Traits = HandleTraits<PlatformTag::Unix>;
 
   /// The file descriptor type on a POSIX system.
   using raw_fd = Traits::raw_fd;

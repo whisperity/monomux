@@ -23,7 +23,7 @@
 namespace monomux::system
 {
 
-static constexpr PlatformTag CurrentPlatform = PlatformTag::UNIX;
+static constexpr PlatformTag CurrentPlatform = PlatformTag::Unix;
 
 } // namespace monomux::system
 

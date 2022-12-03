@@ -26,7 +26,7 @@
 namespace monomux::system
 {
 
-template <> struct ProcessTraits<PlatformTag::UNIX>
+template <> struct ProcessTraits<PlatformTag::Unix>
 {
   /// Type alias for the raw process handle type on the platform.
   using raw_handle = ::pid_t;

@@ -26,7 +26,7 @@
 namespace monomux::system
 {
 
-template <> struct HandleTraits<PlatformTag::UNIX>
+template <> struct HandleTraits<PlatformTag::Unix>
 {
   /// The file descriptor type on a POSIX system.
   using raw_fd = decltype(::open("", 0));
