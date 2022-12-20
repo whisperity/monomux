@@ -87,6 +87,11 @@ struct Options
   std::optional<system::MonomuxSession> SessionData;
 };
 
+/// Returns the socket and session data that should be used based on the
+/// provided \p Opts \b and the current environment, e.g., if the process is
+/// running within a MonoMux context already.
+system::MonomuxSession getEnvironmentalSession(const Options& Opts);
+
 /// Attempt to establish connection to a Monomux Server specified in \p Opts.
 ///
 /// \param Block Whether to continue retrying the connection and block until

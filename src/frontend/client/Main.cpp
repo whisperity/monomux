@@ -26,12 +26,16 @@
 #include "monomux/adt/ScopeGuard.hpp"
 #include "monomux/client/Client.hpp"
 #include "monomux/client/ControlClient.hpp"
+// FIXME: Terminal is really Unix-dependent
 #include "monomux/client/Terminal.hpp"
 #include "monomux/system/Environment.hpp"
 #include "monomux/system/Process.hpp"
 #include "monomux/system/SignalHandling.hpp"
-#include "monomux/system/fd.hpp"
 #include "monomux/unreachable.hpp"
+
+#ifdef MONOMUX_PLATFORM_UNIX
+#include "monomux/system/fd.hpp"
+#endif /* MONOMUX_PLATFORM_UNIX */
 
 #include "monomux/client/Main.hpp"
 
@@ -105,26 +109,63 @@ bool Options::isControlMode() const noexcept
   return DetachRequestLatest || DetachRequestAll || StatisticsRequest;
 }
 
+system::MonomuxSession getEnvironmentalSession(const Options& Opts)
+{
+  using namespace monomux::system;
+  system::MonomuxSession Session{};
+
+  if (Opts.isControlMode() && !Opts.SocketPath)
+  {
+    // Load a session from the current process's environment, to have a socket
+    // for the controller client ready, if needed.
+    std::optional<MonomuxSession> Session = MonomuxSession::loadFromEnv();
+    if (Session)
+      return std::move(*Session);
+  }
+
+  Platform::SocketPath ElaborateSocketPath =
+    Opts.SocketPath.has_value()
+      ? Platform::SocketPath::absolutise(*Opts.SocketPath)
+      : Platform::SocketPath::defaultSocketPath();
+  Session.Socket = std::move(ElaborateSocketPath);
+  return Session;
+}
+
 std::optional<Client>
 connect(Options& Opts, bool Block, std::string* FailureReason)
 {
-  auto C = Client::create(*Opts.SocketPath, FailureReason);
-  if (!Block)
-    return C;
-
-  static constexpr std::size_t MaxConnectTries = 16;
+  static constexpr std::size_t MaxConnectTries = 4;
   unsigned short ConnectCounter = 0;
+  std::optional<Client> C;
   while (!C)
   {
     ++ConnectCounter;
+    MONOMUX_TRACE_LOG(
+      if (Block) {
+        LOG(debug) << '#' << ConnectCounter << ' ' << "Attempt connecting to '"
+                   << *Opts.SocketPath << "'...";
+      } else {
+        LOG(debug) << "Attempt connecting to '" << *Opts.SocketPath << "'...";
+      });
     if (ConnectCounter == MaxConnectTries)
     {
       if (FailureReason)
-        *FailureReason = "Connection failed after enough retries.";
+        FailureReason->insert(
+          0, "Failed to establish connection after enough retries. ");
       return std::nullopt;
     }
 
-    C = Client::create(*Opts.SocketPath, FailureReason);
+    try
+    {
+      C = Client::create(*Opts.SocketPath, FailureReason);
+      if (!Block || C.has_value())
+        return C;
+    }
+    catch (...)
+    {
+      if (!Block)
+        throw;
+    }
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
@@ -133,11 +174,13 @@ connect(Options& Opts, bool Block, std::string* FailureReason)
 
 bool makeWholeWithData(Client& Client, std::string* FailureReason)
 {
-  static constexpr std::size_t MaxHandshakeTries = 16;
+  static constexpr std::size_t MaxHandshakeTries = 4;
   unsigned short HandshakeCounter = 0;
   while (!Client.handshake(FailureReason))
   {
     ++HandshakeCounter;
+    MONOMUX_TRACE_LOG(LOG(debug) << '#' << HandshakeCounter << ' '
+                                 << "Attempt connecting data...");
     if (HandshakeCounter == MaxHandshakeTries)
     {
       if (FailureReason)
@@ -146,7 +189,8 @@ bool makeWholeWithData(Client& Client, std::string* FailureReason)
       return false;
     }
 
-    LOG(warn) << "Establishing full connection failed:\n\t" << FailureReason;
+    LOG(warn) << "Establishing full connection failed:\n\t"
+              << (FailureReason ? *FailureReason : "No reason given.");
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
@@ -186,13 +230,8 @@ FrontendExitCode handleSessionCreateOrAttach(Options& Opts);
 int handleClientExitStatus(const Client& Client);
 
 // FIXME: If Unix...
-
-void windowSizeChange(system::SignalHandling::Signal SigNum,
-                      ::siginfo_t* Info,
-                      const system::SignalHandling* Handling);
-void coreDumped(system::SignalHandling::Signal SigNum,
-                ::siginfo_t* Info,
-                const system::SignalHandling* Handling);
+MONOMUX_SIGNAL_HANDLER(windowSizeChange);
+MONOMUX_SIGNAL_HANDLER(coreDumped);
 
 // NOLINTNEXTLINE(cert-err58-cpp)
 auto OriginalLogLevel =
@@ -585,12 +624,13 @@ int handleClientExitStatus(const Client& Client)
 
 /// Handler for \p SIGWINCH (window size change) events produces by the terminal
 /// the program is running in.
-void windowSizeChange(system::SignalHandling::Signal /* SigNum */,
-                      ::siginfo_t* /* Info */,
-                      const system::SignalHandling* Handling)
+MONOMUX_SIGNAL_HANDLER(windowSizeChange)
 {
+  (void)Sig;
+  (void)PlatformInfo;
+
   const volatile auto* Term =
-    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
+    SignalHandling->getObjectAs<Terminal*>(TerminalObjName);
   if (!Term)
     return;
   (*Term)->notifySizeChanged();
@@ -599,17 +639,18 @@ void windowSizeChange(system::SignalHandling::Signal /* SigNum */,
 /// Custom handler for \p SIGABRT. This is even more custom than the handler in
 /// the global \p main() as it deals with resetting the terminal to sensible
 /// defaults first.
-void coreDumped(system::SignalHandling::Signal /* SigNum */,
-                ::siginfo_t* /* Info */,
-                const system::SignalHandling* Handling)
+MONOMUX_SIGNAL_HANDLER(coreDumped)
 {
+  (void)Sig;
+  (void)PlatformInfo;
+
   // Reset the loglevel so all messages that might appear appear as needed.
   log::Logger::get().setLimit(OriginalLogLevel.get());
 
   // Reset the terminal so we don't get weird output if the client crashed in
   // the middle of a formatting sequence.
   const volatile auto* Term =
-    std::any_cast<Terminal*>(Handling->getObject(TerminalObjName));
+    SignalHandling->getObjectAs<Terminal*>(TerminalObjName);
   if (Term)
   {
     (*Term)->disengage();

@@ -17,44 +17,59 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
+#include <type_traits>
 
-#define MEMBER_FN_NON_CONST_0(RETURN_TYPE, FUNCTION_NAME)                      \
-  RETURN_TYPE FUNCTION_NAME()                                                  \
+#define MONOMUX_DETAIL_FUNCTION_HEAD(RET_TY, NAME, ARGUMENTS, QUALIFIERS)      \
+  RET_TY NAME(ARGUMENTS) QUALIFIERS
+
+#define MONOMUX_DETAIL_FUNCTION_TEMPLATE_HEAD(                                 \
+  TEMPLATES, RET_TY, NAME, ARGUMENTS, QUALIFIERS)                              \
+  template <TEMPLATES>                                                         \
+  MONOMUX_DETAIL_FUNCTION_HEAD(RET_TY, NAME, ARGUMENTS, QUALIFIERS)
+
+#define MONOMUX_DETAIL_CONST_TYPE                                              \
+  using Const = std::add_pointer_t<                                            \
+    std::add_const_t<std::remove_pointer_t<decltype(this)>>>
+#define MONOMUX_DETAIL_CONST_OBJ const_cast<Const>(this)
+#define MONOMUX_DETAIL_CONST_VALUE(CALL) const auto& Value = CALL
+// NOLINTBEGIN(bugprone-macro-parantheses)
+#define MONOMUX_DETAIL_RETURN_CAST(RET_TY, OBJ) return const_cast<RET_TY>(OBJ)
+// NOLINTEND(bugprone-macro-parantheses)
+
+#define MONOMUX_DETAIL_FUNCTION_BODY(RET_TY, CALL)                             \
   {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME());                        \
+    MONOMUX_DETAIL_CONST_TYPE;                                                 \
+    MONOMUX_DETAIL_CONST_VALUE(CALL);                                          \
+    MONOMUX_DETAIL_RETURN_CAST(RET_TY, Value);                                 \
   }
 
-#define MEMBER_FN_NON_CONST_0_NOEXCEPT(RETURN_TYPE, FUNCTION_NAME)             \
-  RETURN_TYPE FUNCTION_NAME() noexcept                                         \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME());                        \
-  }
+#define MONOMUX_DETAIL_CALL_0(NAME) MONOMUX_DETAIL_CONST_OBJ->NAME()
+#define MONOMUX_DETAIL_CALL_1(NAME, ARG_1) MONOMUX_DETAIL_CONST_OBJ->NAME(ARG_1)
+#define MONOMUX_DETAIL_CALL_0_T1(NAME, TYPE_1)                                 \
+  MONOMUX_DETAIL_CONST_OBJ->NAME<TYPE_1>()
+#define MONOMUX_DETAIL_CALL_1_T1(NAME, TYPE_1, ARG_1)                          \
+  MONOMUX_DETAIL_CONST_OBJ->NAME<TYPE_1>(ARG_1)
 
-#define MEMBER_FN_NON_CONST_1(                                                 \
-  RETURN_TYPE, FUNCTION_NAME, ARG_1_TYPE, ARG_1_NAME)                          \
-  RETURN_TYPE FUNCTION_NAME(ARG_1_TYPE ARG_1_NAME)                             \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME(ARG_1_NAME));              \
-  }
 
-#define MEMBER_FN_NON_CONST_1_NOEXCEPT(                                        \
-  RETURN_TYPE, FUNCTION_NAME, ARG_1_TYPE, ARG_1_NAME)                          \
-  RETURN_TYPE FUNCTION_NAME(ARG_1_TYPE ARG_1_NAME) noexcept                    \
-  {                                                                            \
-    using ConstThisPtr = std::add_pointer_t<                                   \
-      std::add_const_t<std::remove_pointer_t<decltype(this)>>>;                \
-    return const_cast<RETURN_TYPE>(                                            \
-      const_cast<ConstThisPtr>(this)->FUNCTION_NAME(ARG_1_NAME));              \
-  }
+#define MONOMUX_MEMBER_0(RETURN_TYPE, NAME, NOEXCEPT)                          \
+  MONOMUX_DETAIL_FUNCTION_HEAD(RETURN_TYPE, NAME, , NOEXCEPT)                  \
+  MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE, MONOMUX_DETAIL_CALL_0(NAME))
+#define MONOMUX_MEMBER_1(RETURN_TYPE, NAME, NOEXCEPT, ARG_1_TYPE, ARG_1)       \
+  MONOMUX_DETAIL_FUNCTION_HEAD(RETURN_TYPE, NAME, ARG_1_TYPE ARG_1, NOEXCEPT)  \
+  MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE, MONOMUX_DETAIL_CALL_1(NAME, ARG_1))
+
+#define MONOMUX_MEMBER_T1_0(RETURN_TYPE, NAME, NOEXCEPT, TYPE_1_TYPE, TYPE_1)  \
+  MONOMUX_DETAIL_FUNCTION_TEMPLATE_HEAD(                                       \
+    TYPE_1_TYPE TYPE_1, RETURN_TYPE, NAME, , NOEXCEPT)                         \
+  MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE,                                    \
+                               MONOMUX_DETAIL_CALL_0_T1(NAME, TYPE_1))
+#define MONOMUX_MEMBER_T1_1(                                                   \
+  RETURN_TYPE, NAME, NOEXCEPT, TYPE_1_TYPE, TYPE_1, ARG_1_TYPE, ARG_1)         \
+  MONOMUX_DETAIL_FUNCTION_TEMPLATE_HEAD(                                       \
+    TYPE_1_TYPE TYPE_1, RETURN_TYPE, NAME, ARG_1_TYPE ARG_1, NOEXCEPT)         \
+  MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE,                                    \
+                               MONOMUX_DETAIL_CALL_1_T1(NAME, TYPE_1, ARG_1))
+
 
 namespace monomux
 {

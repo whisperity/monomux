@@ -283,7 +283,7 @@ public:
   }
   /// Retrieve a mutable pointer to the element mapped for \p Key, or
   /// \p nullptr if \p Key is not mapped.
-  MEMBER_FN_NON_CONST_1_NOEXCEPT(T*, tryGet, KeyTy, Key);
+  MONOMUX_MEMBER_1(T*, tryGet, noexcept, KeyTy, Key);
 
   /// Retrieve a non-mutable reference to the element mapped for \p Key.
   /// \throws std::out_of_range if \p Key is not mapped.
@@ -295,7 +295,7 @@ public:
     return *P;
   }
   /// Retrieve a mutable reference to the element mapped for \p Key.
-  MEMBER_FN_NON_CONST_1(T&, get, KeyTy, Key);
+  MONOMUX_MEMBER_1(T&, get, , KeyTy, Key);
 
   /// Create a mutable reference to the element mapped for \p Key.
   /// If no such element exists, an appropriate default-constructed element is
@@ -382,18 +382,18 @@ private:
       return *Elem;
     }
   }
-  MEMBER_FN_NON_CONST_1(T&, unwrap, E&, Elem);
+  MONOMUX_MEMBER_1(T&, unwrap, , E&, Elem);
 
   const SmallRepresentation* getSmallRepr() const noexcept
   {
     return std::get_if<SmallRepresentation>(&Storage);
   }
-  MEMBER_FN_NON_CONST_0_NOEXCEPT(SmallRepresentation*, getSmallRepr);
+  MONOMUX_MEMBER_0(SmallRepresentation*, getSmallRepr, noexcept);
   const LargeRepresentation* getLargeRepr() const noexcept
   {
     return std::get_if<LargeRepresentation>(&Storage);
   }
-  MEMBER_FN_NON_CONST_0_NOEXCEPT(LargeRepresentation*, getLargeRepr);
+  MONOMUX_MEMBER_0(LargeRepresentation*, getLargeRepr, noexcept);
 
   /// Fills the small representation \p std::array with default initialised
   /// values.

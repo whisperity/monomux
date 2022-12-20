@@ -35,7 +35,7 @@ SignalHandling& SignalHandling::get()
   {
     Singleton = SignalHandling::create();
     MONOMUX_TRACE_LOG(LOG(debug)
-                      << "Initialised at address " << Singleton.get());
+                      << "Initialised at address" << ' ' << Singleton.get());
   }
   return *Singleton;
 }
@@ -250,8 +250,9 @@ void SignalHandling::registerObject(std::string Name, std::any Object)
 
     if (IName == Name || IName.empty())
     {
-      MONOMUX_TRACE_LOG(LOG(trace) << "Object \"" << Name
-                                   << "\" registered (ID: " << I << ')');
+      MONOMUX_TRACE_LOG(LOG(trace)
+                        << "Object " << '"' << Name << '"' << " registered "
+                        << '(' << "ID: " << I << ')');
 
       if (IName.empty())
         IName = std::move(Name);
@@ -274,8 +275,8 @@ void SignalHandling::deleteObject(const std::string& Name) noexcept
     if (ObjectNames.at(I) == Name)
     {
       Objects.at(I).reset();
-      MONOMUX_TRACE_LOG(LOG(trace) << "Object \"" << Name << "\" (ID: " << I
-                                   << ") deleted");
+      MONOMUX_TRACE_LOG(LOG(trace) << "Object " << '"' << Name << '"' << ' '
+                                   << '(' << "ID: " << I << ')' << " deleted");
       return;
     }
 }
@@ -289,13 +290,8 @@ void SignalHandling::deleteObjects() noexcept
     ObjectNames.at(I).clear();
     Objects.at(I).reset();
   }
-  MONOMUX_TRACE_LOG(LOG(trace) << "Objects deleted");
-}
-
-std::any* SignalHandling::getObject(const char* Name) noexcept
-{
-  return const_cast<std::any*>(
-    const_cast<const SignalHandling*>(this)->getObject(Name));
+  MONOMUX_TRACE_LOG(LOG(trace) << "Objects"
+                               << " deleted");
 }
 
 const std::any* SignalHandling::getObject(const char* Name) const noexcept

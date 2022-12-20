@@ -18,16 +18,18 @@
  */
 #include <utility>
 
+#include "monomux/Config.h"
 #include "monomux/message/Message.hpp"
 #include "monomux/message/PascalString.hpp"
 #include "monomux/system/BufferedChannel.hpp"
 #include "monomux/system/Handle.hpp"
 #include "monomux/system/Pipe.hpp"
 
-// FIXME: Make this conditional.
+#ifdef MONOMUX_PLATFORM_UNIX
 #include "monomux/system/EPoll.hpp"
 #include "monomux/system/UnixDomainSocket.hpp"
 #include "monomux/system/fd.hpp"
+#endif /* MONOMUX_PLATFORM_UNIX */
 
 #include "monomux/client/Client.hpp"
 
@@ -45,8 +47,23 @@ std::optional<Client> Client::create(std::string SocketPath,
 
   try
   {
-    std::unique_ptr<system::Socket> S = std::make_unique<unix::DomainSocket>(
+    std::unique_ptr<system::Socket> S;
+
+#if MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_ID_Unix
+    S = std::make_unique<unix::DomainSocket>(
       unix::DomainSocket::connect(std::move(SocketPath)));
+#else  /* Unhandled platform */
+    (void)SocketPath;
+    std::ostringstream OS;
+    OS << MONOMUX_FEED_PLATFORM_NOT_SUPPORTED_MESSAGE
+       << "socket-based communication, but this is required to connect to "
+          "servers.";
+    if (RejectReason)
+      *RejectReason = OS.str();
+    LOG(fatal) << OS.str();
+    return std::nullopt;
+#endif /* MONOMUX_PLATFORM_ID */
+
     std::optional<notification::Connection> ConnStatus =
       receiveMessage<notification::Connection>(*S);
     if (!ConnStatus)
@@ -63,6 +80,8 @@ std::optional<Client> Client::create(std::string SocketPath,
   }
   catch (const std::system_error& Err)
   {
+    if (RejectReason)
+      *RejectReason = Err.what();
     throw;
   }
   return std::nullopt;
@@ -110,7 +129,6 @@ bool Client::handshake(std::string* FailureReason)
 {
   using namespace monomux::message;
   using namespace monomux::system;
-  using namespace monomux::system::unix;
 
   // Authenticate the client on the server.
   {
@@ -138,8 +156,22 @@ bool Client::handshake(std::string* FailureReason)
 
   // If the control socket is now successfully established, establish another
   // connection to the same location, but for the data socket.
-  auto DS = std::make_unique<DomainSocket>(
-    DomainSocket::connect(ControlSocket->identifier()));
+  std::unique_ptr<system::Socket> DS;
+
+#if MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_ID_Unix
+  DS = std::make_unique<system::unix::DomainSocket>(
+    system::unix::DomainSocket::connect(ControlSocket->identifier()));
+#else  /* Unhandled platform */
+  std::ostringstream OS;
+  OS << MONOMUX_FEED_PLATFORM_NOT_SUPPORTED_MESSAGE
+     << "socket-based communication, but this is required to connect to "
+        "servers.";
+  if (FailureReason)
+    *FailureReason = OS.str();
+  LOG(fatal) << OS.str();
+  return false;
+#endif /* MONOMUX_PLATFORM_ID */
+
   {
     // See if the server successfully accepted the second connection.
     std::optional<notification::Connection> ConnStatus =
@@ -218,7 +250,6 @@ bool Client::handshake(std::string* FailureReason)
 void Client::loop()
 {
   using namespace monomux::system;
-  using namespace monomux::system::unix;
 
   if (!Handle::isValid(InputFile))
     throw std::system_error{std::make_error_code(std::errc::not_connected),
@@ -234,10 +265,20 @@ void Client::loop()
                             "Client input callback is not registered."};
 
   static constexpr std::size_t EventQueue = 1 << 4;
-  Poll = std::make_unique<EPoll>(EventQueue);
 
-  fd::addStatusFlag(ControlSocket->raw(), O_NONBLOCK);
-  fd::addStatusFlag(DataSocket->raw(), O_NONBLOCK);
+#ifdef MONOMUX_PLATFORM_UNIX
+  Poll = std::make_unique<unix::EPoll>(EventQueue);
+
+  unix::fd::addStatusFlag(ControlSocket->raw(), O_NONBLOCK);
+  unix::fd::addStatusFlag(DataSocket->raw(), O_NONBLOCK);
+#endif /* MONOMUX_PLATFORM_UNIX */
+
+  if (!Poll)
+  {
+    LOG(fatal) << "No I/O Event poll was created, but this is a critical "
+                  "needed functionality.";
+    return;
+  }
 
   enableControlResponse();
   enableDataSocket();

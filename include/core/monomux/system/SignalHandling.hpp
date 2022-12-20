@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 
+#include "monomux/adt/FunctionExtras.hpp"
 #include "monomux/system/CurrentPlatform.hpp"
 #include "monomux/system/SignalTraits.hpp"
 
@@ -208,16 +209,30 @@ public:
   /// \note It is the client code's responsibility to \p std::any_cast the
   /// returned pointer to the appropriate type. The \p SignalHandling instance
   /// does \b NOT manage the types of registered objects.
-  std::any* getObject(const char* Name) noexcept;
+  const std::any* getObject(const char* Name) const noexcept;
 
   /// Retrieves the object registered with \p Name, if exists.
   ///
   /// \note It is the client code's responsibility to \p std::any_cast the
   /// returned pointer to the appropriate type. The \p SignalHandling instance
   /// does \b NOT manage the types of registered objects.
-  const std::any* getObject(const char* Name) const noexcept;
+  MONOMUX_MEMBER_1(std::any*, getObject, noexcept, const char*, Name);
 
-  // TODO: Add getAs<T> template!
+  /// Retrieves the object registered with \p Name, if it exists and is of
+  /// type \p T.
+  template <typename T> const T* getObjectAs(const char* Name) const noexcept
+  {
+    const std::any* Obj = getObject(Name);
+    if (!Obj)
+      return nullptr;
+
+    return std::any_cast<T>(Obj);
+  }
+
+  /// Retrieves the object registered with \p Name, if it exists and is of
+  /// type \p T.
+  MONOMUX_MEMBER_T1_1(
+    const T*, getObjectAs, noexcept, typename, T, const char*, Name);
 };
 
 } // namespace monomux::system

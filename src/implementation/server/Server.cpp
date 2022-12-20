@@ -22,6 +22,7 @@
 #include <thread>
 
 #include "monomux/CheckedErrno.hpp"
+#include "monomux/Config.h"
 #include "monomux/Time.hpp"
 #include "monomux/adt/POD.hpp"
 #include "monomux/message/PascalString.hpp"
@@ -30,9 +31,10 @@
 #include "monomux/system/IOEvent.hpp"
 #include "monomux/system/Process.hpp"
 
-// FIXME: Make this conditional.
+#ifdef MONOMUX_PLATFORM_UNIX
 #include "monomux/system/EPoll.hpp"
 #include "monomux/system/fd.hpp"
+#endif /* MONOMUX_PLATFORM_UNIX */
 
 #include "monomux/server/Server.hpp"
 
@@ -82,17 +84,26 @@ static void flushAndReschedule(system::IOEvent& Poll, system::Socket& S)
 void Server::loop()
 {
   using namespace monomux::system;
-  using namespace monomux::system::unix;
 
   static constexpr std::size_t ListenQueue = 16;
   static constexpr std::size_t EventQueue = 1 << 13;
 
   WhenStarted = std::chrono::system_clock::now();
-  Sock->listen(ListenQueue);
 
-  fd::addStatusFlag(Sock->raw(), O_NONBLOCK);
-  Poll = std::make_unique<EPoll>(EventQueue);
+#ifdef MONOMUX_PLATFORM_UNIX
+  unix::fd::addStatusFlag(Sock->raw(), O_NONBLOCK);
+  Poll = std::make_unique<unix::EPoll>(EventQueue);
+#endif /* MONOMUX_PLATFORM_UNIX */
+
+  if (!Poll)
+  {
+    LOG(fatal) << "No I/O Event poll was created, but this is a critical "
+                  "needed functionality.";
+    return;
+  }
   Poll->listen(Sock->raw(), /* Incoming =*/true, /* Outgoing =*/false);
+
+  Sock->listen(ListenQueue);
 
   auto NewClient = [this]() -> bool {
     std::error_code Error;
@@ -385,7 +396,9 @@ void Server::acceptCallback(ClientData& Client)
     return;
   }
 
+#ifdef MONOMUX_PLATFORM_UNIX
   system::unix::fd::setNonBlockingCloseOnExec(FD);
+#endif /* MONOMUX_PLATFORM_UNIX */
   Poll->listen(FD, /* Incoming =*/true, /* Outgoing =*/false);
   FDLookup[FD] = ClientControlConnection{&Client};
 

@@ -290,11 +290,11 @@ public:
     return *translateIndex(Index);
   }
   /// \returns a reference to the element at the specified location \p Index.
-  MEMBER_FN_NON_CONST_1(T&, at, std::size_t, Index);
+  MONOMUX_MEMBER_1(T&, at, , std::size_t, Index);
   /// \returns a reference to the element at the specified location \p Index.
   const T& operator[](std::size_t Index) const { return at(Index); }
   /// \returns a reference to the element at the specified location \p Index.
-  T& operator[](std::size_t Index) { return at(Index); }
+  MONOMUX_MEMBER_1(T&, operator[], , std::size_t, Index);
 
   void clear() noexcept(NothrowAssignable)
   {
@@ -312,7 +312,7 @@ public:
     return at(0);
   }
   /// \returns a reference to the first element.
-  MEMBER_FN_NON_CONST_0(T&, front);
+  MONOMUX_MEMBER_0(T&, front, );
   /// \returns a reference to the last element.
   const T& back() const
   {
@@ -321,7 +321,7 @@ public:
     return at(Size - 1);
   }
   /// \returns a reference to the last element.
-  MEMBER_FN_NON_CONST_0(T&, back);
+  MONOMUX_MEMBER_0(T&, back, );
 
   /// Removes the first element (\p front()) from the buffer.
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -483,7 +483,7 @@ private:
   {
     return UsingGrowingStorage ? GrowingStorage : StorageWithOriginalCapacity;
   }
-  MEMBER_FN_NON_CONST_0(StorageType&, getStorage);
+  MONOMUX_MEMBER_0(StorageType&, getStorage, );
 
   T* physicalBegin() const noexcept { return getStorage().get(); }
   T* physicalEnd() const noexcept { return (getStorage().get()) + Capacity; }

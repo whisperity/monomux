@@ -20,15 +20,19 @@
 #include <thread>
 
 #include "monomux/CheckedErrno.hpp"
+#include "monomux/Config.h"
 #include "monomux/FrontendExitCode.hpp"
 #include "monomux/adt/ScopeGuard.hpp"
 #include "monomux/server/Server.hpp"
 #include "monomux/system/Environment.hpp"
+#include "monomux/system/Platform.hpp"
 #include "monomux/system/Process.hpp"
 #include "monomux/system/SignalHandling.hpp"
 #include "monomux/unreachable.hpp"
 
+#ifdef MONOMUX_PLATFORM_UNIX
 #include "monomux/system/UnixDomainSocket.hpp"
+#endif /* MONOMUX_PLATFORM_UNIX */
 
 #include "monomux/server/Main.hpp"
 
@@ -78,15 +82,9 @@ namespace
 
 constexpr char ServerObjName[] = "Server";
 
-void serverShutdown(system::SignalHandling::Signal SigNum,
-                    ::siginfo_t* Info,
-                    const system::SignalHandling* Handling);
-void childExited(system::SignalHandling::Signal SigNum,
-                 ::siginfo_t* Info,
-                 const system::SignalHandling* Handling);
-void coreDumped(system::SignalHandling::Signal SigNum,
-                ::siginfo_t* Info,
-                const system::SignalHandling* Handling);
+MONOMUX_SIGNAL_HANDLER(serverShutdown);
+MONOMUX_SIGNAL_HANDLER(childExited);
+MONOMUX_SIGNAL_HANDLER(coreDumped);
 
 } // namespace
 
@@ -97,8 +95,16 @@ FrontendExitCode main(Options& Opts)
   std::unique_ptr<system::Socket> ServerSock;
   try
   {
+#if MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_ID_Unix
     ServerSock = std::make_unique<unix::DomainSocket>(
       unix::DomainSocket::create(*Opts.SocketPath));
+#else  /* Unhandled platform */
+    LOG(fatal)
+      << MONOMUX_FEED_PLATFORM_NOT_SUPPORTED_MESSAGE
+      << "socket-based communication, but this is required to accept clients."
+      << '\n';
+    return FrontendExitCode::SystemError;
+#endif /* MONOMUX_PLATFORM_ID */
   }
   catch (const std::system_error& SE)
   {
@@ -161,40 +167,39 @@ FrontendExitCode main(Options& Opts)
 namespace
 {
 
-// FIXME: if UNIX ...
-
 /// Handler for request to terinate the server.
-void serverShutdown(system::SignalHandling::Signal /* SigNum */,
-                    ::siginfo_t* /* Info */,
-                    const system::SignalHandling* Handling)
+MONOMUX_SIGNAL_HANDLER(serverShutdown)
 {
+  (void)Sig;
+  (void)PlatformInfo;
+
   const volatile auto* Srv =
-    std::any_cast<Server*>(Handling->getObject(ServerObjName));
+    SignalHandling->getObjectAs<Server*>(ServerObjName);
   if (!Srv)
     return;
   (*Srv)->interrupt();
 }
 
 /// Handler for \p SIGCHLD when a process spawned by the server quits.
-void childExited(system::SignalHandling::Signal /* SigNum */,
-                 ::siginfo_t* Info,
-                 const system::SignalHandling* Handling)
+#ifdef MONOMUX_PLATFORM_UNIX
+MONOMUX_SIGNAL_HANDLER(childExited)
 {
-  system::Process::Raw CPID = Info->si_pid;
+  (void)Sig;
+
+  system::Process::Raw CPID = PlatformInfo->si_pid;
   const volatile auto* Srv =
-    std::any_cast<Server*>(Handling->getObject(ServerObjName));
+    SignalHandling->getObjectAs<Server*>(ServerObjName);
   if (!Srv)
     return;
   (*Srv)->registerDeadChild(CPID);
 }
+#endif /* MONOMUX_PLATFORM_UNIX */
 
 /// Custom handler for \p SIGABRT. This is even more custom than the handler in
 /// the global \p main() as it deals with killing the server first.
-void coreDumped(system::SignalHandling::Signal SigNum,
-                ::siginfo_t* Info,
-                const system::SignalHandling* Handling)
+MONOMUX_SIGNAL_HANDLER(coreDumped)
 {
-  serverShutdown(SigNum, Info, Handling);
+  serverShutdown(Sig, SignalHandling, PlatformInfo);
 }
 
 } // namespace

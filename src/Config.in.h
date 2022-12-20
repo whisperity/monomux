@@ -28,10 +28,30 @@
  */
 #cmakedefine MONOMUX_NON_ESSENTIAL_LOGS
 
-/* The system platform that the current build is being done on. */
+/* The system platform (string) that the current build is being done on. */
 #define MONOMUX_PLATFORM "${MONOMUX_PLATFORM}"
 
-/* If set, the PLATFORM is "Unix". */
+/* Define some constants for the platforms that are supported.
+ * These values will be used (exactly one of them) in MONOMUX_PLATFORM_ID
+ * to support a numerical comparison (e.g.,
+ *     #if MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_Unix
+ * ) for more complex code where a simple #if(n)def does not suffice.
+ */
+#define MONOMUX_PLATFORM_ID_Unsupported 0
+#define MONOMUX_PLATFORM_ID_Unix 1
+
+/* The current platform's ID. Always selected from the MONOMUX_PLATFORM_ID_*
+ * macros at build time.
+ *
+ * This supports a numerical comparison for cases where a simple #if(n)def
+ * is not sufficient:
+ *     #if MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_Unix
+ */
+/* clang-format off */
+#define MONOMUX_PLATFORM_ID MONOMUX_PLATFORM_ID_${MONOMUX_PLATFORM}
+/* clang-format on */
+
+/* If set, the PLATFORM is "Unix". Shorthand for the == check on the ID. */
 #cmakedefine MONOMUX_PLATFORM_UNIX
 
 /* The build type for the current build. */

@@ -70,7 +70,7 @@ Logger& Logger::get()
   {
     Singleton = std::make_unique<Logger>(Default, std::clog);
     MONOMUX_TRACE_LOG(Singleton->operator()(log::Debug, "logger")
-                      << "Initialised at address " << Singleton.get());
+                      << "Initialised at address" << ' ' << Singleton.get());
   }
 
   return *Singleton;
@@ -99,11 +99,12 @@ Logger::OutputBuffer Logger::operator()(Severity S, std::string_view Facility)
   {
     LogPrefix << '[' << formatTime(std::chrono::system_clock::now()) << ']';
     if (std::string_view SN = SeverityName[S]; !SN.empty())
-      LogPrefix << '[' << SN << "] ";
+      LogPrefix << '[' << SN << ']' << ' ';
     if (!Facility.empty())
-      LogPrefix << Facility << ": ";
+      LogPrefix << Facility;
     else
-      LogPrefix << "?: ";
+      LogPrefix << "<Unknown>";
+    LogPrefix << ':' << ' ';
   }
   return OutputBuffer{*OS, Discarding, LogPrefix.str()};
 }

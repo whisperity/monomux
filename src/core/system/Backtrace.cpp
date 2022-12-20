@@ -16,9 +16,39 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
-#include "monomux/system/Platform.hpp"
+#include "monomux/system/CurrentPlatform.hpp"
 
 #ifndef MONOMUX_CURRENT_PLATFORM_SUPPORTS_BACKTRACE
-#define MONOMUX_CURRENT_PLATFORM_SUPPORTS_BACKTRACE
+
+#include <iostream>
+
+#include "monomux/system/Backtrace.hpp"
+
+namespace monomux::system
+{
+
+namespace
+{
+
+void printBacktraceNotSupported(std::ostream& OS)
+{
+  OS << '\n'
+     << MONOMUX_FEED_PLATFORM_NOT_SUPPORTED_MESSAGE << "printing a backtrace."
+     << '\n';
+}
+
+} // namespace
+
+void printBacktrace(std::ostream& OS, const Backtrace& /*Trace*/)
+{
+  printBacktraceNotSupported(OS);
+}
+
+void printBacktrace(std::ostream& OS, bool /*Prettify*/)
+{
+  printBacktraceNotSupported(OS);
+}
+
+} // namespace monomux::system
+
 #endif /* MONOMUX_CURRENT_PLATFORM_SUPPORTS_BACKTRACE */

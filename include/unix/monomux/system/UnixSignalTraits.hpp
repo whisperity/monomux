@@ -47,12 +47,9 @@ template <> struct SignalTraits<PlatformTag::Unix>
   /// \param Handling A pointer to the \b GLOBAL signal handling data structure.
   /// This parameter can be used to access registered objects in the callback.
   /// (See \p getObject in \p SignalHandling.)
-  using HandlerTy = void(Signal SigNum,
-                         ::siginfo_t* Info,
-                         const SignalHandling* Handling);
-
-  // FIXME: Expose the header of a signal handler signature as a convenience
-  // macro.
+  using HandlerTy = void(Signal Sig,
+                         const SignalHandling* SignalHandling,
+                         const ::siginfo_t* PlatformInfo);
 
   /// The type of the signal handler callback required by the low-level
   /// interface.
@@ -98,3 +95,10 @@ template <> struct SignalTraits<PlatformTag::Unix>
 };
 
 } // namespace monomux::system
+
+#define MONOMUX_DETAIL_SIGNAL_HANDLER_SIG(NAME)                                \
+  void NAME(monomux::system::SignalHandling::Signal Sig,                       \
+            const monomux::system::SignalHandling* SignalHandling,             \
+            const ::siginfo_t* PlatformInfo)
+
+#define MONOMUX_SIGNAL_HANDLER(NAME) MONOMUX_DETAIL_SIGNAL_HANDLER_SIG(NAME)

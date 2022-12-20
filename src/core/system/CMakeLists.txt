@@ -1,4 +1,5 @@
 list(APPEND libmonomuxCore_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/Backtrace.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/BufferedChannel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Channel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/Environment.cpp

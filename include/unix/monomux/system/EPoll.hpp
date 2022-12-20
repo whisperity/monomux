@@ -83,11 +83,11 @@ public:
     return at(Index);
   }
   /// Retrieve the Nth event.
-  MEMBER_FN_NON_CONST_1(struct ::epoll_event&, operator[], std::size_t, Index);
+  MONOMUX_MEMBER_1(struct ::epoll_event&, operator[], , std::size_t, Index);
   /// Retrieve the Nth event.
   const struct ::epoll_event& at(std::size_t Index) const;
   /// Retrieve the Nth event.
-  MEMBER_FN_NON_CONST_1(struct ::epoll_event&, at, std::size_t, Index);
+  MONOMUX_MEMBER_1(struct ::epoll_event&, at, , std::size_t, Index);
 
   /// Retrieve the file descriptor that fired for the Nth event.
   fd::raw_fd fdAt(std::size_t Index) noexcept;

@@ -21,15 +21,21 @@
 
 #include "monomux/Config.h"
 
+/// A generic macro that prints to some \p ostream the prefix for a "platform
+/// not supported" message.
+#define MONOMUX_FEED_PLATFORM_NOT_SUPPORTED_MESSAGE                            \
+  "ERROR: The current platform " << '(' << MONOMUX_PLATFORM << ')'             \
+                                 << " does not support "
+
 namespace monomux::system
 {
 
 enum class PlatformTag
 {
-  Unknown = 0,
+  Unknown = MONOMUX_PLATFORM_ID_Unsupported,
 
   /// Standard UNIX and POSIX systems, most importantly Linux.
-  Unix = 1
+  Unix = MONOMUX_PLATFORM_ID_Unix
 };
 
 /// Dummy class that is implemented by platform-specific details to provide

@@ -69,9 +69,9 @@ public:
   void releaseClient();
 
   const system::Pipe* input() const noexcept { return In.get(); }
-  MEMBER_FN_NON_CONST_0_NOEXCEPT(system::Pipe*, input);
+  MONOMUX_MEMBER_0(system::Pipe*, input, noexcept);
   const system::Pipe* output() const noexcept { return Out.get(); }
-  MEMBER_FN_NON_CONST_0_NOEXCEPT(system::Pipe*, output);
+  MONOMUX_MEMBER_0(system::Pipe*, output, noexcept);
 
   Size getSize() const;
   void notifySizeChanged() const noexcept;

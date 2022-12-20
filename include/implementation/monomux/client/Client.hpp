@@ -98,13 +98,13 @@ public:
   {
     return *ControlSocket;
   }
-  MEMBER_FN_NON_CONST_0_NOEXCEPT(system::Socket&, getControlSocket);
+  MONOMUX_MEMBER_0(system::Socket&, getControlSocket, noexcept);
 
   const system::Socket* getDataSocket() const noexcept
   {
     return DataSocket ? DataSocket.get() : nullptr;
   }
-  MEMBER_FN_NON_CONST_0_NOEXCEPT(system::Socket*, getDataSocket);
+  MONOMUX_MEMBER_0(system::Socket*, getDataSocket, noexcept);
 
   /// Takes ownership of and stores the given \p Socket as the data socket of
   /// the client.

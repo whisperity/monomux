@@ -29,7 +29,7 @@
 #include "monomux/system/UnixPlatform.hpp"
 
 #include "monomux/Log.hpp"
-#define LOG(SEVERITY) monomux::log::SEVERITY("system/UnixPlatform")
+#define LOG(SEVERITY) monomux::log::SEVERITY("system/Platform")
 
 namespace monomux::system
 {

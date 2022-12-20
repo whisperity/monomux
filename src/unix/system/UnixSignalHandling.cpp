@@ -127,7 +127,7 @@ void SignalTraits<PlatformTag::Unix>::signalDispatch(Signal SigNum,
     if (!Cb || !*Cb)
       return;
 
-    (*Cb)(SigNum, Info, Context);
+    (*Cb)(SigNum, Context, Info);
   }
 }
 
