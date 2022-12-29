@@ -397,6 +397,11 @@ SessionSelectionResult selectSession(const std::string& ClientID,
 
     std::cout << "\nChoose 1-" << QuitChoice << ": ";
     std::cin >> UserChoice;
+    if (std::cin.eof())
+    {
+      UserChoice = QuitChoice;
+      break;
+    }
     std::cin.clear();
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     if (UserChoice == 0 || UserChoice > QuitChoice)
