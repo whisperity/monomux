@@ -30,7 +30,7 @@ namespace monomux::system
 
 const char* SignalHandling::signalName(SignalHandling::Signal S) noexcept
 {
-#ifdef MONOMUX_NON_ESSENTIAL_LOGS
+#if MONOMUX_NON_ESSENTIAL_LOGS
   switch (S)
   {
     case SIGINT:

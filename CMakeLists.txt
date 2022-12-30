@@ -74,6 +74,7 @@ message(STATUS "Build type:                                         ${CMAKE_BUIL
 message(STATUS "C++ standard:                                       C++${CMAKE_CXX_STANDARD}")
 # message(STATUS "")
 message(STATUS "Library type:                                       ${MONOMUX_LIBRARY_TYPE}")
+message(STATUS "Embedding support features:                         ${MONOMUX_EMBEDDING_LIBRARY_FEATURES}")
 message(STATUS "Non-essential log output:                           ${MONOMUX_NON_ESSENTIAL_LOGS}")
 message(STATUS "- * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - ")
 

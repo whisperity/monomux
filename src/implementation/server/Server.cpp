@@ -47,17 +47,25 @@ namespace monomux::server
 Server::Server(std::unique_ptr<system::Socket>&& Sock)
   : Sock(std::move(Sock)), ExitIfNoMoreSessions(false)
 {
-  setUpDispatch();
+  setUpMainDispatch();
   DeadChildren.fill(system::PlatformSpecificProcessTraits::Invalid);
 }
 
 Server::~Server() = default;
 
-void Server::registerMessageHandler(std::uint16_t Kind,
-                                    std::function<HandlerFunction> Handler)
+#if MONOMUX_EMBEDDING_LIBRARY_FEATURES
+void Server::registerPreMessageHandler(std::uint16_t Kind,
+                                       std::function<HandlerFunction> Handler)
 {
-  Dispatch[Kind] = std::move(Handler);
+  PreDispatch[Kind] = std::move(Handler);
 }
+
+void Server::registerPostMessageHandler(std::uint16_t Kind,
+                                        std::function<HandlerFunction> Handler)
+{
+  PostDispatch[Kind] = std::move(Handler);
+}
+#endif /* MONOMUX_EMBEDDING_LIBRARY_FEATURES */
 
 void Server::setExitIfNoMoreSessions(bool ExitIfNoMoreSessions)
 {
@@ -133,12 +141,12 @@ void Server::loop()
       // TODO: What is the good way of handling this?
       LOG(debug) << "Stale socket of gone client, " << ClientSock->raw()
                  << " left behind?";
-      exitCallback(*ExistingClient);
+      clientExit(*ExistingClient);
       removeClient(*ExistingClient);
     }
 
     ClientData* Client = makeClient(ClientData{std::move(ClientSock)});
-    acceptCallback(*Client);
+    clientCreate(*Client);
     return false;
   };
 
@@ -225,7 +233,7 @@ void Server::loop()
           if (Event.Incoming)
             // Second, try to see if the data is coming from a client, like
             // keypresses and such. We expect to see many of these, too.
-            dataCallback(C);
+            dispatchData(C);
           if (Event.Outgoing)
             flushAndReschedule(*Poll, *C.getDataSocket());
 
@@ -241,7 +249,7 @@ void Server::loop()
           if (Event.Incoming)
             // Lastly, check if the receive is happening on the control
             // connection, where messages are small and far inbetween.
-            controlCallback(C);
+            dispatchControl(C);
           if (Event.Outgoing)
             flushAndReschedule(*Poll, C.getControlSocket());
 
@@ -349,14 +357,14 @@ void Server::removeClient(ClientData& Client)
 {
   std::size_t CID = Client.id();
   if (SessionData* S = Client.getAttachedSession())
-    clientDetachedCallback(Client, *S);
+    clientDetached(Client, *S);
   Clients.erase(CID);
 }
 
 void Server::removeSession(SessionData& Session)
 {
   for (ClientData* C : Session.getAttachedClients())
-    clientDetachedCallback(*C, Session);
+    clientDetached(*C, Session);
 
   Sessions.erase(Session.name());
 
@@ -374,7 +382,7 @@ void Server::registerDeadChild(system::Process::Raw PID) const noexcept
     }
 }
 
-void Server::acceptCallback(ClientData& Client)
+void Server::clientCreate(ClientData& Client)
 {
   LOG(info) << "Client \"" << Client.id() << "\" connected";
   system::Handle::Raw FD = Client.getControlSocket().raw();
@@ -405,7 +413,7 @@ void Server::acceptCallback(ClientData& Client)
   sendAcceptClient(Client);
 }
 
-void Server::controlCallback(ClientData& Client)
+void Server::dispatchControl(ClientData& Client)
 {
   using namespace monomux::message;
   MONOMUX_TRACE_LOG(LOG(trace)
@@ -434,7 +442,7 @@ void Server::controlCallback(ClientData& Client)
   if (ClientSock.failed())
   {
     // We realise the client disconnected during an attempt to read.
-    exitCallback(Client);
+    clientExit(Client);
     return;
   }
 
@@ -447,39 +455,102 @@ void Server::controlCallback(ClientData& Client)
     return;
 
   Message MB = Message::unpack(Data);
-  auto Action =
-    Dispatch.find(static_cast<decltype(Dispatch)::key_type>(MB.Kind));
-  if (Action == Dispatch.end())
-  {
-    MONOMUX_TRACE_LOG(LOG(trace) << "Client \"" << Client.id()
-                                 << "\": unknown message type "
-                                 << static_cast<int>(MB.Kind) << " received");
-    return;
-  }
-
   MONOMUX_TRACE_LOG(LOG(data) << "Client \"" << Client.id() << "\"\n"
                               << MB.RawData);
-  try
+
+  using Kind = decltype(MainDispatch)::key_type;
+
+#if MONOMUX_EMBEDDING_LIBRARY_FEATURES
   {
-    Action->second(*this, Client, MB.RawData);
+    auto Action = PreDispatch.find(static_cast<Kind>(MB.Kind));
+    if (Action != PreDispatch.end())
+    {
+      try
+      {
+        Action->second(*this, Client, MB.RawData);
+      }
+      catch (const system::BufferedChannel::OverflowError& BO)
+      {
+        LOG(trace) << "Client " << '"' << Client.id() << '"' << ':'
+                   << " error when pre-handling message"
+                   << "\n\t" << BO.what();
+        rescheduleOverflow(*Poll, BO);
+      }
+      catch (const std::system_error& Err)
+      {
+        LOG(error) << "Client " << '"' << Client.id() << '"' << ':'
+                   << " error when pre-handling message";
+        if (ClientSock.failed())
+          clientExit(Client);
+      }
+      catch (const HandlingPreventingException&)
+      {
+        LOG(trace) << "Client " << '"' << Client.id() << '"' << ':'
+                   << " pre-handler inhibited main handler";
+        return;
+      }
+    }
   }
-  catch (const system::BufferedChannel::OverflowError& BO)
+#endif /* MONOMUX_EMBEDDING_LIBRARY_FEATURES */
+
+  auto Action = MainDispatch.find(static_cast<Kind>(MB.Kind));
+  if (Action == MainDispatch.end())
   {
-    LOG(trace) << "Client \"" << Client.id()
-               << "\": error when handling message"
-               << "\n\t" << BO.what();
-    rescheduleOverflow(*Poll, BO);
+    MONOMUX_TRACE_LOG(LOG(trace) << "Client " << '"' << Client.id() << '"'
+                                 << ':' << " unknown message type "
+                                 << static_cast<int>(MB.Kind) << " received");
   }
-  catch (const std::system_error& Err)
+  else
   {
-    LOG(error) << "Client \"" << Client.id()
-               << "\": error when handling message";
-    if (ClientSock.failed())
-      exitCallback(Client);
+    try
+    {
+      Action->second(*this, Client, MB.RawData);
+    }
+    catch (const system::BufferedChannel::OverflowError& BO)
+    {
+      LOG(trace) << "Client " << '"' << Client.id() << '"' << ':'
+                 << " error when handling message"
+                 << "\n\t" << BO.what();
+      rescheduleOverflow(*Poll, BO);
+    }
+    catch (const std::system_error& Err)
+    {
+      LOG(error) << "Client " << '"' << Client.id() << '"' << ':'
+                 << " error when handling message";
+      if (ClientSock.failed())
+        clientExit(Client);
+    }
   }
+
+#if MONOMUX_EMBEDDING_LIBRARY_FEATURES
+  {
+    auto Action = PostDispatch.find(static_cast<Kind>(MB.Kind));
+    if (Action != PostDispatch.end())
+    {
+      try
+      {
+        Action->second(*this, Client, MB.RawData);
+      }
+      catch (const system::BufferedChannel::OverflowError& BO)
+      {
+        LOG(trace) << "Client " << '"' << Client.id() << '"' << ':'
+                   << " error when post-handling message"
+                   << "\n\t" << BO.what();
+        rescheduleOverflow(*Poll, BO);
+      }
+      catch (const std::system_error& Err)
+      {
+        LOG(error) << "Client " << '"' << Client.id() << '"' << ':'
+                   << " error when post-handling message";
+        if (ClientSock.failed())
+          clientExit(Client);
+      }
+    }
+  }
+#endif /* MONOMUX_EMBEDDING_LIBRARY_FEATURES */
 }
 
-void Server::dataCallback(ClientData& Client)
+void Server::dispatchData(ClientData& Client)
 {
 
   MONOMUX_TRACE_LOG(LOG(trace)
@@ -498,7 +569,7 @@ void Server::dataCallback(ClientData& Client)
                    "Overflow when reading connection, " +
                      std::to_string(BO.channel().readInBuffer()) +
                      " bytes already pending");
-    exitCallback(Client);
+    clientExit(Client);
     return;
   }
   catch (const std::system_error& Err)
@@ -511,7 +582,7 @@ void Server::dataCallback(ClientData& Client)
   if (DS.failed())
   {
     // We realise the client disconnected during an attempt to read.
-    exitCallback(Client);
+    clientExit(Client);
     return;
   }
 
@@ -536,7 +607,7 @@ void Server::dataCallback(ClientData& Client)
     }
 }
 
-void Server::exitCallback(ClientData& Client)
+void Server::clientExit(ClientData& Client)
 {
   LOG(info) << "Client \"" << Client.id() << "\" exited";
 
@@ -552,7 +623,7 @@ void Server::exitCallback(ClientData& Client)
   removeClient(Client);
 }
 
-void Server::createCallback(SessionData& Session)
+void Server::sessionCreate(SessionData& Session)
 {
   LOG(info) << "Session \"" << Session.name() << "\" created";
   if (Session.hasProcess() && Session.getProcess().hasPty())
@@ -613,7 +684,7 @@ void Server::dataCallback(SessionData& Session)
                        "Overflow when sending, " +
                          std::to_string(BO.channel().writeInBuffer()) +
                          " bytes already pending");
-        exitCallback(*C);
+        clientExit(*C);
         continue;
       }
       catch (const std::system_error& Err)
@@ -625,7 +696,7 @@ void Server::dataCallback(SessionData& Session)
         if (DS->failed())
         {
           // We realise the client disconnected during an attempt to send.
-          exitCallback(*C);
+          clientExit(*C);
           continue;
         }
       }
@@ -635,7 +706,7 @@ void Server::dataCallback(SessionData& Session)
     }
 }
 
-void Server::clientAttachedCallback(ClientData& Client, SessionData& Session)
+void Server::clientAttached(ClientData& Client, SessionData& Session)
 {
   LOG(info) << "Client \"" << Client.id() << "\" attached to \""
             << Session.name() << '"';
@@ -643,7 +714,7 @@ void Server::clientAttachedCallback(ClientData& Client, SessionData& Session)
   Session.attachClient(Client);
 }
 
-void Server::clientDetachedCallback(ClientData& Client, SessionData& Session)
+void Server::clientDetached(ClientData& Client, SessionData& Session)
 {
   if (Client.getAttachedSession() != &Session)
     return;
@@ -653,7 +724,7 @@ void Server::clientDetachedCallback(ClientData& Client, SessionData& Session)
   Session.removeClient(Client);
 }
 
-void Server::destroyCallback(SessionData& Session)
+void Server::sessionDestroy(SessionData& Session)
 {
   LOG(info) << "Session \"" << Session.name() << "\" exited";
   if (Session.hasProcess() && Session.getProcess().hasPty())
@@ -708,7 +779,7 @@ void Server::reapDeadChildren()
       for (ClientData* AC : SessionForProc->second->getAttachedClients())
         AC->sendDetachReason(monomux::message::notification::Detached::Exit,
                              Proc.exitCode());
-      destroyCallback(*SessionForProc->second);
+      sessionDestroy(*SessionForProc->second);
     }
 
     PID = system::PlatformSpecificProcessTraits::Invalid;

@@ -35,8 +35,12 @@ else()
   unset(CMAKE_UNITY_BUILD_BATCH_SIZE CACHE)
 endif()
 
+set(MONOMUX_EMBEDDING_LIBRARY_FEATURES ON CACHE BOOL
+  "If set, the built binaries will contain additional data structures and code to allow for third-party downstream projects to reuse Monomux as a library. Turn off to build a smaller and more optimised binary that only contains the \"official\" feature set."
+  )
+
 set(MONOMUX_NON_ESSENTIAL_LOGS ON CACHE BOOL
-  "If set, the built binary will contain some additional log outputs that are needed for verbose debugging of the project. Turn off to cut down further on the binary size for production."
+  "If set, the built binaries will contain some additional log outputs that are needed for verbose debugging of the project. Turn off to cut down further on the binary size for production."
   )
 
 configure_file(src/Config.in.h include/monomux/Config.h)

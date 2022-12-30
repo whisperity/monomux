@@ -475,7 +475,7 @@ std::pair<bool, MainOptions> argParse(int ArgC,
   {
     using namespace monomux::log;
 
-#ifdef MONOMUX_NON_ESSENTIAL_LOGS
+#if MONOMUX_NON_ESSENTIAL_LOGS
     std::size_t VerbosityPositiveSizeT =
       std::abs(MainOpts.VerbosityQuietnessDifferential);
 #endif

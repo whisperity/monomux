@@ -82,9 +82,8 @@ HANDLER(receivedDetachNotification)
 }
 
 #undef HANDLER
+#undef MSG
 
 } // namespace monomux::client
 
-#undef MSG
-#undef HANDLER
 #undef LOG

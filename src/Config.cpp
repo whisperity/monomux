@@ -24,30 +24,38 @@
 namespace monomux
 {
 
+namespace
+{
+
+void printToggleFeature(std::ostream& OS, std::string_view Name, bool Enabled)
+{
+  OS << ' ' << (Enabled ? '+' : '-') << ' ' << Name << '\n';
+}
+
+} // namespace
+
 std::string getHumanReadableConfiguration()
 {
   std::ostringstream Buf;
 
   Buf << " * " << MONOMUX_BUILD_TYPE << " build\n";
 
-#ifdef MONOMUX_BUILD_SHARED_LIBS
+#if MONOMUX_BUILD_SHARED_LIBS
   Buf << " * SHARED (dynamic) library\n";
 #else /* !MONOMUX_BUILD_SHARED_LIBS */
-#ifdef MONOMUX_BUILD_UNITY
+#if MONOMUX_BUILD_UNITY
   Buf << " * UNITY library\n";
 #else  /* !MONOMUX_BUILD_UNITY */
   Buf << " * STATIC library\n";
 #endif /* MONOMUX_BUILD_UNITY */
 #endif /* MONOMUX_BUILD_SHARED_LIBS */
 
-#ifndef MONOMUX_NON_ESSENTIAL_LOGS
-  Buf << " - Non-essential trace logs\n";
-#else  /* !MONOMUX_NON_ESSENTIAL_LOGS */
-  Buf << " + Non-essential trace logs\n";
-#endif /* MONOMUX_NON_ESSENTIAL_LOGS */
+  printToggleFeature(Buf,
+                     "Embedding library support features",
+                     config::EmbeddingLibraryFeatures);
+  printToggleFeature(Buf, "Non-essential trace logs", config::NonEssentialLogs);
 
   std::string S = Buf.str();
-
   {
     // Clean up multiple subsequent newlines from the output.
     static constexpr std::string_view DoubleNewline = "\n\n";
@@ -57,7 +65,6 @@ std::string getHumanReadableConfiguration()
       S.replace(
         P, DoubleNewline.size(), SingleNewline.data(), SingleNewline.size());
   }
-
   return S;
 }
 

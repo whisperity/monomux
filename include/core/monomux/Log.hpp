@@ -161,7 +161,7 @@ MONOMUX_LOGGER_SHORTCUT(data, Data);
 
 #undef MONOMUX_LOGGER_SHORTCUT
 
-#ifdef MONOMUX_NON_ESSENTIAL_LOGS
+#if MONOMUX_NON_ESSENTIAL_LOGS
 /* Wrap logging code into this macro to suppress building it if config option
  * \p MONOMUX_NON_ESSENTIAL_LOGS is turned off.
  *

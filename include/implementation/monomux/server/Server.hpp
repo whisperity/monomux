@@ -25,6 +25,7 @@
 #include <optional>
 #include <variant>
 
+#include "monomux/Config.h"
 #include "monomux/adt/Atomic.hpp"
 #include "monomux/adt/SmallIndexMap.hpp"
 #include "monomux/adt/Tagged.hpp"
@@ -73,6 +74,18 @@ public:
                                ClientData& Client,
                                std::string_view RawMessage);
 
+#define MONOMUX_SERVER_HANDLER_SIGNATURE(NAME)                                 \
+  void NAME(Server& Server, ClientData& Client, std::string_view Message)
+/// When used inside a handler function, decodes the message identified by
+/// \p MESSAGE_TYPE and makes it automatically available in the local \p Msg
+/// variable.
+#define MONOMUX_SERVER_HANDLER_DECODE(MESSAGE_TYPE)                            \
+  using namespace monomux::message;                                            \
+  std::optional<MESSAGE_TYPE> Msg = MESSAGE_TYPE::decode(Message);             \
+  if (!Msg)                                                                    \
+    return;                                                                    \
+  MONOMUX_TRACE_LOG(LOG(trace) << __PRETTY_FUNCTION__);
+
   /// Create a new server that will listen on the associated socket.
   Server(std::unique_ptr<system::Socket>&& Sock);
 
@@ -84,10 +97,36 @@ public:
     return WhenStarted;
   }
 
-  /// Override the default handling logic for the specified message \p Kind to
-  /// fire the user-given \p Handler \b instead \b of the built-in default.
-  void registerMessageHandler(std::uint16_t Kind,
-                              std::function<HandlerFunction> Handler);
+#if MONOMUX_EMBEDDING_LIBRARY_FEATURES
+  /// Must be thrown by the pre-handling callback to prevent the message from
+  /// being handled by the main handler.
+  class HandlingPreventingException : public std::runtime_error
+  {
+  public:
+    HandlingPreventingException()
+      : std::runtime_error("Handling of message should have been prevented.")
+    {}
+
+    const char* what() const noexcept override
+    {
+      return std::runtime_error::what();
+    }
+  };
+
+  /// Register \p Handler to be fired \b before the main handler is fired.
+  /// Both handlers will receive a read-only view of the received message.
+  ///
+  /// \note Throw \p HandlingPreventingException in the custom handler if the
+  /// main handling must be prevented, for some reason.
+  void registerPreMessageHandler(std::uint16_t Kind,
+                                 std::function<HandlerFunction> Handler);
+
+  /// Register \p Handler to be fired \b after the main handler has
+  /// successfully fired.
+  /// Both handlers will receive a read-only view of the received message.
+  void registerPostMessageHandler(std::uint16_t Kind,
+                                  std::function<HandlerFunction> Handler);
+#endif /* MONOMUX_EMBEDDING_LIBRARY_FEATURES */
 
   /// Sets whether the server should automatically close a \p loop() if the last
   /// session running under it terminated.
@@ -151,7 +190,7 @@ private:
   std::map<std::string, std::unique_ptr<SessionData>> Sessions;
 
   static constexpr std::size_t DeadChildrenVecSize = 8;
-  /// A list of process handles that were signalle
+  /// A list of process handles that were signalled to be dead.
   mutable std::array<system::Process::Raw, DeadChildrenVecSize> DeadChildren;
 
   mutable Atomic<bool> TerminateLoop;
@@ -204,35 +243,34 @@ public:
   /// normal iteration.
   void registerDeadChild(system::Process::Raw PID) const noexcept;
 
-  /// The callback function that is fired when a new \p Client connected.
-  void acceptCallback(ClientData& Client);
-  /// The callback function that is fired for transmission on a \p Client's
+  /// Registers the new connected \p Client.
+  void clientCreate(ClientData& Client);
+  /// The function responsible for understanding transmission on a \p Client's
   /// control connection. This method deals with parsing a \p Message
   /// from the control connection, and fire a message-specific handler.
   ///
   /// \see registerMessageHandler().
-  void controlCallback(ClientData& Client);
-  /// The callback function that is fired for transmission on a \p Client's
+  void dispatchControl(ClientData& Client);
+  /// The function responsible for understanding transmission on a \p Client's
   /// data connection. It sends the data received to the session the client
   /// attached to.
-  void dataCallback(ClientData& Client);
-  /// The callback function that is fired when a \p Client has disconnected.
-  void exitCallback(ClientData& Client);
+  void dispatchData(ClientData& Client);
+  /// Destroys the data structures associated with a \p Client that
+  /// disconnected.
+  void clientExit(ClientData& Client);
 
-  /// The callback function that is fired when a new \p Session was created.
-  void createCallback(SessionData& Session);
-  /// The callback function that is fired when the server-side of a \p Session
-  /// receives data. It sends the data received from the session to all attached
-  /// clients.
+  /// Registers the new created \p Session.
+  void sessionCreate(SessionData& Session);
+  /// The function reponsible for understanding transmission on the server-side
+  /// of a \p Session when receiving data. It sends the data received from the
+  /// session to all attached clients.
   void dataCallback(SessionData& Session);
-  /// The callback function that is fired when a \p Client attaches to a
-  /// \p Session.
-  void clientAttachedCallback(ClientData& Client, SessionData& Session);
-  /// The callback function that is fired when a \p Client had detached from a
-  /// \p Session.
-  void clientDetachedCallback(ClientData& Client, SessionData& Session);
-  /// The callback function that is fired when a \p Session is destroyed.
-  void destroyCallback(SessionData& Session);
+  /// Registers that \p Client attached to \p Session.
+  void clientAttached(ClientData& Client, SessionData& Session);
+  /// Registers that \p Client detached from \p Session.
+  void clientDetached(ClientData& Client, SessionData& Session);
+  /// Destroys the data structures associated with a \p Session that exited.
+  void sessionDestroy(SessionData& Session);
 
   /// A special step during the handshake maneuvre is when a user client
   /// connects to the server again, and establishes itself as the data
@@ -248,9 +286,17 @@ public:
 
 private:
   /// Maps \p MessageKind to handler functions.
-  std::map<std::uint16_t, std::function<HandlerFunction>> Dispatch;
+  std::map<std::uint16_t, std::function<HandlerFunction>> MainDispatch;
+#if MONOMUX_EMBEDDING_LIBRARY_FEATURES
+  /// Maps \p MessageKind to handler functions that are executed \b before
+  /// \p MainDispatch.
+  decltype(MainDispatch) PreDispatch;
+  /// Maps \p MessageKind to handler functions that are executed \b after
+  /// \p MainDispatch.
+  decltype(MainDispatch) PostDispatch;
+#endif
 
-  void setUpDispatch();
+  void setUpMainDispatch();
 
 #define DISPATCH(KIND, FUNCTION_NAME)                                          \
   static void FUNCTION_NAME(                                                   \

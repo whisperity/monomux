@@ -31,12 +31,12 @@
 namespace monomux::server
 {
 
-void Server::setUpDispatch()
+void Server::setUpMainDispatch()
 {
   using namespace monomux::message;
 #define KIND(E) static_cast<std::uint16_t>(MessageKind::E)
 #define MEMBER(NAME) &Server::NAME
-#define DISPATCH(K, FUNCTION) registerMessageHandler(KIND(K), MEMBER(FUNCTION));
+#define DISPATCH(K, FUNCTION) MainDispatch[KIND(K)] = MEMBER(FUNCTION);
 #include "monomux/server/Dispatch.ipp"
 #undef MEMBER
 #undef KIND
@@ -75,16 +75,9 @@ void Server::sendRejectClient(ClientData& Client, std::string Reason)
     message::notification::Connection{{false}, std::move(Reason)});
 }
 
-#define HANDLER(NAME)                                                          \
-  void Server::NAME(                                                           \
-    Server& Server, ClientData& Client, std::string_view Message)
+#define HANDLER(NAME) MONOMUX_SERVER_HANDLER_SIGNATURE(Server::NAME)
 
-#define MSG(TYPE)                                                              \
-  using namespace monomux::message;                                            \
-  std::optional<TYPE> Msg = TYPE::decode(Message);                             \
-  if (!Msg)                                                                    \
-    return;                                                                    \
-  MONOMUX_TRACE_LOG(LOG(trace) << __PRETTY_FUNCTION__);
+#define MSG(TYPE) MONOMUX_SERVER_HANDLER_DECODE(TYPE)
 
 HANDLER(requestClientID)
 {
@@ -207,7 +200,7 @@ HANDLER(requestMakeSession)
   S->setProcess(std::move(P));
 
   auto InsertResult = Server.Sessions.try_emplace(Resp.Name, std::move(S));
-  Server.createCallback(*InsertResult.first->second);
+  Server.sessionCreate(*InsertResult.first->second);
 
   Resp.Success = true;
   sendMessage(Client.getControlSocket(), Resp);
@@ -226,7 +219,7 @@ HANDLER(requestAttach)
     return;
   }
 
-  Server.clientAttachedCallback(Client, *S);
+  Server.clientAttached(Client, *S);
   Resp.Success = true;
   Resp.Session.Name = S->name();
   Resp.Session.Created = std::chrono::system_clock::to_time_t(S->whenCreated());
@@ -259,7 +252,7 @@ HANDLER(requestDetach)
   for (ClientData* C : ClientsToDetach)
   {
     C->sendDetachReason(notification::Detached::DetachMode::Detach);
-    Server.clientDetachedCallback(*C, *S);
+    Server.clientDetached(*C, *S);
   }
 
   sendMessage(Client.getControlSocket(), Resp);
@@ -295,6 +288,7 @@ HANDLER(statisticsRequest)
 }
 
 #undef HANDLER
+#undef MSG
 
 } // namespace monomux::server
 
