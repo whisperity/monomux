@@ -68,14 +68,19 @@ public:
     Alive = false;
   }
 
-  /// \returns the underlying instance. If it is constructed yet, it is first
-  /// constructed by the \p EnterFunction, if provided, or otherwise default
-  /// constructed.
+  /// \returns the underlying instance.
+  ///
+  /// If it is not constructed yet, it is first constructed by calling the
+  /// \p EnterFunction, if provided, or otherwise default constructed.
   T& get() noexcept(IsNoexceptConstruction)
   {
     if (!Alive)
     {
-      new (Storage) T{EnterFn()};
+      if constexpr (HasCustomConstructor)
+        new (Storage) T{EnterFn()};
+      else
+        new (Storage) T{};
+
       Alive = true;
     }
 
@@ -97,7 +102,7 @@ private:
 ///   auto MyLazy = makeLazy([]() -> some_type { return some_type_maker(); });
 ///   \endcode
 template <typename EnterFunction>
-auto makeLazy(EnterFunction&& Enter) noexcept(
+[[nodiscard]] auto makeLazy(EnterFunction&& Enter) noexcept(
   std::is_nothrow_move_constructible_v<EnterFunction>)
 {
   return Lazy<std::invoke_result_t<EnterFunction>, EnterFunction>(

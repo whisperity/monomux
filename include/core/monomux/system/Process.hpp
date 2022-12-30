@@ -58,9 +58,9 @@ public:
 
   virtual ~Process() = default;
 
-  Raw raw() const noexcept { return Handle; }
-  bool hasPty() const noexcept { return static_cast<bool>(PTY); }
-  Pty* getPty() noexcept { return hasPty() ? &*PTY : nullptr; }
+  [[nodiscard]] Raw raw() const noexcept { return Handle; }
+  [[nodiscard]] bool hasPty() const noexcept { return static_cast<bool>(PTY); }
+  [[nodiscard]] Pty* getPty() noexcept { return hasPty() ? &*PTY : nullptr; }
 
   /// \returns Checks if the process had died, and if so, returns \p true.
   ///
@@ -72,12 +72,12 @@ public:
   virtual void wait() = 0;
 
   /// \returns whether the child process has been \b OBSERVED to be dead.
-  bool dead() const noexcept { return Dead; }
+  [[nodiscard]] bool dead() const noexcept { return Dead; }
 
   /// \returns the exit code of the process, if it has already terminated.
   /// This call is only valid after \p wait() concluded or \p reapIfDead()
   /// returns \p true.
-  int exitCode() const noexcept
+  [[nodiscard]] int exitCode() const noexcept
   {
     assert(Dead && "Process still alive, exit code is not meaningful!");
     return ExitCode;
@@ -96,11 +96,11 @@ protected:
 
 public:
   /// \returns the PID handle of the currently executing process.
-  static Raw thisProcess();
+  [[nodiscard]] static Raw thisProcess();
 
   /// \returns the address of the currently executing binary, queried from the
   /// kernel.
-  static std::string thisProcessPath();
+  [[nodiscard]] static std::string thisProcessPath();
 
   /// Sends the \p Signal to the process identified by \p PID.
   static void signal(Raw Handle, int Signal);
@@ -121,7 +121,7 @@ public:
   /// parent.
   ///
   /// \note This call does \b NOT return in the child!
-  static std::unique_ptr<Process> spawn(const SpawnOptions& Opts);
+  [[nodiscard]] static std::unique_ptr<Process> spawn(const SpawnOptions& Opts);
 };
 
 } // namespace monomux::system

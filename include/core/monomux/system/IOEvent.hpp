@@ -33,19 +33,22 @@ public:
   virtual ~IOEvent() = default;
 
   /// Get the number of events that fired in the last successful \p wait().
-  std::size_t getEventCount() const noexcept { return NotificationCount; }
+  [[nodiscard]] std::size_t getEventCount() const noexcept
+  {
+    return NotificationCount;
+  }
   /// Get the number of events that were manually scheduled by the client in the
   /// last successful \p wait().
-  virtual std::size_t getScheduledCount() const noexcept = 0;
+  [[nodiscard]] virtual std::size_t getScheduledCount() const noexcept = 0;
 
-  virtual std::size_t getMaxEventCount() const noexcept = 0;
+  [[nodiscard]] virtual std::size_t getMaxEventCount() const noexcept = 0;
 
   /// Blocks and waits until there is a notification that signalled the event
   /// watcher.
   ///
   /// \return The number of events received, either from the system or by
   /// manual scheduling.
-  virtual std::size_t wait() = 0;
+  [[nodiscard]] virtual std::size_t wait() = 0;
 
   struct EventWithMode
   {
@@ -54,7 +57,7 @@ public:
     bool Outgoing;
   };
   /// Retrieve the Nth event.
-  virtual EventWithMode eventAt(std::size_t Index) noexcept = 0;
+  [[nodiscard]] virtual EventWithMode eventAt(std::size_t Index) noexcept = 0;
 
   /// Adds the specified file descriptor \p FD to the event queue. Events will
   /// trigger for \p Incoming (the file is available for reading) or \p Outgoing

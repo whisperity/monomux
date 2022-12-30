@@ -65,34 +65,36 @@ public:
 
   ~EPoll() override;
 
-  std::size_t getScheduledCount() const noexcept override
+  [[nodiscard]] std::size_t getScheduledCount() const noexcept override
   {
     return ScheduledResult.size();
   }
 
-  std::size_t getMaxEventCount() const noexcept override
+  [[nodiscard]] std::size_t getMaxEventCount() const noexcept override
   {
     return Notifications.size();
   }
 
-  std::size_t wait() override;
+  [[nodiscard]] std::size_t wait() override;
 
   /// Retrieve the Nth event.
-  const struct ::epoll_event& operator[](std::size_t Index) const
+  [[nodiscard]] const struct ::epoll_event& operator[](std::size_t Index) const
   {
     return at(Index);
   }
   /// Retrieve the Nth event.
-  MONOMUX_MEMBER_1(struct ::epoll_event&, operator[], , std::size_t, Index);
+  MONOMUX_MEMBER_1(
+    struct ::epoll_event&, operator[], [[nodiscard]], , std::size_t, Index);
   /// Retrieve the Nth event.
-  const struct ::epoll_event& at(std::size_t Index) const;
+  [[nodiscard]] const struct ::epoll_event& at(std::size_t Index) const;
   /// Retrieve the Nth event.
-  MONOMUX_MEMBER_1(struct ::epoll_event&, at, , std::size_t, Index);
+  MONOMUX_MEMBER_1(
+    struct ::epoll_event&, at, [[nodiscard]], , std::size_t, Index);
 
   /// Retrieve the file descriptor that fired for the Nth event.
-  fd::raw_fd fdAt(std::size_t Index) noexcept;
+  [[nodiscard]] fd::raw_fd fdAt(std::size_t Index) noexcept;
 
-  EventWithMode eventAt(std::size_t Index) noexcept override;
+  [[nodiscard]] EventWithMode eventAt(std::size_t Index) noexcept override;
 
   void listen(Handle::Raw FD, bool Incoming, bool Outgoing) override;
 
@@ -135,7 +137,7 @@ private:
                 /* IntrusiveDefaultSentinel =*/true>
     ScheduledWaitingMap;
 
-  bool isValidIndex(std::size_t I) const noexcept;
+  [[nodiscard]] bool isValidIndex(std::size_t I) const noexcept;
 };
 
 } // namespace monomux::system::unix

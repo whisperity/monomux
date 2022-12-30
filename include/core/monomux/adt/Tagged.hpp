@@ -37,9 +37,9 @@ public:
   Tagged(T* P) noexcept : Ptr(P) {}
 
   /// Retrieve the raw tag value.
-  std::size_t kind() const noexcept { return Kind; }
+  [[nodiscard]] std::size_t kind() const noexcept { return Kind; }
   /// Retrieve the tag value cast to the enum type \p E.
-  template <typename E> E kindAs() const noexcept
+  template <typename E>[[nodiscard]] E kindAs() const noexcept
   {
     return static_cast<E>(Kind);
   }

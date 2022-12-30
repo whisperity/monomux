@@ -42,7 +42,7 @@ template <> struct HandleTraits<PlatformTag::Unix>
 
   /// Formats the \b raw file descriptor as a string.
   // NOLINTNEXTLINE(readability-identifier-naming)
-  static std::string to_string(RawTy FD);
+  [[nodiscard]] static std::string to_string(RawTy FD);
 };
 
 } // namespace monomux::system

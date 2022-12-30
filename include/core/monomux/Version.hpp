@@ -32,12 +32,12 @@ struct Version
 };
 
 /// \returns the full version information produced by the build system.
-Version getVersion();
+[[nodiscard]] Version getVersion();
 
 /// \returns a short version string, e.g. \p 1.0.0
-std::string getShortVersion();
+[[nodiscard]] std::string getShortVersion();
 
 /// \returns a full version string, including additional bits, if any.
-std::string getFullVersion();
+[[nodiscard]] std::string getFullVersion();
 
 } // namespace monomux

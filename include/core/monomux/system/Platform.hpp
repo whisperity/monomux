@@ -59,19 +59,20 @@ class Platform
 {
 public:
   /// \returns the default shell (command interpreter) for the current user.
-  static std::string defaultShell();
+  [[nodiscard]] static std::string defaultShell();
 
   struct SocketPath
   {
     /// \returns the default directory where a server socket should be placed
     /// for the current user.
-    static SocketPath defaultSocketPath();
+    [[nodiscard]] static SocketPath defaultSocketPath();
 
     /// Transforms the specified \p Path into a split \p SocketPath object.
-    static SocketPath absolutise(const std::string& Path);
+    [[nodiscard]] static SocketPath absolutise(const std::string& Path);
 
     /// \returns the \p Path and \p Filename concatenated appropriately.
-    std::string to_string() const; // NOLINT(readability-identifier-naming)
+    [[nodiscard]] std::string
+    to_string() const; // NOLINT(readability-identifier-naming)
 
     std::string Path;
     std::string Filename;

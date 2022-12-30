@@ -51,25 +51,25 @@ public:
 
   /// \returns whether the current instance is open on the master (PTM, control)
   /// side.
-  bool isMaster() const noexcept { return IsMaster; }
+  [[nodiscard]] bool isMaster() const noexcept { return IsMaster; }
 
   /// \returns whether the current instance is open on the slave (PTS, process)
   /// side.
-  bool isSlave() const noexcept { return !IsMaster; }
+  [[nodiscard]] bool isSlave() const noexcept { return !IsMaster; }
 
   /// \returns the raw file descriptor for the \p Pty side that is currently
   /// open.
-  Handle& raw() noexcept { return isMaster() ? Master : Slave; }
+  [[nodiscard]] Handle& raw() noexcept { return isMaster() ? Master : Slave; }
 
   /// \returns the name of the PTY interface that was created (e.g. /dev/pts/2).
-  const std::string& name() const noexcept { return Name; }
+  [[nodiscard]] const std::string& name() const noexcept { return Name; }
 
   /// Returns the \p Pipe that can read from the standard output of the other
   /// end of the PTY.
   ///
   /// \note Using this method is only valid once the PTY has established its
   /// master/slave status.
-  Pipe& reader() noexcept
+  [[nodiscard]] Pipe& reader() noexcept
   {
     assert(Read);
     return *Read;
@@ -79,7 +79,7 @@ public:
   ///
   /// \note Using this method is only valid once the PTY has established its
   /// master/slave status.
-  Pipe& writer() noexcept
+  [[nodiscard]] Pipe& writer() noexcept
   {
     assert(Write);
     return *Write;

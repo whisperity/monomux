@@ -91,7 +91,7 @@ public:
 
   ~Server();
 
-  std::chrono::time_point<std::chrono::system_clock>
+  [[nodiscard]] std::chrono::time_point<std::chrono::system_clock>
   whenStarted() const noexcept
   {
     return WhenStarted;
@@ -107,7 +107,7 @@ public:
       : std::runtime_error("Handling of message should have been prevented.")
     {}
 
-    const char* what() const noexcept override
+    [[nodiscard]] const char* what() const noexcept override
     {
       return std::runtime_error::what();
     }
@@ -205,22 +205,22 @@ private:
 
 public:
   /// Retrieve data about the client registered as \p ID.
-  ClientData* getClient(std::size_t ID) noexcept;
+  [[nodiscard]] ClientData* getClient(std::size_t ID) noexcept;
 
   /// Retrieve data about the session registered as \p Name.
-  SessionData* getSession(std::string_view Name) noexcept;
+  [[nodiscard]] SessionData* getSession(std::string_view Name) noexcept;
 
   /// Creates a new client on the server.
   ///
   /// \note Calling this function only manages the backing data structure and
   /// does \b NOT fire any associated callbacks!
-  ClientData* makeClient(ClientData Client);
+  [[nodiscard]] ClientData* makeClient(ClientData Client);
 
   /// Regiters a new session to the server.
   ///
   /// \note Calling this function only manages the backing data structure and
   /// does \b NOT fire any associated callbacks!
-  SessionData* makeSession(SessionData Session);
+  [[nodiscard]] SessionData* makeSession(SessionData Session);
 
   /// Delete the \p Client from the list of clients.
   ///
@@ -269,7 +269,7 @@ public:
 
   /// \returns a statistical breakdown of the state of the server and the
   /// connections handled. This data is \b NOT meant to be machine-readable!
-  std::string statistics() const;
+  [[nodiscard]] std::string statistics() const;
 
 private:
   /// Maps \p MessageKind to handler functions.

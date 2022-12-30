@@ -100,27 +100,27 @@ public:
 
   /// \returns Whether the data structure is currently in the small
   /// representation. In this mode, access of data is a constant operation.
-  bool isSmall() const noexcept
+  [[nodiscard]] bool isSmall() const noexcept
   {
     return std::holds_alternative<SmallRepresentation>(Storage);
   }
   /// \returns Whether the data structure is currently in the large
   /// representation. In this mode, access of data is a logarithmic operation.
-  bool isLarge() const noexcept { return !isSmall(); }
+  [[nodiscard]] bool isLarge() const noexcept { return !isSmall(); }
 
   /// \returns the size of the container, i.e. the number of elements added
   /// into it.
   ///
   /// This is a \e constant-time query.
-  std::size_t size() const noexcept { return Size; }
+  [[nodiscard]] std::size_t size() const noexcept { return Size; }
 
   /// \returns whether the container is empty.
   ///
   /// This is a \e constant-time query.
-  bool empty() const noexcept { return Size == 0; }
+  [[nodiscard]] bool empty() const noexcept { return Size == 0; }
 
   /// \returns whether the \p Key is mapped.
-  bool contains(KeyTy Key) const noexcept
+  [[nodiscard]] bool contains(KeyTy Key) const noexcept
   {
     if (isSmall())
     {
@@ -262,7 +262,7 @@ public:
 
   /// Retrieve a non-mutable pointer to the element mapped for \p Key, or
   /// \p nullptr if \p Key is not mapped.
-  const T* tryGet(KeyTy Key) const noexcept
+  [[nodiscard]] const T* tryGet(KeyTy Key) const noexcept
   {
     if (isSmall())
     {
@@ -283,11 +283,11 @@ public:
   }
   /// Retrieve a mutable pointer to the element mapped for \p Key, or
   /// \p nullptr if \p Key is not mapped.
-  MONOMUX_MEMBER_1(T*, tryGet, noexcept, KeyTy, Key);
+  MONOMUX_MEMBER_1(T*, tryGet, [[nodiscard]], noexcept, KeyTy, Key);
 
   /// Retrieve a non-mutable reference to the element mapped for \p Key.
   /// \throws std::out_of_range if \p Key is not mapped.
-  const T& get(KeyTy Key) const
+  [[nodiscard]] const T& get(KeyTy Key) const
   {
     const T* P = tryGet(Key);
     if (!P)
@@ -295,7 +295,7 @@ public:
     return *P;
   }
   /// Retrieve a mutable reference to the element mapped for \p Key.
-  MONOMUX_MEMBER_1(T&, get, , KeyTy, Key);
+  MONOMUX_MEMBER_1(T&, get, [[nodiscard]], , KeyTy, Key);
 
   /// Create a mutable reference to the element mapped for \p Key.
   /// If no such element exists, an appropriate default-constructed element is
@@ -311,7 +311,8 @@ public:
   /// \p StoreInPlace is \p true, invalidate \b EVERY reference and iterator
   /// to existing elements.
   template <typename R = T>
-  std::enable_if_t<std::is_default_constructible_v<T>, R>& operator[](KeyTy Key)
+  [[nodiscard]] std::enable_if_t<std::is_default_constructible_v<T>, R>&
+  operator[](KeyTy Key)
   {
     if (isSmall())
     {
@@ -349,7 +350,7 @@ private:
   }
 
   /// \returns whether the stored element represents a mapped value.
-  bool isMapped(const E& Elem) const noexcept
+  [[nodiscard]] bool isMapped(const E& Elem) const noexcept
   {
     if constexpr (IntrusiveDefaultSentinel)
       return Elem != E{};
@@ -358,7 +359,8 @@ private:
   }
 
   template <typename R = E>
-  std::enable_if_t<std::is_default_constructible_v<T>, R> constructElement()
+  [[nodiscard]] std::enable_if_t<std::is_default_constructible_v<T>, R>
+  constructElement()
   {
     if constexpr (!NeedsMaybe)
       return T{};
@@ -371,7 +373,7 @@ private:
     }
   }
 
-  const T& unwrap(const E& Elem) const
+  [[nodiscard]] const T& unwrap(const E& Elem) const
   {
     if constexpr (!NeedsMaybe)
       return Elem;
@@ -382,18 +384,18 @@ private:
       return *Elem;
     }
   }
-  MONOMUX_MEMBER_1(T&, unwrap, , E&, Elem);
+  MONOMUX_MEMBER_1(T&, unwrap, [[nodiscard]], , E&, Elem);
 
-  const SmallRepresentation* getSmallRepr() const noexcept
+  [[nodiscard]] const SmallRepresentation* getSmallRepr() const noexcept
   {
     return std::get_if<SmallRepresentation>(&Storage);
   }
-  MONOMUX_MEMBER_0(SmallRepresentation*, getSmallRepr, noexcept);
-  const LargeRepresentation* getLargeRepr() const noexcept
+  MONOMUX_MEMBER_0(SmallRepresentation*, getSmallRepr, [[nodiscard]], noexcept);
+  [[nodiscard]] const LargeRepresentation* getLargeRepr() const noexcept
   {
     return std::get_if<LargeRepresentation>(&Storage);
   }
-  MONOMUX_MEMBER_0(LargeRepresentation*, getLargeRepr, noexcept);
+  MONOMUX_MEMBER_0(LargeRepresentation*, getLargeRepr, [[nodiscard]], noexcept);
 
   /// Fills the small representation \p std::array with default initialised
   /// values.

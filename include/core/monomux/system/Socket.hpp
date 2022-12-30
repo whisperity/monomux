@@ -64,8 +64,8 @@ public:
   using BufferedChannel::read;
   using BufferedChannel::write;
 
-  std::size_t optimalReadSize() const noexcept override;
-  std::size_t optimalWriteSize() const noexcept override;
+  [[nodiscard]] std::size_t optimalReadSize() const noexcept override;
+  [[nodiscard]] std::size_t optimalWriteSize() const noexcept override;
 
 protected:
   Socket(Handle FD,
@@ -75,8 +75,8 @@ protected:
          bool Owning);
 
   virtual void listenImpl(std::size_t QueueSize) = 0;
-  virtual std::unique_ptr<Socket> acceptImpl(std::error_code* Error,
-                                             bool* Recoverable) = 0;
+  [[nodiscard]] virtual std::unique_ptr<Socket>
+  acceptImpl(std::error_code* Error, bool* Recoverable) = 0;
 
   /// Whether the current instance is \e owning a socket, i.e. controlling it
   /// as a server.

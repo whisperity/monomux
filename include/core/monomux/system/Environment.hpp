@@ -30,7 +30,7 @@ namespace monomux::system
 ///
 /// \note This function is a safe alternative to \p getenv() as it immediately
 /// allocates a \e new string with the result.
-std::string getEnv(const std::string& Key);
+[[nodiscard]] std::string getEnv(const std::string& Key);
 
 /// Allows crafting and retrieving information about a running Monomux session
 /// injected through the use of environment variables.
@@ -39,8 +39,9 @@ struct MonomuxSession
   Platform::SocketPath Socket;
   std::string SessionName;
 
-  std::vector<std::pair<std::string, std::string>> createEnvVars() const;
-  static std::optional<MonomuxSession> loadFromEnv();
+  [[nodiscard]] std::vector<std::pair<std::string, std::string>>
+  createEnvVars() const;
+  [[nodiscard]] static std::optional<MonomuxSession> loadFromEnv();
 };
 
 } // namespace monomux::system

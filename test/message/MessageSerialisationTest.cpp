@@ -27,7 +27,7 @@
 
 /// Helper function for removing the explicit terminator from the created buffer
 /// for ease of testing.
-template <typename Msg> static std::string encode(const Msg& M)
+template <typename Msg>[[nodiscard]] static std::string encode(const Msg& M)
 {
   using namespace monomux::message;
 
@@ -36,7 +36,7 @@ template <typename Msg> static std::string encode(const Msg& M)
   return std::string{Unpacked};
 }
 
-template <typename Msg> static Msg codec(const Msg& M)
+template <typename Msg>[[nodiscard]] static Msg codec(const Msg& M)
 {
   using namespace monomux::message;
 

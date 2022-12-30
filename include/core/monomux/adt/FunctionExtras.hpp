@@ -19,13 +19,15 @@
 #pragma once
 #include <type_traits>
 
-#define MONOMUX_DETAIL_FUNCTION_HEAD(RET_TY, NAME, ARGUMENTS, QUALIFIERS)      \
-  RET_TY NAME(ARGUMENTS) QUALIFIERS
+#define MONOMUX_DETAIL_FUNCTION_HEAD(                                          \
+  RET_TY, NAME, ARGUMENTS, ATTRIBUTES, QUALIFIERS)                             \
+  ATTRIBUTES RET_TY NAME(ARGUMENTS) QUALIFIERS
 
 #define MONOMUX_DETAIL_FUNCTION_TEMPLATE_HEAD(                                 \
-  TEMPLATES, RET_TY, NAME, ARGUMENTS, QUALIFIERS)                              \
+  TEMPLATES, RET_TY, NAME, ARGUMENTS, ATTRIBUTES, QUALIFIERS)                  \
   template <TEMPLATES>                                                         \
-  MONOMUX_DETAIL_FUNCTION_HEAD(RET_TY, NAME, ARGUMENTS, QUALIFIERS)
+  MONOMUX_DETAIL_FUNCTION_HEAD(                                                \
+    RET_TY, NAME, ARGUMENTS, ATTRIBUTES, QUALIFIERS)
 
 #define MONOMUX_DETAIL_CONST_TYPE                                              \
   using Const = std::add_pointer_t<                                            \
@@ -51,22 +53,35 @@
   MONOMUX_DETAIL_CONST_OBJ->NAME<TYPE_1>(ARG_1)
 
 
-#define MONOMUX_MEMBER_0(RETURN_TYPE, NAME, NOEXCEPT)                          \
-  MONOMUX_DETAIL_FUNCTION_HEAD(RETURN_TYPE, NAME, , NOEXCEPT)                  \
+#define MONOMUX_MEMBER_0(RETURN_TYPE, NAME, NODISCARD, NOEXCEPT)               \
+  MONOMUX_DETAIL_FUNCTION_HEAD(RETURN_TYPE, NAME, , NODISCARD, NOEXCEPT)       \
   MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE, MONOMUX_DETAIL_CALL_0(NAME))
-#define MONOMUX_MEMBER_1(RETURN_TYPE, NAME, NOEXCEPT, ARG_1_TYPE, ARG_1)       \
-  MONOMUX_DETAIL_FUNCTION_HEAD(RETURN_TYPE, NAME, ARG_1_TYPE ARG_1, NOEXCEPT)  \
+#define MONOMUX_MEMBER_1(                                                      \
+  RETURN_TYPE, NAME, NODISCARD, NOEXCEPT, ARG_1_TYPE, ARG_1)                   \
+  MONOMUX_DETAIL_FUNCTION_HEAD(                                                \
+    RETURN_TYPE, NAME, ARG_1_TYPE ARG_1, NODISCARD, NOEXCEPT)                  \
   MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE, MONOMUX_DETAIL_CALL_1(NAME, ARG_1))
 
-#define MONOMUX_MEMBER_T1_0(RETURN_TYPE, NAME, NOEXCEPT, TYPE_1_TYPE, TYPE_1)  \
+#define MONOMUX_MEMBER_T1_0(                                                   \
+  RETURN_TYPE, NAME, NODISCARD, NOEXCEPT, TYPE_1_TYPE, TYPE_1)                 \
   MONOMUX_DETAIL_FUNCTION_TEMPLATE_HEAD(                                       \
-    TYPE_1_TYPE TYPE_1, RETURN_TYPE, NAME, , NOEXCEPT)                         \
+    TYPE_1_TYPE TYPE_1, RETURN_TYPE, NAME, , NODISCARD, NOEXCEPT)              \
   MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE,                                    \
                                MONOMUX_DETAIL_CALL_0_T1(NAME, TYPE_1))
-#define MONOMUX_MEMBER_T1_1(                                                   \
-  RETURN_TYPE, NAME, NOEXCEPT, TYPE_1_TYPE, TYPE_1, ARG_1_TYPE, ARG_1)         \
-  MONOMUX_DETAIL_FUNCTION_TEMPLATE_HEAD(                                       \
-    TYPE_1_TYPE TYPE_1, RETURN_TYPE, NAME, ARG_1_TYPE ARG_1, NOEXCEPT)         \
+#define MONOMUX_MEMBER_T1_1(RETURN_TYPE,                                       \
+                            NAME,                                              \
+                            NODISCARD,                                         \
+                            NOEXCEPT,                                          \
+                            TYPE_1_TYPE,                                       \
+                            TYPE_1,                                            \
+                            ARG_1_TYPE,                                        \
+                            ARG_1)                                             \
+  MONOMUX_DETAIL_FUNCTION_TEMPLATE_HEAD(TYPE_1_TYPE TYPE_1,                    \
+                                        RETURN_TYPE,                           \
+                                        NAME,                                  \
+                                        ARG_1_TYPE ARG_1,                      \
+                                        NODISCARD,                             \
+                                        NOEXCEPT)                              \
   MONOMUX_DETAIL_FUNCTION_BODY(RETURN_TYPE,                                    \
                                MONOMUX_DETAIL_CALL_1_T1(NAME, TYPE_1, ARG_1))
 

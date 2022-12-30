@@ -102,27 +102,28 @@ struct Message
   std::string_view RawData;
 
   /// Encodes the given number as a platform-specific binary-string.
-  static std::string sizeToBinaryString(std::size_t N);
+  [[nodiscard]] static std::string sizeToBinaryString(std::size_t N);
 
   /// Decodes a \p std::size_t from the given \p Str.
-  static std::size_t binaryStringToSize(std::string_view Str) noexcept;
+  [[nodiscard]] static std::size_t
+  binaryStringToSize(std::string_view Str) noexcept;
 
   /// Encodes the \p Kind variable as a binary string for appropriately
   /// prefixing a transmissible buffer.
-  std::string encodeKind() const;
+  [[nodiscard]] std::string encodeKind() const;
 
   /// Decodes the binary prefix of a message as a \p Kind.
-  static MessageKind decodeKind(std::string_view Str) noexcept;
+  [[nodiscard]] static MessageKind decodeKind(std::string_view Str) noexcept;
 
   /// Pack a raw and encoded message into a full transmissible payload.
-  std::string pack() const;
+  [[nodiscard]] std::string pack() const;
 
   /// Unpack an encoded and fully read payload into its base constitutents.
-  static Message unpack(std::string_view Str) noexcept;
+  [[nodiscard]] static Message unpack(std::string_view Str) noexcept;
 };
 
 /// Encodes a message object into its raw data form.
-template <typename T> std::string encode(const T& Msg)
+template <typename T>[[nodiscard]] std::string encode(const T& Msg)
 {
   std::string RawForm = T::encode(Msg);
 
@@ -135,7 +136,7 @@ template <typename T> std::string encode(const T& Msg)
 
 /// Encodes a message object into its raw data form, prefixed with a payload
 /// size.
-template <typename T> std::string encodeWithSize(const T& Msg)
+template <typename T>[[nodiscard]] std::string encodeWithSize(const T& Msg)
 {
   std::string Payload = encode(Msg);
   return Message::sizeToBinaryString(Payload.size()) + std::move(Payload);
@@ -143,7 +144,8 @@ template <typename T> std::string encodeWithSize(const T& Msg)
 
 /// Decodes the given received buffer as a specific message object, and returns
 /// it if successful.
-template <typename T> std::optional<T> decode(std::string_view Str) noexcept
+template <typename T>
+[[nodiscard]] std::optional<T> decode(std::string_view Str) noexcept
 {
   Message MB = Message::unpack(Str);
   if (MB.Kind == MessageKind::Invalid)

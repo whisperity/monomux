@@ -46,9 +46,9 @@ public:
   {}
 
   explicit operator bool() const noexcept { return !Errored; }
-  std::error_code getError() const noexcept { return ErrorCode; }
-  R& get() noexcept { return Value; }
-  const R& get() const noexcept { return Value; }
+  [[nodiscard]] std::error_code getError() const noexcept { return ErrorCode; }
+  [[nodiscard]] R& get() noexcept { return Value; }
+  [[nodiscard]] const R& get() const noexcept { return Value; }
 };
 
 template <> struct Result<void>
@@ -63,7 +63,7 @@ public:
   {}
 
   explicit operator bool() const noexcept { return !Errored; }
-  std::error_code getError() const noexcept { return ErrorCode; }
+  [[nodiscard]] std::error_code getError() const noexcept { return ErrorCode; }
 };
 
 } // namespace detail
@@ -89,7 +89,7 @@ public:
 ///   Open.get(); // Obtain the return value from the lambda.
 ///   \endcode
 template <typename Fn, typename... ErrTys>
-decltype(auto)
+[[nodiscard]] decltype(auto)
 // NOLINTNEXTLINE(readability-identifier-naming)
 CheckedErrno(Fn&& F, ErrTys&&... ErrorValues) noexcept
 {
@@ -164,7 +164,7 @@ CheckedErrnoThrow(Fn&& F, std::string ErrMsg, ErrTys&&... ErrorValues)
 ///   Open.get(); // Obtain the return value from the lambda.
 ///   \endcode
 template <typename Fn>
-decltype(auto)
+[[nodiscard]] decltype(auto)
 CheckedErrno(Fn&& F) noexcept // NOLINT(readability-identifier-naming)
 {
   using namespace monomux::detail;

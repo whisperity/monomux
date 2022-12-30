@@ -44,8 +44,11 @@ struct UniqueScalarPointerBase
   ConstType operator->() const noexcept { return get(); }
 
 private:
-  Type get() noexcept { return static_cast<Derived*>(this)->get(); }
-  ConstType get() const noexcept
+  [[nodiscard]] Type get() noexcept
+  {
+    return static_cast<Derived*>(this)->get();
+  }
+  [[nodiscard]] ConstType get() const noexcept
   {
     return static_cast<const Derived*>(this)->get();
   }
@@ -104,9 +107,9 @@ struct UniqueScalar
   operator const T&() const noexcept { return Value; }
 
   /// Converts to the stored value.
-  T& get() noexcept { return Value; }
+  [[nodiscard]] T& get() noexcept { return Value; }
   /// Converts to the stored value.
-  const T& get() const noexcept { return Value; }
+  [[nodiscard]] const T& get() const noexcept { return Value; }
 
   /// Sets \p NewValue into the wrapped object.
   UniqueScalar&

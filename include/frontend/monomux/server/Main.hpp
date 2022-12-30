@@ -30,7 +30,7 @@ namespace monomux::server
 struct Options
 {
   /// Format the options back into the CLI invocation they were parsed from.
-  std::vector<std::string> toArgv() const;
+  [[nodiscard]] std::vector<std::string> toArgv() const;
 
   // (To initialise the bitfields...)
   Options();
@@ -53,6 +53,6 @@ struct Options
 [[noreturn]] void exec(const Options& Opts, const char* ArgV0);
 
 /// Executes the "official" Monomux Server frontend logic.
-FrontendExitCode main(Options& Opts);
+[[nodiscard]] FrontendExitCode main(Options& Opts);
 
 } // namespace monomux::server

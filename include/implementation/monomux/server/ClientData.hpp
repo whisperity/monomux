@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 
+#include "monomux/adt/FunctionExtras.hpp"
 #include "monomux/message/Message.hpp"
 #include "monomux/system/Socket.hpp"
 
@@ -35,37 +36,44 @@ class ClientData
 public:
   ClientData(std::unique_ptr<system::Socket> Connection);
 
-  std::size_t id() const noexcept { return ID; }
+  [[nodiscard]] std::size_t id() const noexcept { return ID; }
   /// Returns the most recent random-generated nonce for this client, and
   /// clear it from memory, rendering it useless in later authentications.
-  std::size_t consumeNonce() noexcept;
+  [[nodiscard]] std::size_t consumeNonce() noexcept;
   /// Creates a new random number for the client's authentication, and returns
   /// it. The value is stored for until used.
-  std::size_t makeNewNonce() noexcept;
+  [[nodiscard]] std::size_t makeNewNonce() noexcept;
 
-  std::chrono::time_point<std::chrono::system_clock>
+  [[nodiscard]] std::chrono::time_point<std::chrono::system_clock>
   whenCreated() const noexcept
   {
     return Created;
   }
-  std::chrono::time_point<std::chrono::system_clock> lastActive() const noexcept
+  [[nodiscard]] std::chrono::time_point<std::chrono::system_clock>
+  lastActive() const noexcept
   {
     return LastActivity;
   }
   void activity() noexcept { LastActivity = std::chrono::system_clock::now(); }
 
-  system::Socket& getControlSocket() noexcept { return *ControlConnection; }
-  system::Socket* getDataSocket() noexcept { return DataConnection.get(); }
+  [[nodiscard]] system::Socket& getControlSocket() noexcept
+  {
+    return *ControlConnection;
+  }
+  [[nodiscard]] system::Socket* getDataSocket() noexcept
+  {
+    return DataConnection.get();
+  }
 
   /// Releases the control socket of the other client and associates it as the
   /// data connection of the current client.
   void subjugateIntoDataSocket(ClientData& Other) noexcept;
 
-  SessionData* getAttachedSession() noexcept { return AttachedSession; }
-  const SessionData* getAttachedSession() const noexcept
+  [[nodiscard]] const SessionData* getAttachedSession() const noexcept
   {
     return AttachedSession;
   }
+  MONOMUX_MEMBER_0(SessionData*, getAttachedSession, [[nodiscard]], noexcept);
   void detachSession() noexcept { AttachedSession = nullptr; }
   void attachToSession(SessionData& Session) noexcept
   {

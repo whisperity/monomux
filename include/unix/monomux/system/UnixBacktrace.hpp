@@ -75,11 +75,11 @@ public:
     void mergeFrom(Symbol&& RHS);
 
     /// Creates the inlining symbol's instance and returns it for data filling.
-    Symbol& startInlineInfo();
+    [[nodiscard]] Symbol& startInlineInfo();
 
     /// \returns whether the Symbol instance, or anything in the \p InlinedBy
     /// chain conveys meaningful information.
-    bool hasMeaningfulInformation() const;
+    [[nodiscard]] bool hasMeaningfulInformation() const;
   };
 
   struct Frame
@@ -122,7 +122,10 @@ public:
   /// \returns the stack frames created and stored when the \p Backtrace
   /// instance was constructed. These frames are allocated in the usual order,
   /// with the most recent stack frame being the first (index 0) in the vector.
-  const std::vector<Frame>& getFrames() const noexcept { return Frames; }
+  [[nodiscard]] const std::vector<Frame>& getFrames() const noexcept
+  {
+    return Frames;
+  }
 
 private:
   std::vector<Frame> Frames;

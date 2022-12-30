@@ -45,19 +45,23 @@ class RingBufferBase
   const std::size_t OriginalCapacity;
 
 public:
-  std::size_t capacity() const noexcept { return Capacity; }
-  std::size_t size() const noexcept { return Size; }
-  bool empty() const noexcept { return Size == 0; }
+  [[nodiscard]] std::size_t capacity() const noexcept { return Capacity; }
+  [[nodiscard]] std::size_t size() const noexcept { return Size; }
+  [[nodiscard]] bool empty() const noexcept { return Size == 0; }
 
-  std::size_t originalCapacity() const noexcept { return OriginalCapacity; }
-  std::chrono::time_point<std::chrono::system_clock> lastAccess() const noexcept
+  [[nodiscard]] std::size_t originalCapacity() const noexcept
+  {
+    return OriginalCapacity;
+  }
+  [[nodiscard]] std::chrono::time_point<std::chrono::system_clock>
+  lastAccess() const noexcept
   {
     return LastAccess;
   }
 
   /// \returns the profiling data of size peaks between buffer emptying
   /// gathered.
-  std::vector<std::size_t> peakStats() const
+  [[nodiscard]] std::vector<std::size_t> peakStats() const
   {
     std::vector<std::size_t> Peaks = SizePeaks;
     if (CurrentPeakIndex < Peaks.size() - 1)
@@ -116,7 +120,7 @@ protected:
   /// \returns whether the \p RingBuffer should shrink itself back to the
   /// \p originalCapacity() because most of the recent buffer uses did not
   /// exceed it meaningfully.
-  bool shouldShrink() const noexcept
+  [[nodiscard]] bool shouldShrink() const noexcept
   {
     if (Capacity <= OriginalCapacity)
       return false;
@@ -124,8 +128,8 @@ protected:
     static constexpr std::size_t TimeThresholdSeconds = 60;
     if (std::chrono::system_clock::now() - LastAccess >=
         std::chrono::seconds(TimeThresholdSeconds))
-      // Consider the buffer for shrinking if operations were successful without
-      // accessing the buffer for a sufficient amount of time.
+      // Consider the buffer for shrinking if operations were successful
+      // without accessing the buffer for a sufficient amount of time.
       return true;
 
     // Otherwise, if the buffer is continously used for a sufficient amount of
@@ -282,7 +286,7 @@ public:
   }
 
   /// \returns a reference to the element at the specified location \p Index.
-  const T& at(std::size_t Index) const
+  [[nodiscard]] const T& at(std::size_t Index) const
   {
     if (Index >= Size)
       throw std::out_of_range{std::string{"idx "} + std::to_string(Index) +
@@ -290,11 +294,14 @@ public:
     return *translateIndex(Index);
   }
   /// \returns a reference to the element at the specified location \p Index.
-  MONOMUX_MEMBER_1(T&, at, , std::size_t, Index);
+  MONOMUX_MEMBER_1(T&, at, [[nodiscard]], , std::size_t, Index);
   /// \returns a reference to the element at the specified location \p Index.
-  const T& operator[](std::size_t Index) const { return at(Index); }
+  [[nodiscard]] const T& operator[](std::size_t Index) const
+  {
+    return at(Index);
+  }
   /// \returns a reference to the element at the specified location \p Index.
-  MONOMUX_MEMBER_1(T&, operator[], , std::size_t, Index);
+  MONOMUX_MEMBER_1(T&, operator[], [[nodiscard]], , std::size_t, Index);
 
   void clear() noexcept(NothrowAssignable)
   {
@@ -305,23 +312,23 @@ public:
   }
 
   /// \returns a reference to the first element.
-  const T& front() const
+  [[nodiscard]] const T& front() const
   {
     if (empty())
       throw std::out_of_range{"Empty buffer."};
     return at(0);
   }
   /// \returns a reference to the first element.
-  MONOMUX_MEMBER_0(T&, front, );
+  MONOMUX_MEMBER_0(T&, front, [[nodiscard]], );
   /// \returns a reference to the last element.
-  const T& back() const
+  [[nodiscard]] const T& back() const
   {
     if (empty())
       throw std::out_of_range{"Empty buffer."};
     return at(Size - 1);
   }
   /// \returns a reference to the last element.
-  MONOMUX_MEMBER_0(T&, back, );
+  MONOMUX_MEMBER_0(T&, back, [[nodiscard]], );
 
   /// Removes the first element (\p front()) from the buffer.
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -358,7 +365,7 @@ public:
   /// Consume at most \p N elements from the beginning of the buffer.
   ///
   /// \see dropFront, peekFront
-  std::vector<T> takeFront(std::size_t N)
+  [[nodiscard]] std::vector<T> takeFront(std::size_t N)
   {
     std::vector<T> V = peekFront(N);
     dropFront(V.size());
@@ -382,7 +389,7 @@ public:
   /// do not consume it from the buffer.
   ///
   /// \see takeFront, dropFront
-  std::vector<T> peekFront(std::size_t N)
+  [[nodiscard]] std::vector<T> peekFront(std::size_t N)
   {
     if (N > Size)
       N = Size;
@@ -479,11 +486,11 @@ private:
   /// Whether the \p RingBuffer is using the growing storage or the original
   /// one.
   UniqueScalar<bool, false> UsingGrowingStorage;
-  const StorageType& getStorage() const noexcept
+  [[nodiscard]] const StorageType& getStorage() const noexcept
   {
     return UsingGrowingStorage ? GrowingStorage : StorageWithOriginalCapacity;
   }
-  MONOMUX_MEMBER_0(StorageType&, getStorage, );
+  MONOMUX_MEMBER_0(StorageType&, getStorage, [[nodiscard]], );
 
   T* physicalBegin() const noexcept { return getStorage().get(); }
   T* physicalEnd() const noexcept { return (getStorage().get()) + Capacity; }
@@ -497,7 +504,7 @@ private:
 
   /// \returns the location where a back-insertion into the buffer should take
   /// place, or \p nullptr if the buffer is full.
-  T* nextSlot() noexcept
+  [[nodiscard]] T* nextSlot() noexcept
   {
     T* P = End;
     if (P >= physicalEnd())
@@ -511,7 +518,7 @@ private:
 
   /// \returns the location where a front-insertion into the buffer should take
   /// place, or \p nullptr if the buffer is full.
-  T* prevSlot() noexcept
+  [[nodiscard]] T* prevSlot() noexcept
   {
     T* P = Origin;
     if (P == physicalBegin())
@@ -529,7 +536,7 @@ private:
 
   /// \returns the pointer that points to the \p Ith logical element in the
   /// storage. The element at this location may or may not be valid!
-  T* translateIndex(std::size_t I) const noexcept
+  [[nodiscard]] T* translateIndex(std::size_t I) const noexcept
   {
     return physicalBegin() + (((Origin - physicalBegin()) + I) % Capacity);
   }

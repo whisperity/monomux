@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 
+#include "monomux/adt/FunctionExtras.hpp"
 #include "monomux/system/Process.hpp"
 
 namespace monomux::server
@@ -38,38 +39,38 @@ public:
     : Name(std::move(Name)), Created(std::chrono::system_clock::now())
   {}
 
-  const std::string& name() const noexcept { return Name; }
-  std::chrono::time_point<std::chrono::system_clock>
+  [[nodiscard]] const std::string& name() const noexcept { return Name; }
+  [[nodiscard]] std::chrono::time_point<std::chrono::system_clock>
   whenCreated() const noexcept
   {
     return Created;
   }
-  std::chrono::time_point<std::chrono::system_clock> lastActive() const noexcept
+  [[nodiscard]] std::chrono::time_point<std::chrono::system_clock>
+  lastActive() const noexcept
   {
     return LastActivity;
   }
   void activity() noexcept { LastActivity = std::chrono::system_clock::now(); }
 
-  bool hasProcess() const noexcept { return static_cast<bool>(MainProcess); }
+  [[nodiscard]] bool hasProcess() const noexcept
+  {
+    return static_cast<bool>(MainProcess);
+  }
   void setProcess(std::unique_ptr<system::Process>&& Process) noexcept;
-  system::Process& getProcess() noexcept
+  [[nodiscard]] const system::Process& getProcess() const noexcept
   {
     assert(hasProcess());
     return *MainProcess;
   }
-  const system::Process& getProcess() const noexcept
-  {
-    assert(hasProcess());
-    return *MainProcess;
-  }
+  MONOMUX_MEMBER_0(system::Process&, getProcess, [[nodiscard]], noexcept);
 
   /// \returns a file descriptor that can be used as a key to identify
   /// the connection towards the session.
-  system::Handle::Raw getIdentifyingHandle() const noexcept;
+  [[nodiscard]] system::Handle::Raw getIdentifyingHandle() const noexcept;
 
   /// \returns the connection through which data can be read from the session,
   /// if there is any.
-  system::Pipe* getReader() noexcept
+  [[nodiscard]] system::Pipe* getReader() noexcept
   {
     if (!hasProcess() || !getProcess().hasPty())
       return nullptr;
@@ -77,20 +78,21 @@ public:
   }
   /// \returns the connection through which data can be sent to the session,
   /// if there is any.
-  system::Pipe* getWriter() noexcept
+  [[nodiscard]] system::Pipe* getWriter() noexcept
   {
     if (!hasProcess() || !getProcess().hasPty())
       return nullptr;
     return &getProcess().getPty()->writer();
   }
 
-  const std::vector<ClientData*>& getAttachedClients() const noexcept
+  [[nodiscard]] const std::vector<ClientData*>&
+  getAttachedClients() const noexcept
   {
     return AttachedClients;
   }
   /// \returns the \p ClientData from all attached client which \p activity()
   /// field is the newest (most recently active client).
-  ClientData* getLatestClient() const;
+  [[nodiscard]] ClientData* getLatestClient() const;
   void attachClient(ClientData& Client);
   void removeClient(ClientData& Client) noexcept;
 

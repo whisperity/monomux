@@ -28,7 +28,7 @@ namespace monomux
 
 /// Formats the given \p Chrono \p Time object to an internationally viable
 /// representation.
-template <typename T> std::string formatTime(const T& Time)
+template <typename T>[[nodiscard]] std::string formatTime(const T& Time)
 {
   std::time_t RawTime = T::clock::to_time_t(Time);
   std::tm SplitTime = *std::localtime(&RawTime);

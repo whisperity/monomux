@@ -60,8 +60,8 @@ public:
   }
   ~Atomic() = default;
 
-  std::atomic<T>& get() noexcept { return Value; }
-  const std::atomic<T>& get() const noexcept { return Value; }
+  [[nodiscard]] std::atomic<T>& get() noexcept { return Value; }
+  [[nodiscard]] const std::atomic<T>& get() const noexcept { return Value; }
 };
 
 } // namespace monomux

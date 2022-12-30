@@ -45,7 +45,7 @@ public:
   /// object.
   ///
   /// \see dup(2)
-  static fd dup(fd& Handle);
+  [[nodiscard]] static fd dup(fd& Handle);
 
   /// Creates an empty file descriptor that does not wrap anything.
   fd() noexcept = default;
@@ -54,7 +54,7 @@ public:
   fd(raw_fd Value) noexcept;
 
   /// Returns the \b raw file descriptor for the standard C I/O object.
-  static raw_fd fileno(std::FILE* File);
+  [[nodiscard]] static raw_fd fileno(std::FILE* File);
 
   /// Adds the given \p Flag, from \p fcntl() flags, to the flags of the given
   /// file descriptor \p FD.

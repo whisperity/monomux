@@ -114,17 +114,17 @@ public:
   void registerMessageHandler(std::uint16_t Kind,
                               std::function<HandlerFunction> Handler);
 
-  const system::Socket& getControlSocket() const noexcept
+  [[nodiscard]] const system::Socket& getControlSocket() const noexcept
   {
     return *ControlSocket;
   }
-  MONOMUX_MEMBER_0(system::Socket&, getControlSocket, noexcept);
+  MONOMUX_MEMBER_0(system::Socket&, getControlSocket, [[nodiscard]], noexcept);
 
-  const system::Socket* getDataSocket() const noexcept
+  [[nodiscard]] const system::Socket* getDataSocket() const noexcept
   {
     return DataSocket ? DataSocket.get() : nullptr;
   }
-  MONOMUX_MEMBER_0(system::Socket*, getDataSocket, noexcept);
+  MONOMUX_MEMBER_0(system::Socket*, getDataSocket, [[nodiscard]], noexcept);
 
   /// Takes ownership of and stores the given \p Socket as the data socket of
   /// the client.
@@ -134,7 +134,10 @@ public:
   /// with the already registered client!
   void setDataSocket(std::unique_ptr<system::Socket>&& DataSocket);
 
-  system::Handle::Raw getInputFile() const noexcept { return InputFile; }
+  [[nodiscard]] system::Handle::Raw getInputFile() const noexcept
+  {
+    return InputFile;
+  }
 
   /// Sets the file which the client will consider its "input stream" and fire
   /// the \p InputCallback for.
@@ -161,14 +164,14 @@ public:
   /// devices.
   void loop();
 
-  Exit getExitData() const noexcept { return ExitData; }
+  [[nodiscard]] Exit getExitData() const noexcept { return ExitData; }
 
   /// Sends a request to the connected server to tell what sessions are running
   /// on the server.
   ///
   /// \returns The data received from the server, or \p nullopt, if
   /// commmuniation failed.
-  std::optional<std::vector<SessionData>> requestSessionList();
+  [[nodiscard]] std::optional<std::vector<SessionData>> requestSessionList();
 
   /// Sends a request of new session creation to the server the client is
   /// connected to.
@@ -179,25 +182,25 @@ public:
   ///
   /// \returns The actual name of the created session, if creation was
   /// successful.
-  std::optional<std::string>
+  [[nodiscard]] std::optional<std::string>
   requestMakeSession(std::string Name, system::Process::SpawnOptions Opts);
 
   /// Sends a request to the server to attach the client to the session
   /// identified by \p SessionName.
   ///
   /// \return whether the attachment succeeded.
-  bool requestAttach(std::string SessionName);
+  [[nodiscard]] bool requestAttach(std::string SessionName);
 
   /// \returns whether the client successfully attached to a session on the
   /// server.
   ///
   /// \see requestAttach()
-  bool attached() const noexcept { return Attached; }
+  [[nodiscard]] bool attached() const noexcept { return Attached; }
 
   /// \returns information about the session the client is (if \p attached() is
   /// \p true) or last was (if \p attached() is \p false) attached to. If the
   /// client never attached to any session, returns \p nullptr.
-  const SessionData* attachedSession() const noexcept
+  [[nodiscard]] const SessionData* attachedSession() const noexcept
   {
     return AttachedSession ? &*AttachedSession : nullptr;
   }
@@ -316,7 +319,7 @@ public:
   void disableControlResponse();
   /// A scope-guard version that calls \p disableControlResponse() and
   /// \p enableControlResponse() when entering and leaving scope.
-  Inhibitor inhibitControlResponse();
+  [[nodiscard]] Inhibitor inhibitControlResponse();
 
   /// If channel polling is initialised, adds \p DataSocket to the list of
   /// channels to poll and handle incoming data from.
@@ -327,7 +330,7 @@ public:
   void disableDataSocket();
   /// A scope-guard version that calls \p disableDataSocket() and
   /// \p enableDataSocket() when entering and leaving scope.
-  Inhibitor inhibitDataSocket();
+  [[nodiscard]] Inhibitor inhibitDataSocket();
 
   /// If channel polling is initialised, adds the input device to the list of
   /// channels to poll and handle incoming data from.
@@ -338,7 +341,7 @@ public:
   void disableInputFile();
   /// A scope-guard version that calls \p disableInputFile() and
   /// \p enableInputFile() when entering and leaving scope.
-  Inhibitor inhibitInputFile();
+  [[nodiscard]] Inhibitor inhibitInputFile();
 };
 
 } // namespace monomux::client

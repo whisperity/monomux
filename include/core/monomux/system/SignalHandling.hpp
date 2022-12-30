@@ -119,7 +119,7 @@ public:
   /// should not construct this class directly!
   ///
   /// \see get()
-  static std::unique_ptr<SignalHandling> create();
+  [[nodiscard]] static std::unique_ptr<SignalHandling> create();
 
   SignalHandling(const SignalHandling&) = delete;
   SignalHandling(SignalHandling&&) = delete;
@@ -140,7 +140,7 @@ public:
 
   /// \returns whether signal handling (through this object) for \p SigNum had
   /// been enabled.
-  bool enabled(Signal SigNum) const noexcept;
+  [[nodiscard]] bool enabled(Signal SigNum) const noexcept;
 
   /// Perform the low-level functions that remove the effects of \p enable().
   ///
@@ -190,12 +190,13 @@ public:
 
   /// \returns the \p Indexth callback registered for \p SigNum, or an empty
   /// \p function() if none such are registered.
-  std::function<SignalCallback> getCallback(Signal SigNum,
-                                            std::size_t Index) const;
+  [[nodiscard]] std::function<SignalCallback>
+  getCallback(Signal SigNum, std::size_t Index) const;
 
   /// \returns the \b top callback registered for \p SigNum, or an empty
   /// \p function() if no callbacks are registered.
-  std::function<SignalCallback> getOneCallback(Signal SigNum) const;
+  [[nodiscard]] std::function<SignalCallback>
+  getOneCallback(Signal SigNum) const;
 
   /// Register the \p Object with \p Name in the global object storage of the
   /// signal handler.
@@ -212,18 +213,20 @@ public:
   /// \note It is the client code's responsibility to \p std::any_cast the
   /// returned pointer to the appropriate type. The \p SignalHandling instance
   /// does \b NOT manage the types of registered objects.
-  const std::any* getObject(const char* Name) const noexcept;
+  [[nodiscard]] const std::any* getObject(const char* Name) const noexcept;
 
   /// Retrieves the object registered with \p Name, if exists.
   ///
   /// \note It is the client code's responsibility to \p std::any_cast the
   /// returned pointer to the appropriate type. The \p SignalHandling instance
   /// does \b NOT manage the types of registered objects.
-  MONOMUX_MEMBER_1(std::any*, getObject, noexcept, const char*, Name);
+  MONOMUX_MEMBER_1(
+    std::any*, getObject, [[nodiscard]], noexcept, const char*, Name);
 
   /// Retrieves the object registered with \p Name, if it exists and is of
   /// type \p T.
-  template <typename T> const T* getObjectAs(const char* Name) const noexcept
+  template <typename T>
+  [[nodiscard]] const T* getObjectAs(const char* Name) const noexcept
   {
     const std::any* Obj = getObject(Name);
     if (!Obj)
@@ -234,8 +237,14 @@ public:
 
   /// Retrieves the object registered with \p Name, if it exists and is of
   /// type \p T.
-  MONOMUX_MEMBER_T1_1(
-    const T*, getObjectAs, noexcept, typename, T, const char*, Name);
+  MONOMUX_MEMBER_T1_1(const T*,
+                      getObjectAs,
+                      [[nodiscard]],
+                      noexcept,
+                      typename,
+                      T,
+                      const char*,
+                      Name);
 };
 
 } // namespace monomux::system

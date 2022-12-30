@@ -40,7 +40,10 @@ public:
   /// operations.
   ControlClient(Client& C, std::string Session);
 
-  const std::string& sessionName() const noexcept { return SessionName; }
+  [[nodiscard]] const std::string& sessionName() const noexcept
+  {
+    return SessionName;
+  }
 
   /// Send a request to the server to gracefully detach the latest (in terms of
   /// activity) client from the session.
@@ -57,7 +60,7 @@ public:
   ///
   /// \throws std::runtime_error Thrown if communication with the server failed
   /// and it did not produce a response that the client could understand.
-  std::string requestStatistics();
+  [[nodiscard]] std::string requestStatistics();
 
 private:
   Client& BackingClient;

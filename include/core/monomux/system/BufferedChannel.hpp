@@ -80,15 +80,18 @@ public:
         Channel(Channel), Read(Read), Write(Write)
     {}
 
-    const char* what() const noexcept override
+    [[nodiscard]] const char* what() const noexcept override
     {
       return std::runtime_error::what();
     }
 
-    const BufferedChannel& channel() const noexcept { return Channel; }
-    Handle::Raw fd() const noexcept { return Channel.raw(); }
-    bool readOverflow() const noexcept { return Read; }
-    bool writeOverflow() const noexcept { return Write; }
+    [[nodiscard]] const BufferedChannel& channel() const noexcept
+    {
+      return Channel;
+    }
+    [[nodiscard]] Handle::Raw fd() const noexcept { return Channel.raw(); }
+    [[nodiscard]] bool readOverflow() const noexcept { return Read; }
+    [[nodiscard]] bool writeOverflow() const noexcept { return Write; }
   };
 
   BufferedChannel() = delete;
@@ -110,7 +113,7 @@ public:
   /// so that system resources are not exhausted.
   ///
   /// \see load
-  std::string read(std::size_t Bytes);
+  [[nodiscard]] std::string read(std::size_t Bytes);
 
   /// Writes the contents of \p Data into the channel.
   ///
@@ -153,20 +156,26 @@ public:
   std::size_t flushWrites();
 
   /// \returns whether there are buffered data read but not yet consumed.
-  bool hasBufferedRead() const noexcept;
+  [[nodiscard]] bool hasBufferedRead() const noexcept;
   /// \returns whether there are buffered data written but not yet flushed.
-  bool hasBufferedWrite() const noexcept;
+  [[nodiscard]] bool hasBufferedWrite() const noexcept;
   /// \returns the number of bytes already read, but not yet consumed.
-  std::size_t readInBuffer() const noexcept;
+  [[nodiscard]] std::size_t readInBuffer() const noexcept;
   /// \returns the number of bytes already written but not yet flushed.
-  std::size_t writeInBuffer() const noexcept;
+  [[nodiscard]] std::size_t writeInBuffer() const noexcept;
 
   /// \returns the size of low-level single read operations that are in some
   /// sense "optimal" for the underlying implementation.
-  virtual std::size_t optimalReadSize() const noexcept { return BufferSize; }
+  [[nodiscard]] virtual std::size_t optimalReadSize() const noexcept
+  {
+    return BufferSize;
+  }
   /// \returns the size of low-level single write operations that are in some
   /// sense "optimal" for the underlying implementation.
-  virtual std::size_t optimalWriteSize() const noexcept { return BufferSize; }
+  [[nodiscard]] virtual std::size_t optimalWriteSize() const noexcept
+  {
+    return BufferSize;
+  }
 
   /// Attempts to automatically free auto-growing memory resources associated
   /// with the buffer(s), if it is possible and deemed meaningful. This is a
@@ -175,7 +184,7 @@ public:
 
   /// \returns statistical information, formatted to be human-readable, about
   /// the underlying buffer implementation.
-  std::string statistics() const;
+  [[nodiscard]] std::string statistics() const;
 
 protected:
   UniqueScalar<OpaqueBufferType*, nullptr> Read;

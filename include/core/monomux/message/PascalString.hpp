@@ -47,17 +47,17 @@ std::size_t sendMessage(system::BufferedChannel& Channel, const T& Msg)
 /// Reads a size-prefixed payload from the \p Channel.
 ///
 /// \note This operation \b MAY block.
-std::string readPascalString(system::Channel& Channel);
+[[nodiscard]] std::string readPascalString(system::Channel& Channel);
 
 /// Reads a size-prefixed payload from the \p Channel.
 ///
 /// \note This operation \b MAY block.
-std::string readPascalString(system::BufferedChannel& Channel);
+[[nodiscard]] std::string readPascalString(system::BufferedChannel& Channel);
 
 namespace detail
 {
 
-template <typename T> std::optional<T> unpack(std::string&& Data)
+template <typename T>[[nodiscard]] std::optional<T> unpack(std::string&& Data)
 {
   Message MsgBase = Message::unpack(Data);
   if (MsgBase.Kind != T::Kind)
@@ -74,7 +74,8 @@ template <typename T> std::optional<T> unpack(std::string&& Data)
 ///
 /// \note This operation \b MAY block. If the message fails to read, or the
 /// message is not the \e expected type, the message \b MAY be dropped and lost.
-template <typename T> std::optional<T> receiveMessage(system::Channel& Channel)
+template <typename T>
+[[nodiscard]] std::optional<T> receiveMessage(system::Channel& Channel)
 {
   std::string Data = readPascalString(Channel);
   return detail::unpack<T>(std::move(Data));
@@ -86,7 +87,7 @@ template <typename T> std::optional<T> receiveMessage(system::Channel& Channel)
 /// \note This operation \b MAY block. If the message fails to read, or the
 /// message is not the \e expected type, the message \b MAY be dropped and lost.
 template <typename T>
-std::optional<T> receiveMessage(system::BufferedChannel& Channel)
+[[nodiscard]] std::optional<T> receiveMessage(system::BufferedChannel& Channel)
 {
   std::string Data = readPascalString(Channel);
   return detail::unpack<T>(std::move(Data));

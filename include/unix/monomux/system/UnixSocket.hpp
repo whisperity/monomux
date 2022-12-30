@@ -50,10 +50,11 @@ protected:
   /// \see listen(2)
   void listenImpl(std::size_t QueueSize) override;
 
-  std::unique_ptr<system::Socket> acceptImpl(std::error_code* Error,
-                                             bool* Recoverable) override;
+  [[nodiscard]] std::unique_ptr<system::Socket>
+  acceptImpl(std::error_code* Error, bool* Recoverable) override;
 
-  std::string readImpl(std::size_t Bytes, bool& Continue) override;
+  [[nodiscard]] std::string readImpl(std::size_t Bytes,
+                                     bool& Continue) override;
   std::size_t writeImpl(std::string_view Buffer, bool& Continue) override;
 };
 

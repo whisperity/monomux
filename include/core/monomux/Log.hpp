@@ -104,18 +104,18 @@ private:
 
 public:
   /// \returns a human-readable tag for the specified severity.
-  static const char* levelName(Severity S) noexcept;
+  [[nodiscard]] static const char* levelName(Severity S) noexcept;
 
   /// Retrieve the logging instance for the current application.
-  static Logger& get();
+  [[nodiscard]] static Logger& get();
 
   /// Retrieve the logging instance for the current application, if any was
   /// spawned. Otherwise, returns \p nullptr.
-  static Logger* tryGet();
+  [[nodiscard]] static Logger* tryGet();
 
   /// \returns the number of digits (when written in decimal notation) of the
   /// given \p Number.
-  static std::size_t digits(std::size_t Number);
+  [[nodiscard]] static std::size_t digits(std::size_t Number);
 
   /// Creates a new \p Logger object that has no connection with the global
   /// logging instance.
@@ -125,7 +125,7 @@ public:
   /// \see get()
   Logger(Severity SeverityLimit, std::ostream& OS);
 
-  Severity getLimit() const noexcept { return SeverityLimit; }
+  [[nodiscard]] Severity getLimit() const noexcept { return SeverityLimit; }
   void setLimit(Severity Limit) noexcept { SeverityLimit = Limit; }
 
   /// Redirects all log messages after the call to this function to another
@@ -135,7 +135,7 @@ public:
   /// Starts printing a log message with the specified \p S severity.
   /// If the \p S severity is lower than the current severity limit, the message
   /// will be discarded.
-  OutputBuffer operator()(Severity S, std::string_view Facility);
+  [[nodiscard]] OutputBuffer operator()(Severity S, std::string_view Facility);
 
 private:
   Severity SeverityLimit;

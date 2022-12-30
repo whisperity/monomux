@@ -39,7 +39,8 @@ public:
   /// by a potential child process.
   ///
   /// \see bind(2)
-  static DomainSocket create(std::string Path, bool InheritInChild = false);
+  [[nodiscard]] static DomainSocket create(std::string Path,
+                                           bool InheritInChild = false);
 
   /// Opens a connection to the socket existing in the file system at \p Path.
   /// The connection will be cleaned up during destruction, but the file entity
@@ -50,7 +51,8 @@ public:
   /// by a potential child process.
   ///
   /// \see connect(2)
-  static DomainSocket connect(std::string Path, bool InheritInChild = false);
+  [[nodiscard]] static DomainSocket connect(std::string Path,
+                                            bool InheritInChild = false);
 
   /// Wraps an already existing file descriptor, \p FD as a socket.
   /// Ownership of the resource itself is taken by the \p Socket instance and
@@ -63,7 +65,7 @@ public:
   /// \note This method does \b NOT verify whether the wrapped file descriptor
   /// is indeed a socket, and assumes it is set up (either in server, or client
   /// mode) already.
-  static DomainSocket wrap(fd&& FD, std::string Identifier);
+  [[nodiscard]] static DomainSocket wrap(fd&& FD, std::string Identifier);
 
   ~DomainSocket() noexcept override;
   DomainSocket(DomainSocket&&) noexcept = default;
@@ -79,8 +81,8 @@ protected:
                bool Owning);
 
   /// \see accept(2)
-  std::unique_ptr<system::Socket> acceptImpl(std::error_code* Error,
-                                             bool* Recoverable) override;
+  [[nodiscard]] std::unique_ptr<system::Socket>
+  acceptImpl(std::error_code* Error, bool* Recoverable) override;
 };
 
 } // namespace monomux::system::unix

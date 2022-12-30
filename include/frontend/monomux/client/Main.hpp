@@ -32,14 +32,14 @@ namespace monomux::client
 struct Options
 {
   /// Format the options back into the CLI invocation they were parsed from.
-  std::vector<std::string> toArgv() const;
+  [[nodiscard]] std::vector<std::string> toArgv() const;
 
   // (To initialise the bitfields...)
   Options();
 
   /// \returns if control-mode flags (transmitted to the server through a
   /// non-terminal client) are enabled.
-  bool isControlMode() const noexcept;
+  [[nodiscard]] bool isControlMode() const noexcept;
 
   /// Whether the client mode was enabled.
   bool ClientMode : 1;
@@ -90,7 +90,8 @@ struct Options
 /// Returns the socket and session data that should be used based on the
 /// provided \p Opts \b and the current environment, e.g., if the process is
 /// running within a MonoMux context already.
-system::MonomuxSession getEnvironmentalSession(const Options& Opts);
+[[nodiscard]] system::MonomuxSession
+getEnvironmentalSession(const Options& Opts);
 
 /// Attempt to establish connection to a Monomux Server specified in \p Opts.
 ///
@@ -98,7 +99,7 @@ system::MonomuxSession getEnvironmentalSession(const Options& Opts);
 /// success.
 /// \param FailureReason If given, after an unsuccessful connection, a
 /// human-readable reason for the failure will be written to.
-std::optional<Client>
+[[nodiscard]] std::optional<Client>
 connect(Options& Opts, bool Block, std::string* FailureReason);
 
 /// Attempts to make the \p Client fully featured with a \b Data connection,
@@ -106,13 +107,14 @@ connect(Options& Opts, bool Block, std::string* FailureReason);
 ///
 /// \param FailureReason If given, after an unsuccessful connection, a
 /// human-readable reason for the failure will be written to.
-bool makeWholeWithData(Client& Client, std::string* FailureReason);
+[[nodiscard]] bool makeWholeWithData(Client& Client,
+                                     std::string* FailureReason);
 
 // FIXME: Some sort of "Either" type here?
 /// Executes the "official" Monomux Client frontend logic.
 ///
 /// \returns Either the exit code of the underlying session, or a
 /// \p FrontendExitCode.
-int main(Options& Opts);
+[[nodiscard]] int main(Options& Opts);
 
 } // namespace monomux::client

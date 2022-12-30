@@ -58,14 +58,14 @@ public:
     {}
 
     /// \returns the pipe for the read end.
-    Pipe* getRead() const noexcept { return Read.get(); }
+    [[nodiscard]] Pipe* getRead() const noexcept { return Read.get(); }
     /// \returns the pipe for the write end.
-    Pipe* getWrite() const noexcept { return Write.get(); }
+    [[nodiscard]] Pipe* getWrite() const noexcept { return Write.get(); }
 
     /// Take ownership for the read end of the pipe, and close the write end.
-    std::unique_ptr<Pipe> takeRead();
+    [[nodiscard]] std::unique_ptr<Pipe> takeRead();
     /// Take ownership for the write end of the pipe, and close the read end.
-    std::unique_ptr<Pipe> takeWrite();
+    [[nodiscard]] std::unique_ptr<Pipe> takeWrite();
 
   private:
     friend class Pipe;
@@ -81,8 +81,8 @@ public:
   using BufferedChannel::read;
   using BufferedChannel::write;
 
-  std::size_t optimalReadSize() const noexcept override;
-  std::size_t optimalWriteSize() const noexcept override;
+  [[nodiscard]] std::size_t optimalReadSize() const noexcept override;
+  [[nodiscard]] std::size_t optimalWriteSize() const noexcept override;
 
 protected:
   Pipe(Handle FD,

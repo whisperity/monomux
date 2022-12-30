@@ -43,13 +43,13 @@ protected:
 
 public:
   /// \returns the number of handles that the current process may have open.
-  static std::size_t maxHandles();
+  [[nodiscard]] static std::size_t maxHandles();
 
   /// Creates an empty file descriptor that does not wrap anything.
   Handle() noexcept : Value(PlatformSpecificHandleTraits::Invalid) {}
 
   /// Wrap the raw platform resource handle into the RAII object.
-  static Handle wrap(Raw Value) noexcept;
+  [[nodiscard]] static Handle wrap(Raw Value) noexcept;
 
   Handle(Handle&& RHS) noexcept : Value(RHS.release()) {}
   Handle& operator=(Handle&& RHS) noexcept
@@ -69,10 +69,10 @@ public:
   }
 
   /// \returns true if the handle is owning a resource.
-  bool has() const noexcept { return isValid(get()); }
+  [[nodiscard]] bool has() const noexcept { return isValid(get()); }
 
   /// \returns true if the handle is owning a resource.
-  static bool isValid(Raw Value) noexcept
+  [[nodiscard]] static bool isValid(Raw Value) noexcept
   {
     return Value != PlatformSpecificHandleTraits::Invalid;
   }
@@ -81,7 +81,7 @@ public:
   operator Raw() const noexcept { return Value; }
 
   /// Convert to the system primitive type.
-  Raw get() const noexcept { return Value; }
+  [[nodiscard]] Raw get() const noexcept { return Value; }
 
   /// Takes the file descriptor from the current object and changes it to not
   /// manage anything.
@@ -92,7 +92,8 @@ public:
     return H;
   }
 
-  std::string to_string() const // NOLINT(readability-identifier-naming)
+  [[nodiscard]] std::string
+  to_string() const // NOLINT(readability-identifier-naming)
   {
     return PlatformSpecificHandleTraits::to_string(Value);
   }

@@ -21,6 +21,7 @@
 #include <memory>
 #include <utility>
 
+#include "monomux/adt/Ranges.hpp"
 #include "monomux/system/UnixPipe.hpp"
 #include "monomux/system/UnixProcess.hpp"
 #include "monomux/system/fd.hpp"
@@ -34,36 +35,6 @@ namespace
 {
 
 constexpr std::size_t BinaryPipeCommunicationSize = 4096;
-
-// FIXME: Lift this to ADT.
-
-namespace ranges
-{
-
-template <typename T> struct ReverseView
-{
-  T& Collection;
-};
-
-template <typename T> auto begin(ReverseView<T> I)
-{
-  using std::rbegin;
-  return rbegin(I.Collection);
-}
-
-template <typename T> auto end(ReverseView<T> I)
-{
-  using std::rend;
-  return rend(I.Collection);
-}
-
-// NOLINTNEXTLINE(readability-identifier-naming)
-template <typename T> ReverseView<T> reverse_view(T&& Collection)
-{
-  return {Collection};
-}
-
-} // namespace ranges
 
 } // namespace
 
@@ -101,13 +72,6 @@ bool Symboliser::check() const
 
 namespace
 {
-
-/// Creates a \p string_view from a range of \p string elements.
-/// This constructor is only standardised starting C++20...
-std::string_view stringRange(std::string::iterator B, std::string::iterator E)
-{
-  return {&*B, static_cast<std::string_view::size_type>(std::distance(B, E))};
-}
 
 /// \p Symboliser implementation for GNU \p addr2line.
 struct Addr2Line : public Symboliser
@@ -214,7 +178,7 @@ Addr2Line::symbolise(const std::string& Object,
       std::string::size_type LastPosition = 0;
       std::string::size_type PosInBlock = Output.find('\n', 1);
       std::string_view Address =
-        stringRange(Output.begin(), Output.begin() + PosInBlock);
+        ranges::stringRange(Output.begin(), Output.begin() + PosInBlock);
       while (PosInBlock <= Pos)
       {
         LastPosition = PosInBlock;
@@ -222,8 +186,8 @@ Addr2Line::symbolise(const std::string& Object,
         if (PosInBlock == std::string::npos)
           break;
 
-        Lines.emplace_back(stringRange(Output.begin() + LastPosition + 1,
-                                       Output.begin() + PosInBlock));
+        Lines.emplace_back(ranges::stringRange(
+          Output.begin() + LastPosition + 1, Output.begin() + PosInBlock));
       }
       if (Lines.back().substr(0, 2) == "0x" || Lines.back().empty())
         Lines.pop_back();
@@ -372,13 +336,13 @@ LLVMSymbolizer::symbolise(const std::string& Object,
       std::string::size_type LastPosition = 0;
       std::string::size_type PosInBlock = Output.find('\n', 1);
       std::string_view Address =
-        stringRange(Output.begin(), Output.begin() + PosInBlock);
+        ranges::stringRange(Output.begin(), Output.begin() + PosInBlock);
       while (PosInBlock <= Pos)
       {
         LastPosition = PosInBlock;
         PosInBlock = Output.find('\n', LastPosition + 1);
-        Lines.emplace_back(stringRange(Output.begin() + LastPosition + 1,
-                                       Output.begin() + PosInBlock));
+        Lines.emplace_back(ranges::stringRange(
+          Output.begin() + LastPosition + 1, Output.begin() + PosInBlock));
       }
       if (Lines.back().empty())
         Lines.pop_back();

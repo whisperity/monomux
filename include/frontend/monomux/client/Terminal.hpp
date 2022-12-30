@@ -47,7 +47,7 @@ public:
   /// into the mode necesary for remote communication.
   void engage();
 
-  bool engaged() const noexcept { return Engaged; }
+  [[nodiscard]] bool engaged() const noexcept { return Engaged; }
 
   /// Disengage control over the current input and output terminal, resetting
   /// the default state.
@@ -59,8 +59,11 @@ public:
   /// \p output().
   void setupClient(Client& Client);
 
-  Client* getClient() noexcept { return AssociatedClient; }
-  const Client* getClient() const noexcept { return AssociatedClient; }
+  [[nodiscard]] const Client* getClient() const noexcept
+  {
+    return AssociatedClient;
+  }
+  MONOMUX_MEMBER_0(Client*, getClient, [[nodiscard]], noexcept);
 
   /// Releases the associated client and turns off its callbacks from firing
   /// the handlers of the \p Terminal.
@@ -68,12 +71,15 @@ public:
   /// \see setupClient
   void releaseClient();
 
-  const system::Pipe* input() const noexcept { return In.get(); }
-  MONOMUX_MEMBER_0(system::Pipe*, input, noexcept);
-  const system::Pipe* output() const noexcept { return Out.get(); }
-  MONOMUX_MEMBER_0(system::Pipe*, output, noexcept);
+  [[nodiscard]] const system::Pipe* input() const noexcept { return In.get(); }
+  MONOMUX_MEMBER_0(system::Pipe*, input, [[nodiscard]], noexcept);
+  [[nodiscard]] const system::Pipe* output() const noexcept
+  {
+    return Out.get();
+  }
+  MONOMUX_MEMBER_0(system::Pipe*, output, [[nodiscard]], noexcept);
 
-  Size getSize() const;
+  [[nodiscard]] Size getSize() const;
   void notifySizeChanged() const noexcept;
 
 private:
