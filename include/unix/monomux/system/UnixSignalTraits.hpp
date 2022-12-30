@@ -96,9 +96,7 @@ template <> struct SignalTraits<PlatformTag::Unix>
 
 } // namespace monomux::system
 
-#define MONOMUX_DETAIL_SIGNAL_HANDLER_SIG(NAME)                                \
+#define MONOMUX_PLATFORM_SIGNAL_HANDLER_SIG(NAME)                              \
   void NAME(monomux::system::SignalHandling::Signal Sig,                       \
             const monomux::system::SignalHandling* SignalHandling,             \
             const ::siginfo_t* PlatformInfo)
-
-#define MONOMUX_SIGNAL_HANDLER(NAME) MONOMUX_DETAIL_SIGNAL_HANDLER_SIG(NAME)

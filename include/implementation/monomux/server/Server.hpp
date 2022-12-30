@@ -245,32 +245,19 @@ public:
 
   /// Registers the new connected \p Client.
   void clientCreate(ClientData& Client);
-  /// The function responsible for understanding transmission on a \p Client's
-  /// control connection. This method deals with parsing a \p Message
-  /// from the control connection, and fire a message-specific handler.
-  ///
-  /// \see registerMessageHandler().
-  void dispatchControl(ClientData& Client);
-  /// The function responsible for understanding transmission on a \p Client's
-  /// data connection. It sends the data received to the session the client
-  /// attached to.
-  void dispatchData(ClientData& Client);
   /// Destroys the data structures associated with a \p Client that
   /// disconnected.
   void clientExit(ClientData& Client);
 
   /// Registers the new created \p Session.
   void sessionCreate(SessionData& Session);
-  /// The function reponsible for understanding transmission on the server-side
-  /// of a \p Session when receiving data. It sends the data received from the
-  /// session to all attached clients.
-  void dataCallback(SessionData& Session);
+  /// Destroys the data structures associated with a \p Session that exited.
+  void sessionDestroy(SessionData& Session);
+
   /// Registers that \p Client attached to \p Session.
   void clientAttached(ClientData& Client, SessionData& Session);
   /// Registers that \p Client detached from \p Session.
   void clientDetached(ClientData& Client, SessionData& Session);
-  /// Destroys the data structures associated with a \p Session that exited.
-  void sessionDestroy(SessionData& Session);
 
   /// A special step during the handshake maneuvre is when a user client
   /// connects to the server again, and establishes itself as the data
@@ -302,6 +289,22 @@ private:
   static void FUNCTION_NAME(                                                   \
     Server& Server, ClientData& Client, std::string_view Message);
 #include "monomux/server/Dispatch.ipp"
+
+  /// The function responsible for understanding transmission on a \p Client's
+  /// control connection. This method deals with parsing a \p Message
+  /// from the control connection, and fire a message-specific handler.
+  ///
+  /// \see registerMessageHandler().
+  void dispatchControl(ClientData& Client);
+  /// The function responsible for understanding transmission on a \p Client's
+  /// data connection. It sends the data received to the session the client
+  /// attached to.
+  void dispatchData(ClientData& Client);
+
+  /// The function reponsible for understanding transmission on the server-side
+  /// of a \p Session when receiving data. It sends the data received from the
+  /// session to all attached clients.
+  void dataCallback(SessionData& Session);
 };
 
 } // namespace monomux::server

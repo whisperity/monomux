@@ -72,6 +72,9 @@ public:
   /// implement.
   using SignalCallback = PlatformSpecificSignalTraits::HandlerTy;
 
+/// Generate the signature for a signal handler function of the given name.
+#define MONOMUX_SIGNAL_HANDLER(NAME) MONOMUX_PLATFORM_SIGNAL_HANDLER_SIG(NAME)
+
   /// \returns A human-friendly name for the signal \p SigNum, as specified by
   /// the standard.
   static const char* signalName(Signal SigNum) noexcept;

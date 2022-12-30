@@ -582,41 +582,42 @@ int handleClientExitStatus(const Client& Client)
 {
   std::cout << std::endl;
 
-  switch (Client.exitReason())
+  Client::Exit E = Client.getExitData();
+  switch (E.Reason)
   {
-    case Client::None:
+    case Client::Exit::None:
       std::cout << "[unknown reason]" << std::endl;
       return static_cast<int>(FrontendExitCode::SystemError);
-    case Client::Failed:
+    case Client::Exit::Failed:
       std::cout << "[lost server]" << std::endl;
       return static_cast<int>(FrontendExitCode::SystemError);
-    case Client::Terminated:
+    case Client::Exit::Terminated:
       std::cout << "[terminated]" << std::endl;
       return static_cast<int>(FrontendExitCode::Success);
-    case Client::Hangup:
+    case Client::Exit::Hangup:
       std::cout << "[lost tty]" << std::endl;
       return static_cast<int>(FrontendExitCode::Failure);
-    case Client::Detached:
+    case Client::Exit::Detached:
       std::cout << "[detached";
       if (const SessionData* S = Client.attachedSession())
         std::cout << " (from session '" << S->Name << "')";
       std::cout << ']' << std::endl;
       return static_cast<int>(FrontendExitCode::Success);
-    case Client::SessionExit:
+    case Client::Exit::SessionExit:
       std::cout << "[exited";
-      if (Client.exitCode())
-        std::cout << " (with return code " << Client.exitCode() << ')';
+      if (E.SessionExitCode)
+        std::cout << " (with return code " << E.SessionExitCode << ')';
       if (const SessionData* S = Client.attachedSession())
         std::cout << " (from session '" << S->Name << "')";
       std::cout << ']' << std::endl;
-      return Client.exitCode();
-    case Client::ServerExit:
+      return E.SessionExitCode;
+    case Client::Exit::ServerExit:
       std::cout << "[server exited]" << std::endl;
       return static_cast<int>(FrontendExitCode::Success);
-    case Client::ServerKicked:
+    case Client::Exit::ServerKicked:
       std::cout << "[booted from server";
-      if (!Client.exitMessage().empty())
-        std::cout << ": " << Client.exitMessage();
+      if (!E.Message.empty())
+        std::cout << ": " << E.Message;
       std::cout << ']' << std::endl;
   }
   return static_cast<int>(FrontendExitCode::Success);

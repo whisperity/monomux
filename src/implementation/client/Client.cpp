@@ -280,6 +280,8 @@ void Client::loop()
     return;
   }
 
+  // By default, when entering the loop(), the Client should own and handle
+  // every input device appropriately.
   enableControlResponse();
   enableDataSocket();
   enableInputFile();
@@ -387,7 +389,7 @@ void Client::controlCallback()
 
   if (ControlSocket->failed())
   {
-    exit(Failed, -1, "");
+    exit(Exit::Failed, -1, "");
     return;
   }
 
@@ -423,7 +425,7 @@ void Client::controlCallback()
   {
     LOG(error) << "Error when handling message";
     if (getControlSocket().failed())
-      exit(Failed, -1, "");
+      exit(Exit::Failed, -1, "");
   }
 }
 
@@ -442,15 +444,15 @@ void Client::setExternalEventProcessor(std::function<RawCallbackFn> Callback)
   ExternalEventProcessor = std::move(Callback);
 }
 
-void Client::exit(ExitReason E, int ECode, std::string Message)
+void Client::exit(enum Exit::Reason E, int ECode, std::string Message)
 {
-  if (Exit != None)
+  if (ExitData.Reason != Exit::None)
     return;
 
   LOG(trace) << "Exit with reason " << E << ' ' << ECode << ' ' << Message;
-  Exit = E;
-  ExitCode = ECode;
-  ExitMessage = std::move(Message);
+  ExitData.Reason = E;
+  ExitData.SessionExitCode = ECode;
+  ExitData.Message = std::move(Message);
   Poll.reset();
   TerminateLoop.get().store(true);
 }

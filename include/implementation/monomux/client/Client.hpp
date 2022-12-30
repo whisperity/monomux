@@ -44,31 +44,47 @@ namespace monomux::client
 /// server. The client is responsible for reporting data sent from the server,
 /// and can send user input to the server.
 ///
-/// \note Some functionality of the client instance (e.g. sending signals over
+/// \note Some functionality of the client instance (e.g., sending signals over
 /// to the attached session) requires proper signal handling, which the
 /// \p Client does \b NOT implement internally! It is up to the program
 /// embedding the client to construct and set up appropriate handlers!
 class Client
 {
 public:
-  enum ExitReason
+  /// Contains information about why the \p Client stopped its originally
+  /// infinite job of handling I/O.
+  struct Exit
   {
-    None = 0,
-    /// The client terminated because of internal logic failure. This is an
-    /// \b error condition.
-    Failed,
-    /// The client was terminated by the user via a kill signal.
-    Terminated,
-    /// The client was terminated because the controlling terminal hung up.
-    Hangup,
-    /// The client exited because the server disconnected it.
-    Detached,
-    /// The client exited because the attached session exited.
-    SessionExit,
-    /// The client exit because the server shut down.
-    ServerExit,
-    /// The client was kicked by the server.
-    ServerKicked,
+    enum Reason : std::uint8_t
+    {
+      None = 0,
+      /// The client terminated because of internal logic failure. This is an
+      /// \b error condition.
+      Failed,
+      /// The client was terminated by the user via a kill signal.
+      Terminated,
+      /// The client was terminated because the controlling terminal hung up.
+      Hangup,
+      /// The client exited because the server disconnected it.
+      Detached,
+      /// The client exited because the attached session exited.
+      SessionExit,
+      /// The client exit because the server shut down.
+      ServerExit,
+      /// The client was kicked by the server.
+      ServerKicked,
+    };
+
+    /// A meaningful exit reason from an established set of values.
+    Reason Reason = Reason::None;
+    /// The raw exit code associated with the client-server connection
+    /// exiting, if any.
+    /// This field is not always meaningful!
+    int SessionExitCode = 0;
+    /// The message sent by the server when it decided to forcibly release the
+    /// client, if any.
+    /// This field is not always meaningful!
+    std::string Message{};
   };
 
   /// The type of message handler functions.
@@ -78,11 +94,15 @@ public:
   /// structural parsing had been applied.
   using HandlerFunction = void(Client& Client, std::string_view RawMessage);
 
+  /// The type of a raw callback function that, when called, receives the
+  /// \p Client instance associated with an event.
+  using RawCallbackFn = void(Client& Client);
+
   /// Creates a new connection client to the server at the specified socket.
   ///
   /// \param RejectReason If specified, and the server gracefully rejected the
   /// connection, the reason for the rejection (as reported by the server) will
-  /// be written to.
+  /// be written to this variable.
   static std::optional<Client> create(std::string SocketPath,
                                       std::string* RejectReason);
 
@@ -109,19 +129,19 @@ public:
   /// Takes ownership of and stores the given \p Socket as the data socket of
   /// the client.
   ///
-  /// \note No appropriate handshaking is done by this call! The server needs to
-  /// be communicated with in advance to associate the connection with the
-  /// client.
+  /// \warning No appropriate handshaking is done by this call! The server
+  /// needs to be communicated with in advance to associate the data connection
+  /// with the already registered client!
   void setDataSocket(std::unique_ptr<system::Socket>&& DataSocket);
 
   system::Handle::Raw getInputFile() const noexcept { return InputFile; }
 
-  /// Sets the file descriptor which the client will consider its "input
-  /// stream" and fires the \p InputCallback for.
+  /// Sets the file which the client will consider its "input stream" and fire
+  /// the \p InputCallback for.
   ///
-  /// \param FD A file descriptor to watch for, or \p fd::Invalid to
-  /// disassociate.
-  void setInputFile(system::Handle::Raw FD);
+  /// \param Handle A file descriptor to watch for, or the \e Invalid handle to
+  /// disassociate any "input" from the client.
+  void setInputFile(system::Handle::Raw Handle);
 
   /// Perform a handshake mechanism over the control socket.
   ///
@@ -135,17 +155,13 @@ public:
   /// \return Whether the handshake process succeeded.
   bool handshake(std::string* FailureReason);
 
-  /// Starts the main loop of the client, taking control of the terminal and
-  /// actually communicating data with the server.
+  /// Starts the main loop of the client. In the loop, the client will listen
+  /// to messages arriving on either the \e Control, the \e Data connections or
+  /// the \e Input file, and fire the registered handlers associated with these
+  /// devices.
   void loop();
 
-  ExitReason exitReason() const noexcept { return Exit; }
-  /// \returns the exit code associated with the client-server connection
-  /// exiting, if any. This field is not always meaningful.
-  int exitCode() const noexcept { return ExitCode; }
-  /// \returns the message sent by the server when it decided to release the
-  /// client, if any. This field is not always meaningful.
-  std::string exitMessage() const noexcept { return ExitMessage; }
+  Exit getExitData() const noexcept { return ExitData; }
 
   /// Sends a request to the connected server to tell what sessions are running
   /// on the server.
@@ -197,14 +213,6 @@ public:
   /// client is running in has changed to the new \p Rows and \p Columns.
   void notifyWindowSize(unsigned short Rows, unsigned short Columns);
 
-  /// The callback that is fired when data is available on the \e control
-  /// connection of the client. This method deals with parsing a \p Message
-  /// from the control connection, and fire a message-specific handler.
-  ///
-  /// \see registerMessageHandler().
-  void controlCallback();
-
-  using RawCallbackFn = void(Client& Client);
 
   /// Sets the handler that is fired when data is received from the server.
   /// The data is \b NOT read before the callback fires.
@@ -228,8 +236,8 @@ private:
   /// (This is initialised in a lazy fashion during operation.)
   std::unique_ptr<system::Socket> DataSocket;
 
-  /// Whether continuous \e handling of data on the \p DataSocket (if connected)
-  /// via \p Poll is enabled.
+  /// Whether continuous \e handling of data on the \p DataSocket
+  /// (if connected) via \p Poll is enabled.
   UniqueScalar<bool, false> DataSocketEnabled;
 
   /// Whether the client successfully attached to a session on the server.
@@ -238,17 +246,18 @@ private:
   /// Information about the session the client attached to.
   std::optional<SessionData> AttachedSession;
 
-  /// A callback object that is fired when the client's event handling loop is
-  /// "in the mood" for processing externalia.
+  /// A callback that is fired when the client's event handling loop is
+  /// "in the mood" for processing externalia, before \p loop() enters a
+  /// \p wait() -like call on the operating system level.
   std::function<RawCallbackFn> ExternalEventProcessor;
 
-  /// The callback object fired when data becomes available on \p DataSocket.
+  /// The callback fired when data becomes available on \p DataSocket.
   std::function<RawCallbackFn> DataHandler;
-  /// The callback object fired when data becomes available on \p InputFile.
+  /// The callback fired when data becomes available on \p InputFile.
   std::function<RawCallbackFn> InputHandler;
 
   /// Weak file handle for the stream that is considered the user-facing input
-  /// of the client.
+  /// device of the client.
   UniqueScalar<system::Handle::Raw,
                system::PlatformSpecificHandleTraits::Invalid>
     InputFile;
@@ -257,12 +266,11 @@ private:
   /// \p Poll is enabled.
   UniqueScalar<bool, false> InputFileEnabled;
 
-  ExitReason Exit = None;
-  int ExitCode = 0;
-  std::string ExitMessage;
+  Exit ExitData;
   /// Terminate the handling \p loop() of the client and set the exit status to
-  /// \p E, the exit code to \p ECode, and the exit message to \p Message.
-  void exit(ExitReason E, int ECode, std::string Message);
+  /// \p E, the process-level exit code to \p ECode, and the exit message to
+  /// \p Message.
+  void exit(enum Exit::Reason E, int ECode, std::string Message);
 
   mutable Atomic<bool> TerminateLoop = false;
   std::unique_ptr<system::IOEvent> Poll;
@@ -286,27 +294,32 @@ private:
   static void FUNCTION_NAME(Client& Client, std::string_view Message);
 #include "Dispatch.ipp"
 
-  /// A pointer to a member function of this class which requires passing the
-  /// \p this explicitly.
-  using VoidMemFn = void (Client::*)();
+  /// The callback that is fired when data is available on the \e control
+  /// connection of the client. This method deals with parsing a \p Message
+  /// from the control connection, and fire a message-specific handler.
+  ///
+  /// \see registerMessageHandler().
+  void controlCallback();
 
+  /// A trivial scope guard.
   using Inhibitor = ScopeGuard<std::function<void()>, std::function<void()>>;
 
 public:
   /// If channel polling is initialised, adds \p ControlSocket to the list of
-  /// channels to poll and handle incoming messages.
+  /// channels to poll and handle incoming messages from.
   void enableControlResponse();
   /// If channel polling is initialised, removes \p ControlSocket from the list
   /// of channels to poll. When inhibited, messages sent by the server are
-  /// expected to be handled synchronously by the request sending function,
-  /// instead of being handled "automatically" by a dispatch handler.
+  /// expected to be handled synchronously by the function that did something
+  /// resulting in the server sending responses (usually a request sending
+  /// function) instead of being handled "automatically" by a dispatch handler.
   void disableControlResponse();
   /// A scope-guard version that calls \p disableControlResponse() and
   /// \p enableControlResponse() when entering and leaving scope.
   Inhibitor inhibitControlResponse();
 
   /// If channel polling is initialised, adds \p DataSocket to the list of
-  /// channels to poll and handle incoming data.
+  /// channels to poll and handle incoming data from.
   void enableDataSocket();
   /// If channel polling is initialised, removes \p DataSocket from the list of
   /// channels to poll. When disabled, data sent by the server is left
