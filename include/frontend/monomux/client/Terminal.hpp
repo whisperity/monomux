@@ -79,19 +79,12 @@ public:
   }
   MONOMUX_MEMBER_0(system::Pipe*, output, [[nodiscard]], noexcept);
 
-  [[nodiscard]] Size getSize() const;
-  void notifySizeChanged() const noexcept;
-
 private:
   std::unique_ptr<system::Pipe> In;
   std::unique_ptr<system::Pipe> Out;
   UniqueScalar<Client*, nullptr> AssociatedClient;
   UniqueScalar<bool, false> Engaged;
   POD<struct ::termios> OriginalTerminalSettings;
-
-  /// Whether a signal interrupt indicated that the window size of the client
-  /// had changed.
-  mutable Atomic<bool> WindowSizeChanged;
 
 #ifndef NDEBUG
   /// The handler callbacks in the client receive a \p Terminal instance's

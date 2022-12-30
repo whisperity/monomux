@@ -99,7 +99,7 @@ void Server::loop()
   WhenStarted = std::chrono::system_clock::now();
 
 #ifdef MONOMUX_PLATFORM_UNIX
-  unix::fd::addStatusFlag(Sock->raw(), O_NONBLOCK);
+  unix::fd::setNonBlocking(Sock->raw());
   Poll = std::make_unique<unix::EPoll>(EventQueue);
 #endif /* MONOMUX_PLATFORM_UNIX */
 
@@ -150,7 +150,7 @@ void Server::loop()
     return false;
   };
 
-  while (!TerminateLoop.get().load())
+  while (!TerminateLoop.load())
   {
     // Process "external" events.
     reapDeadChildren();

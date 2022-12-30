@@ -269,8 +269,8 @@ void Client::loop()
 #ifdef MONOMUX_PLATFORM_UNIX
   Poll = std::make_unique<unix::EPoll>(EventQueue);
 
-  unix::fd::addStatusFlag(ControlSocket->raw(), O_NONBLOCK);
-  unix::fd::addStatusFlag(DataSocket->raw(), O_NONBLOCK);
+  unix::fd::setNonBlocking(ControlSocket->raw());
+  unix::fd::setNonBlocking(DataSocket->raw());
 #endif /* MONOMUX_PLATFORM_UNIX */
 
   if (!Poll)
@@ -286,7 +286,7 @@ void Client::loop()
   enableDataSocket();
   enableInputFile();
 
-  while (!TerminateLoop.get().load())
+  while (!TerminateLoop.load())
   {
     ControlSocket->flushWrites();
     if (ExternalEventProcessor)

@@ -64,31 +64,6 @@ void Terminal::engage()
   if (engaged())
     throw std::logic_error{"Already engaged."};
 
-  OriginalTerminalSettings.reset();
-  CheckedErrnoThrow(
-    [this] { return ::tcgetattr(In->raw(), &OriginalTerminalSettings); },
-    "tcgetattr(): I/O is not a TTY?",
-    -1);
-
-  static_cast<system::unix::Pipe&>(*In).setNonblocking();
-
-  POD<struct ::termios> NewSettings = OriginalTerminalSettings;
-  NewSettings->c_iflag &=
-    ~(IXON | IXOFF | ICRNL | INLCR | IGNCR | IMAXBEL | ISTRIP);
-  NewSettings->c_iflag |= IGNBRK;
-  NewSettings->c_oflag &= ~(OPOST | ONLCR | OCRNL | ONLRET);
-  NewSettings->c_lflag &= ~(IEXTEN | ICANON | ECHO | ECHOE | ECHONL | ECHOCTL |
-                            ECHOPRT | ECHOKE | ISIG);
-  NewSettings->c_cc[VMIN] = 1;
-  NewSettings->c_cc[VTIME] = 0;
-
-  CheckedErrnoThrow(
-    [this, &NewSettings] {
-      return ::tcsetattr(In->raw(), TCSANOW, &NewSettings);
-    },
-    "tcsetattr()",
-    -1);
-
   // TODO: Clear the screen and implement a redraw request from serverside.
 
   Engaged = true;
@@ -98,15 +73,6 @@ void Terminal::disengage()
 {
   if (!engaged())
     return;
-
-  static_cast<system::unix::Pipe&>(*In).setBlocking();
-
-  CheckedErrnoThrow(
-    [this] {
-      return ::tcsetattr(In->raw(), TCSADRAIN, &OriginalTerminalSettings);
-    },
-    "tcsetattr()",
-    -1);
 
   // TODO: Clear the screen.
 
@@ -151,12 +117,12 @@ void Terminal::clientEventReady(Terminal* Term, Client& Client)
   assert(Term->MovedFromCheck &&
          "Terminal object registered as callback was moved.");
 
-  if (Term->WindowSizeChanged.get().load())
-  {
-    Size S = Term->getSize();
-    Client.notifyWindowSize(S.Rows, S.Columns);
-    Term->WindowSizeChanged.get().store(false);
-  }
+  // if (Term->WindowSizeChanged.get().load())
+  // {
+  //   Size S = Term->getSize();
+  //   Client.notifyWindowSize(S.Rows, S.Columns);
+  //   Term->WindowSizeChanged.get().store(false);
+  // }
 }
 
 void Terminal::setupClient(Client& Client)
@@ -189,24 +155,6 @@ void Terminal::releaseClient()
   AssociatedClient->setInputFile(system::PlatformSpecificHandleTraits::Invalid);
 
   AssociatedClient = nullptr;
-}
-
-Terminal::Size Terminal::getSize() const
-{
-  POD<struct ::winsize> Raw;
-  CheckedErrnoThrow(
-    [this, &Raw] { return ::ioctl(In->raw(), TIOCGWINSZ, &Raw); },
-    "ioctl(0, TIOCGWINSZ /* get window size */);",
-    -1);
-  Size S;
-  S.Rows = Raw->ws_row;
-  S.Columns = Raw->ws_col;
-  return S;
-}
-
-void Terminal::notifySizeChanged() const noexcept
-{
-  WindowSizeChanged.get().store(true);
 }
 
 } // namespace monomux::client

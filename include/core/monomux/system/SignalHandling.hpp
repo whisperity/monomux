@@ -237,14 +237,8 @@ public:
 
   /// Retrieves the object registered with \p Name, if it exists and is of
   /// type \p T.
-  MONOMUX_MEMBER_T1_1(const T*,
-                      getObjectAs,
-                      [[nodiscard]],
-                      noexcept,
-                      typename,
-                      T,
-                      const char*,
-                      Name);
+  MONOMUX_MEMBER_T1_1(
+    T*, getObjectAs, [[nodiscard]], noexcept, typename, T, const char*, Name);
 };
 
 } // namespace monomux::system

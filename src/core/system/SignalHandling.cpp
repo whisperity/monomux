@@ -300,7 +300,8 @@ const std::any* SignalHandling::getObject(const char* Name) const noexcept
     return nullptr;
 
   for (std::size_t I = 0; I < ObjectCount; ++I)
-    if (std::strncmp(
+    if (!ObjectNames.at(I).empty() &&
+        std::strncmp(
           ObjectNames.at(I).c_str(), Name, ObjectNames.at(I).size()) == 0)
       return &Objects.at(I);
 

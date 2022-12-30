@@ -70,6 +70,11 @@ public:
   /// given file descriptor \p FD.
   static void removeDescriptorFlag(raw_fd FD, flag_t Flag) noexcept;
 
+  /// Shortcut function that sets \p O_NONBLOCK on a file.
+  static void setNonBlocking(raw_fd FD) noexcept;
+  /// Shortcut function that removes \p O_NONBLOCK from a file.
+  static void setBlocking(raw_fd FD) noexcept;
+
   /// Shortcut function that sets \p O_NONBLOCK and \p FD_CLOEXEC on a file.
   /// This results in the file set to not block when reading from, and to not
   /// be inherited by child processes in a \p fork() - \p exec() situation.

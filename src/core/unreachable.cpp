@@ -16,10 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 
 #include "monomux/unreachable.hpp"
+
+namespace monomux::_detail
+{
 
 [[noreturn]] void
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
@@ -30,11 +34,17 @@ unreachable_impl(const char* Msg, const char* File, std::size_t LineNo)
     (void)fprintf(stderr, " at %s:%zu", File, LineNo);
 
   if (Msg)
-    (void)fprintf(stderr, ": %s\n", Msg);
+    (void)fprintf(stderr, ": %s!\n", Msg);
   else
-    (void)fputc('\n', stderr);
+    (void)fprintf(stderr, "!\n");
 
   // [[noreturn]]
+  // Use std::abort() primarily so we may still fire a signal handler that
+  // dumps the stack trace.
   std::abort();
-  std::_Exit(-4);
+  std::_Exit(-SIGILL);
+  // Really do *everything* to kill the process!
+  __builtin_trap();
 }
+
+} // namespace monomux::_detail

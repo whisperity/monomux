@@ -19,6 +19,7 @@
 #pragma once
 #include <atomic>
 #include <type_traits>
+#include <utility>
 
 namespace monomux
 {
@@ -62,6 +63,16 @@ public:
 
   [[nodiscard]] std::atomic<T>& get() noexcept { return Value; }
   [[nodiscard]] const std::atomic<T>& get() const noexcept { return Value; }
+
+  [[nodiscard]] T load() const noexcept(IsNoExcept) { return Value.load(); }
+  void store(const T& NewValue) noexcept(IsNoExcept)
+  {
+    return Value.store(NewValue);
+  }
+  void store(T&& NewValue) noexcept(IsNoExcept)
+  {
+    return Value.store(std::move(NewValue));
+  }
 };
 
 } // namespace monomux

@@ -133,10 +133,13 @@ void fd::removeDescriptorFlag(raw_fd FD, flag_t Flag) noexcept
   CheckedErrno([FD, &FlagsNow] { return ::fcntl(FD, F_SETFD, FlagsNow); }, -1);
 }
 
+void fd::setNonBlocking(raw_fd FD) noexcept { addStatusFlag(FD, O_NONBLOCK); }
+void fd::setBlocking(raw_fd FD) noexcept { addStatusFlag(FD, O_NONBLOCK); }
+
 void fd::setNonBlockingCloseOnExec(raw_fd FD) noexcept
 {
-  fd::addStatusFlag(FD, O_NONBLOCK);
-  fd::addDescriptorFlag(FD, FD_CLOEXEC);
+  setNonBlocking(FD);
+  addDescriptorFlag(FD, FD_CLOEXEC);
 }
 
 } // namespace unix

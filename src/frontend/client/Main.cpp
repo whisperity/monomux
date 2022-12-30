@@ -21,19 +21,20 @@
 #include <thread>
 
 #include "monomux/FrontendExitCode.hpp"
-#include "monomux/Time.hpp"
 #include "monomux/adt/Lazy.hpp"
 #include "monomux/adt/ScopeGuard.hpp"
+#include "monomux/client/App.hpp"
 #include "monomux/client/Client.hpp"
 #include "monomux/client/ControlClient.hpp"
-// FIXME: Terminal is really Unix-dependent
-#include "monomux/client/Terminal.hpp"
+#include "monomux/client/SessionManagement.hpp"
+#include "monomux/client/Terminal.hpp" // FIXME: Unguarded dependence on ::unix.
 #include "monomux/system/Environment.hpp"
 #include "monomux/system/Process.hpp"
 #include "monomux/system/SignalHandling.hpp"
 #include "monomux/unreachable.hpp"
 
 #ifdef MONOMUX_PLATFORM_UNIX
+#include "monomux/system/UnixTerminal.hpp"
 #include "monomux/system/fd.hpp"
 #endif /* MONOMUX_PLATFORM_UNIX */
 
@@ -197,40 +198,12 @@ bool makeWholeWithData(Client& Client, std::string* FailureReason)
   return true;
 }
 
-
 namespace
 {
 
-struct SessionSelectionResult
-{
-  std::string SessionName;
-
-  enum SessionMode
-  {
-    None,
-    /// The client should instruct the server to create the selected session.
-    Create,
-    /// The user selected only attaching to an already existing session.
-    Attach
-  };
-  SessionMode Mode;
-};
-
-void emplaceDefaultProgram(Options& Opts);
-SessionSelectionResult selectSession(const std::vector<SessionData>& Sessions,
-                                     const std::string& ToCreateSessionName);
-SessionSelectionResult selectSession(const std::string& ClientID,
-                                     const std::string& DefaultProgram,
-                                     const std::vector<SessionData>& Sessions,
-                                     const std::string& ToCreateSessionName,
-                                     bool ListSessions,
-                                     bool Interactive);
 FrontendExitCode mainForControlClient(Options& Opts);
-FrontendExitCode handleSessionCreateOrAttach(Options& Opts);
 int handleClientExitStatus(const Client& Client);
 
-// FIXME: If Unix...
-MONOMUX_SIGNAL_HANDLER(windowSizeChange);
 MONOMUX_SIGNAL_HANDLER(coreDumped);
 
 // NOLINTNEXTLINE(cert-err58-cpp)
@@ -244,7 +217,6 @@ constexpr char TerminalObjName[] = "Terminal";
 int main(Options& Opts)
 {
   using namespace monomux::system;
-  using namespace monomux::system::unix;
 
   // For the convenience of auto-starting a server if none exists, the creation
   // of the Client itself is placed into the global entry point.
@@ -258,7 +230,7 @@ int main(Options& Opts)
   if (Opts.isControlMode())
     return static_cast<int>(mainForControlClient(Opts));
 
-  if (FrontendExitCode Err = handleSessionCreateOrAttach(Opts);
+  if (FrontendExitCode Err = sessionCreateOrAttach(Opts);
       Err != FrontendExitCode::Success)
     return static_cast<int>(Err);
   if (!Client.attached())
@@ -266,9 +238,9 @@ int main(Options& Opts)
     // the error.
     return static_cast<int>(FrontendExitCode::Success);
 
-  // ----------------------------- Be a real client ----------------------------
-  Terminal Term{fd::fileno(stdin), fd::fileno(stdout)};
-
+#ifdef MONOMUX_PLATFORM_UNIX
+  std::shared_ptr<unix::Terminal> UnixTerminal =
+    unix::Terminal::create(unix::fd::fileno(stdin), unix::fd::fileno(stdout));
   {
     // Ask the remote program to redraw by generating the "window size changed"
     // signal explicitly.
@@ -276,7 +248,7 @@ int main(Options& Opts)
 
     // Send the initial window size to the server so the attached session prompt
     // is appropriately (re)drawn to the right size, if the size is different.
-    Terminal::Size S = Term.getSize();
+    unix::Terminal::Size S = UnixTerminal->getSize();
     LOG(data) << "Terminal size: rows=" << S.Rows << ", columns=" << S.Columns;
 
     // This is a little bit of a hack, but we observed that certain elaborate
@@ -286,16 +258,21 @@ int main(Options& Opts)
 
     Client.notifyWindowSize(S.Rows, S.Columns);
   }
+#endif /* MONOMUX_PLATFORM_UNIX */
+
+  // FIXME: Unguarded dependence on ::unix.
+  Terminal Term{system::unix::fd::fileno(stdin),
+                system::unix::fd::fileno(stdout)};
 
   {
     ScopeGuard TerminalSetup{[&Term, &Client] { Term.setupClient(Client); },
                              [&Term] { Term.releaseClient(); }};
     ScopeGuard Signal{[&Term] {
                         SignalHandling& Sig = SignalHandling::get();
+                        LOG(error) << "Register Client module";
                         Sig.registerObject(SignalHandling::ModuleObjName,
                                            "Client");
                         Sig.registerObject(TerminalObjName, &Term);
-                        Sig.registerCallback(SIGWINCH, &windowSizeChange);
                         Sig.enable();
 
                         // Override the SIGABRT handler with a custom one that
@@ -308,7 +285,6 @@ int main(Options& Opts)
                       },
                       [] {
                         SignalHandling& Sig = SignalHandling::get();
-                        Sig.defaultCallback(SIGWINCH);
                         Sig.deleteObject(TerminalObjName);
 
                         Sig.clearOneCallback(SIGILL);
@@ -330,6 +306,21 @@ int main(Options& Opts)
     ScopeGuard TermIO{[&Term] { Term.engage(); },
                       [&Term] { Term.disengage(); }};
 
+#ifdef MONOMUX_PLATFORM_UNIX
+    ScopeGuard UnixTerminalSetup{
+      [&Sig = SignalHandling::get(), &Term = UnixTerminal] {
+        Term->setupListenForSizeChangeSignal(Sig);
+        Sig.enable();
+
+        Term->setRawMode();
+      },
+      [&Sig = SignalHandling::get(), &Term = UnixTerminal] {
+        Term->setOriginalMode();
+
+        Term->teardownListenForSizeChangeSignal(Sig);
+      }};
+#endif /* MONOMUX_PLATFORM_UNIX */
+
     Client.loop();
   }
 
@@ -339,133 +330,6 @@ int main(Options& Opts)
 
 namespace
 {
-
-void emplaceDefaultProgram(Options& Opts)
-{
-  const bool HasReceivedProgramToStart =
-    Opts.Program && !Opts.Program->Program.empty();
-  std::string DefaultProgram = HasReceivedProgramToStart
-                                 ? Opts.Program->Program
-                                 : system::Platform::defaultShell();
-  if (DefaultProgram.empty())
-    LOG(warn) << "Failed to figure out what shell is being used, and no good "
-                 "defaults are available.\nPlease set the SHELL environment "
-                 "variable.";
-  if (!HasReceivedProgramToStart)
-  {
-    if (!Opts.Program)
-      Opts.Program.emplace(system::Process::SpawnOptions{});
-    Opts.Program->Program = DefaultProgram;
-  }
-}
-
-
-SessionSelectionResult selectSession(const std::vector<SessionData>& Sessions,
-                                     const std::string& ToCreateSessionName)
-{
-  if (Sessions.empty())
-  {
-    LOG(debug) << "List of sessions on server is empty, requesting default...";
-    return {ToCreateSessionName, SessionSelectionResult::Create};
-  }
-
-  if (ToCreateSessionName.empty() && Sessions.size() == 1)
-  {
-    LOG(debug) << "No session '--name' specified, attaching to the singular "
-                  "existing session...";
-    return {Sessions.front().Name, SessionSelectionResult::Attach};
-  }
-
-  if (!ToCreateSessionName.empty())
-  {
-    LOG(debug) << "Session \"" << ToCreateSessionName
-               << "\" requested, checking...";
-    for (const SessionData& S : Sessions)
-      if (S.Name == ToCreateSessionName)
-      {
-        LOG(debug) << "\tFound requested session, preparing for attach...";
-        return {S.Name, SessionSelectionResult::Attach};
-      }
-
-    LOG(debug) << "\tRequested session not found, requesting spawn...";
-    return {ToCreateSessionName, SessionSelectionResult::Create};
-  }
-
-  return {"", SessionSelectionResult::None};
-}
-
-SessionSelectionResult selectSession(const std::string& ClientID,
-                                     const std::string& DefaultProgram,
-                                     const std::vector<SessionData>& Sessions,
-                                     const std::string& ToCreateSessionName,
-                                     bool UserWantsOnlyListSessions,
-                                     bool UserWantsInteractive)
-{
-  if (!(UserWantsOnlyListSessions || UserWantsInteractive))
-  {
-    // Unless we know already that interactivity is needed, try the default
-    // logic...
-    SessionSelectionResult R = selectSession(Sessions, ToCreateSessionName);
-    if (R.Mode != SessionSelectionResult::None)
-      // If decision making was successful, pass it on.
-      return R;
-    // If the non-interactive logic did not work out, fall back to
-    // interactivity.
-  }
-
-  const std::size_t NewSessionChoice = Sessions.size() + 1;
-  const std::size_t QuitChoice = NewSessionChoice + 1;
-  std::size_t UserChoice = 0;
-
-  // Mimicking the layout of tmux/byobu menu.
-  while (true)
-  {
-    std::cout << "\nMonomux sessions on '" << ClientID << "'...\n\n";
-    for (std::size_t I = 0; I < Sessions.size(); ++I)
-    {
-      const SessionData& SD = Sessions.at(I);
-      std::cout << "    " << (I + 1) << ". " << SD.Name << " (created "
-                << formatTime(SD.Created) << ")\n";
-    }
-    if (UserWantsOnlyListSessions)
-    {
-      std::cout << std::endl;
-      return {"", SessionSelectionResult::None};
-    }
-
-    // ---------------------- Show the interactive menu -----------------------
-    std::cout << "    " << NewSessionChoice << ". Create a new ";
-    if (!ToCreateSessionName.empty())
-      std::cout << '\'' << ToCreateSessionName << "' ";
-    std::cout << "session (" << DefaultProgram << ")\n";
-
-    std::cout << "    " << QuitChoice << ". Quit\n";
-
-    std::cout << "\nChoose 1-" << QuitChoice << ": ";
-    std::cin >> UserChoice;
-    std::cin.clear();
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    if (UserChoice == 0 || UserChoice > QuitChoice)
-      std::cerr << "\nERROR: Invalid input" << std::endl;
-    else
-      break;
-  }
-
-  if (UserChoice == NewSessionChoice)
-  {
-    if (!ToCreateSessionName.empty())
-      return {ToCreateSessionName, SessionSelectionResult::Create};
-
-    std::cout << "\nSession name (leave blank for default): ";
-    std::string ToCreateSessionName2;
-    std::getline(std::cin, ToCreateSessionName2);
-    std::cout << std::endl;
-    return {ToCreateSessionName2, SessionSelectionResult::Create};
-  }
-  if (UserChoice == QuitChoice)
-    return {"", SessionSelectionResult::None};
-  return {Sessions.at(UserChoice - 1).Name, SessionSelectionResult::Attach};
-}
 
 /// Handles operations through a \p ControlClient -only connection.
 FrontendExitCode mainForControlClient(Options& Opts)
@@ -507,73 +371,6 @@ FrontendExitCode mainForControlClient(Options& Opts)
     CC.requestDetachLatestClient();
   else if (Opts.DetachRequestAll)
     CC.requestDetachAllClients();
-
-  return FrontendExitCode::Success;
-}
-
-
-FrontendExitCode handleSessionCreateOrAttach(Options& Opts)
-{
-  Client& Client = *Opts.Connection;
-
-  std::optional<std::vector<SessionData>> Sessions =
-    Client.requestSessionList();
-  if (!Sessions.has_value())
-  {
-    LOG(fatal) << "Receiving the list of sessions from the server failed!";
-    return FrontendExitCode::SystemError;
-  }
-
-  emplaceDefaultProgram(Opts);
-  SessionSelectionResult SessionAction =
-    selectSession(Client.getControlSocket().identifier(),
-                  Opts.Program->Program,
-                  *Sessions,
-                  Opts.SessionName ? *Opts.SessionName : "",
-                  Opts.OnlyListSessions,
-                  Opts.InteractiveSessionMenu);
-  if (SessionAction.Mode == SessionSelectionResult::None)
-    return FrontendExitCode::Success;
-  if (SessionAction.Mode == SessionSelectionResult::Create)
-  {
-    assert(Opts.Program && !Opts.Program->Program.empty() &&
-           "When creating a new session, no program to start was set");
-    // TODO: Clean up the environment variables of the to-be-spawned process,
-    // e.g. do not inherit the TERM of the server, but rather the TERM of the
-    // client.
-
-    std::optional<std::string> Response = Client.requestMakeSession(
-      SessionAction.SessionName, std::move(*Opts.Program));
-    if (!Response.has_value() || Response->empty())
-    {
-      LOG(fatal) << "When creating a new session, the creation failed.";
-      return FrontendExitCode::SystemError;
-    }
-    SessionAction.SessionName = *Response;
-
-    SessionAction.Mode = SessionSelectionResult::Attach;
-    // Intended "fallthrough".
-  }
-  if (SessionAction.Mode == SessionSelectionResult::Attach)
-  {
-    {
-      std::string DataFailure;
-      if (!makeWholeWithData(Client, &DataFailure))
-      {
-        LOG(fatal) << DataFailure;
-        return FrontendExitCode::SystemError;
-      }
-    }
-
-    LOG(debug) << "Attaching to \"" << SessionAction.SessionName << "\"...";
-    bool Attached = Client.requestAttach(std::move(SessionAction.SessionName));
-    if (!Attached)
-    {
-      std::cerr << "ERROR: Server reported failure when attaching."
-                << std::endl;
-      return FrontendExitCode::SystemError;
-    }
-  }
 
   return FrontendExitCode::Success;
 }
@@ -623,20 +420,6 @@ int handleClientExitStatus(const Client& Client)
   return static_cast<int>(FrontendExitCode::Success);
 }
 
-/// Handler for \p SIGWINCH (window size change) events produces by the terminal
-/// the program is running in.
-MONOMUX_SIGNAL_HANDLER(windowSizeChange)
-{
-  (void)Sig;
-  (void)PlatformInfo;
-
-  const volatile auto* Term =
-    SignalHandling->getObjectAs<Terminal*>(TerminalObjName);
-  if (!Term)
-    return;
-  (*Term)->notifySizeChanged();
-}
-
 /// Custom handler for \p SIGABRT. This is even more custom than the handler in
 /// the global \p main() as it deals with resetting the terminal to sensible
 /// defaults first.
@@ -650,13 +433,13 @@ MONOMUX_SIGNAL_HANDLER(coreDumped)
 
   // Reset the terminal so we don't get weird output if the client crashed in
   // the middle of a formatting sequence.
-  const volatile auto* Term =
-    SignalHandling->getObjectAs<Terminal*>(TerminalObjName);
-  if (Term)
-  {
-    (*Term)->disengage();
-    (*Term)->releaseClient();
-  }
+  // const volatile auto* Term =
+  //   SignalHandling->getObjectAs<Terminal*>(TerminalObjName);
+  // if (Term)
+  // {
+  //   (*Term)->disengage();
+  //   (*Term)->releaseClient();
+  // }
 }
 
 } // namespace

@@ -180,7 +180,7 @@ void Pipe::setBlocking()
 {
   if (isBlocking())
     return;
-  fd::removeStatusFlag(FD.get(), O_NONBLOCK);
+  fd::setBlocking(FD.get());
   Nonblock = false;
 }
 
@@ -188,7 +188,7 @@ void Pipe::setNonblocking()
 {
   if (isNonblocking())
     return;
-  fd::addStatusFlag(FD.get(), O_NONBLOCK);
+  fd::setNonBlocking(FD.get());
   Nonblock = true;
 }
 
