@@ -23,8 +23,6 @@
 #define LOG(SEVERITY) monomux::log::SEVERITY("client/App")
 
 namespace monomux::client
-{
-
-} // namespace monomux::client
+{} // namespace monomux::client
 
 #undef LOG

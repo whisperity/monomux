@@ -4,10 +4,13 @@ on:
   push:
     paths:
       - '**.c'
+      - '**.cc'
       - '**.cpp'
       - '**.h'
+      - '**.hh'
       - '**.hpp'
       - '**.i'
+      - '**.ii'
       - '**.ipp'
       - '.github/codechecker/**'
       - '.github/workflows/codechecker.yml'

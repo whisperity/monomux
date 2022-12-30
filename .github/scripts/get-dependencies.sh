@@ -60,8 +60,8 @@ then
     sudo apt-get -y install ${CC}
 fi
 echo "Using compiler ${CC} (${CXX})..."
-echo "::set-output name=CC::${CC}"
-echo "::set-output name=CXX::${CXX}"
+echo "CC=${CC}" >> "$GITHUB_OUTPUT"
+echo "CXX=${CXX}" >> "$GITHUB_OUTPUT"
 echo "::endgroup::"
 
 echo "::group::Installing CMake"

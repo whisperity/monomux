@@ -111,14 +111,14 @@ void Client::setDataSocket(std::unique_ptr<system::Socket>&& DataSocket)
     enableDataSocket();
 }
 
-void Client::setInputFile(system::Handle::Raw FD)
+void Client::setInputFile(system::Handle::Raw Handle)
 {
   bool PreviousInputFileWasEnabled = InputFileEnabled;
   if (PreviousInputFileWasEnabled)
     disableInputFile();
 
-  InputFile = FD;
-  if (!system::Handle::isValid(FD))
+  InputFile = Handle;
+  if (!system::Handle::isValid(Handle))
     return;
 
   if (PreviousInputFileWasEnabled)

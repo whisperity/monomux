@@ -72,11 +72,12 @@ std::string Process::thisProcessPath()
   LOG(debug) << "----- Process::exec() "
              << "was called -----";
 
-  char** NewArgv = new char*[Opts.Arguments.size() + 2];
+  const std::size_t ArgC = Opts.Arguments.size();
+  char** NewArgv = new char*[ArgC + 2];
   allocCopyString(Opts.Program, NewArgv, 0);
   LOG(debug) << "        Program: " << Opts.Program;
-  NewArgv[Opts.Arguments.size() + 1] = nullptr;
-  for (std::size_t I = 0; I < Opts.Arguments.size(); ++I)
+  NewArgv[ArgC + 1] = nullptr;
+  for (std::size_t I = 0; I < ArgC; ++I)
   {
     allocCopyString(Opts.Arguments[I], NewArgv, I + 1);
     LOG(debug) << "        Arg "
