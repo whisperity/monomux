@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-3.0-only
 list(APPEND libmonomuxImplementation_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Client.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ControlClient.cpp

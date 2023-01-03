@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-3.0-only
 set(MONOMUX_BUILD_DOCS OFF CACHE BOOL
   "Whether to build documentation pages with Doxygen.")
 

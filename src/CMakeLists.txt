@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+
 # Create some variables to store files needed for distributing Monomux's core as
 # a reusable library.
 set(libmonomuxCore_SOURCES "")

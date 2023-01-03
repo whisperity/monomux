@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-3.0-only
 list(APPEND libmonomuxPlatform_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/EPoll.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fd.cpp

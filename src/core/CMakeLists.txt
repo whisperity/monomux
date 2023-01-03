@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-3.0-only
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   )

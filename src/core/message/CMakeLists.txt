@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-3.0-only
 list(APPEND libmonomuxCore_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Message.cpp
   )

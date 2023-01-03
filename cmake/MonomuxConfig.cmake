@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-3.0-only
 set(MONOMUX_CORE_LIBRARY_NAME "MonomuxCoreLibrary")
 set(MONOMUX_CORE_LIBRARY_DEV_NAME "MonomuxCoreLibraryDevelopoment")
 

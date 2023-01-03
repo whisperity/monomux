@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 install(DIRECTORY "monomux"
   TYPE INCLUDE
   COMPONENT "${MONOMUX_FRONTEND_LIBRARY_DEV_NAME}")

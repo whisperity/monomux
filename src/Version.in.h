@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: LGPL-3.0-only */
+
 #ifndef MONOMUX_VERSION_H
 #define MONOMUX_VERSION_H
 

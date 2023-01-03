@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-3.0-only
+
 # This trampoline script generates a C header containing version information.
 # This script is called automatically, see Version.cmake in the source tree.
 list(APPEND CMAKE_MODULE_PATH

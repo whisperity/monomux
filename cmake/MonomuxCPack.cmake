@@ -1,10 +1,11 @@
+# SPDX-License-Identifier: LGPL-3.0-only
 set(CPACK_PACKAGE_NAME "MonoMux")
 set(CPACK_PACKAGE_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}")
 set(CPACK_PACKAGE_VENDOR "Whisperity")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MonoMux: Monophone Terminal Multiplexer - Less intrusive than tmux, smarter than screen")
 set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/README.md")
 set(CPACK_PACKAGE_CONTACT "Whisperity <whisperity-packages@protonmail.com>")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/COPYING.GPL.txt")
 set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 set(CPACK_PACKAGE_EXECUTABLES monomux "MonoMux")
 set(CPACK_CREATE_DESKTOP_LINKS monomux)
@@ -38,8 +39,8 @@ if (UNIX)
   # Install some additional resources into the Unix package.
   set(EXTRA_FILES_TO_INSTALL
     "${CMAKE_SOURCE_DIR}/README.md"
-    "${CMAKE_SOURCE_DIR}/LICENSE"
     )
+  # FIXME: Platform library, frontend "library" and licence files!
   install(FILES ${EXTRA_FILES_TO_INSTALL}
     DESTINATION "${CMAKE_INSTALL_DATADIR}/monomux"
     COMPONENT "${MONOMUX_NAME}"

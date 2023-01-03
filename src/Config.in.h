@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: LGPL-3.0-only */
+
 /* This file contains the CMake-level configuration variables that are exposed
  * to the compilers executed.
  */

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(MONOMUX_BUILD_TESTS_DEFAULT ON)
 else()
