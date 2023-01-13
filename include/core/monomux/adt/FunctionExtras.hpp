@@ -17,9 +17,9 @@
     std::add_const_t<std::remove_pointer_t<decltype(this)>>>
 #define MONOMUX_DETAIL_CONST_OBJ const_cast<Const>(this)
 #define MONOMUX_DETAIL_CONST_VALUE(CALL) const auto& Value = CALL
-// NOLINTBEGIN(bugprone-macro-parantheses)
+/* NOLINTBEGIN(bugprone-macro-parantheses) */
 #define MONOMUX_DETAIL_RETURN_CAST(RET_TY, OBJ) return const_cast<RET_TY>(OBJ)
-// NOLINTEND(bugprone-macro-parantheses)
+/* NOLINTEND(bugprone-macro-parantheses) */
 
 #define MONOMUX_DETAIL_FUNCTION_BODY(RET_TY, CALL)                             \
   {                                                                            \

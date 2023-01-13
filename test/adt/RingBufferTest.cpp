@@ -3,7 +3,7 @@
 
 #include "monomux/adt/RingBuffer.hpp"
 
-// NOLINTBEGIN(cert-err58-cpp)
+/* NOLINTBEGIN(cert-err58-cpp) */
 
 using namespace monomux;
 
@@ -232,4 +232,4 @@ TEST(RingBuffer, PeekAndDrop)
   EXPECT_EQ(RB[1], 4);
 }
 
-// NOLINTEND(cert-err58-cpp)
+/* NOLINTEND(cert-err58-cpp) */

@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "monomux/adt/FunctionExtras.hpp"

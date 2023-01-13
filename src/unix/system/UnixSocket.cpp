@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 #include <system_error>
 
+#include <sys/socket.h>
+
 #include "monomux/CheckedErrno.hpp"
 #include "monomux/adt/POD.hpp"
 

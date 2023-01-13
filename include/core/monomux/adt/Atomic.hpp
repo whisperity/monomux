@@ -7,9 +7,9 @@
 namespace monomux
 {
 
-/// Wrapper class over \p std::atomic<T> that enables "copying" and "moving" the
-/// value contained by non-atomically initialising a \b new \p atomic with the
-/// current contained value.
+/// Wrapper class over \p std::atomic<T> that enables "copying" and "moving"
+/// the value contained by non-atomically initialising a \b new \p atomic with
+/// the current contained value.
 template <typename T> class Atomic
 {
   using AT = std::atomic<T>;

@@ -30,6 +30,7 @@
 #endif /* MONOMUX_PLATFORM_UNIX */
 
 #include "Config.hpp"
+#include "frontend/MainOptions.hpp"
 
 #include "monomux/Log.hpp"
 #define LOG(SEVERITY) monomux::log::SEVERITY("main")
@@ -60,36 +61,14 @@ struct ::option LongOptions[] = {
 };
 // clang-format on
 
-struct MainOptions
-{
-  /// \p -h
-  bool ShowHelp : 1;
-
-  /// \p -V
-  bool ShowVersion : 1;
-
-  /// \p -V a second time
-  bool ShowElaborateBuildInformation : 1;
-
-  /// \p -v
-  bool AnyVerboseFlag : 1;
-  /// \p -q
-  bool AnyQuietFlag : 1;
-
-  /// \p -v or \p -q sequences
-  std::int8_t VerbosityQuietnessDifferential = 0;
-
-  /// \p -v and \p -q translated to \p Severity choice.
-  monomux::log::Severity Severity;
-};
-
 void printHelp();
 void printVersion();
 void printFeatures();
-std::pair<bool, MainOptions> argParse(int ArgC,
-                                      const char* const ArgV[],
-                                      monomux::server::Options& ServerOpts,
-                                      monomux::client::Options& ClientOpts);
+std::pair<bool, monomux::MainOptions>
+argParse(int ArgC,
+         const char* const ArgV[],
+         monomux::server::Options& ServerOpts,
+         monomux::client::Options& ClientOpts);
 void setUpSignalHandling();
 bool autoSpawnServerInBackground(const char* const ArgV[],
                                  monomux::server::Options ServerOpts);
@@ -97,11 +76,18 @@ MONOMUX_SIGNAL_HANDLER(coreDumped);
 
 } // namespace
 
+namespace monomux
+{
+void devstuff();
+}
+
 int main(int ArgC, char* ArgV[])
 {
   using namespace monomux;
   using namespace monomux::system;
 
+  devstuff();
+  return 0;
 
   // ------------------------ Parse command-line options -----------------------
   bool ParseErrors = false;
@@ -308,14 +294,15 @@ void printFeatures()
             << monomux::getHumanReadableConfiguration() << std::endl;
 }
 
-std::pair<bool, MainOptions> argParse(int ArgC,
-                                      const char* const ArgV[],
-                                      monomux::server::Options& ServerOpts,
-                                      monomux::client::Options& ClientOpts)
+std::pair<bool, monomux::MainOptions>
+argParse(int ArgC,
+         const char* const ArgV[],
+         monomux::server::Options& ServerOpts,
+         monomux::client::Options& ClientOpts)
 {
   using namespace monomux::system;
 
-  MainOptions MainOpts{};
+  monomux::MainOptions MainOpts{};
   bool HadErrors = false;
   auto ArgError = [&HadErrors, Prog = ArgV[0]]() -> std::ostream& {
     std::cerr << Prog << ": ";

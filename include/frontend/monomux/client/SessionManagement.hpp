@@ -5,6 +5,7 @@
 
 #include "monomux/FrontendExitCode.hpp"
 #include "monomux/client/Main.hpp"
+#include "monomux/client/SessionData.hpp"
 
 namespace monomux::client
 {

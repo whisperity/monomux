@@ -6,7 +6,15 @@
 namespace monomux::system
 {
 
-static constexpr PlatformTag CurrentPlatform = PlatformTag::Unix;
+static constexpr PlatformTag CurrentPlatform =
+
+#if MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_ID_Unsupported
+  PlatformTag::Unsupported
+#elif MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_ID_Unix
+  PlatformTag::Unix
+#endif /* MONOMUX_PLATFORM_ID */
+
+  ;
 
 } // namespace monomux::system
 

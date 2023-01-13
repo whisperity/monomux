@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 #pragma once
 #include <string>
+#include <string_view>
 
 #include "monomux/Config.h"
 
@@ -20,6 +21,9 @@ enum class PlatformTag
   /// Standard UNIX and POSIX systems, most importantly Linux.
   Unix = MONOMUX_PLATFORM_ID_Unix
 };
+
+/// The current platform's identifier as a string.
+constexpr std::string_view Platform = MONOMUX_PLATFORM;
 
 /// Dummy class that is implemented by platform-specific details to provide
 /// business logic to \p Handle and keep it as a value-semantics-capable class.
