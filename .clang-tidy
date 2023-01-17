@@ -1,32 +1,83 @@
+# Last checked against Clang-Tidy 15.0.6
+
+# There **MUST** be an explicit newline between comments in the Checks: string
+# and the actual contents that should be part of the string!
+
 Checks: >-
   -*,
-  clang-diagnosic-*,
+  clang-diagnostic-*,
+
+  # --------------------------------------------------------------------------
+  # If I want CSA, I'll run CSA with CodeChecker! ;)
+
+  -clang-analyzer-*,
+
+
+  # --------------------------------------------------------------------------
+  # Uninteresting check groups for libraries or environments not relevant.
+
+  # -abseil-*,
+  # -android-*,
+  # -boost-*,
+  # -concurrency-*,
+  # -darwin-*,
+  # -fuchsia-*,
+  # -google-*,
+  # -hicpp-*,
+  # -linuxkernel-*,
+  # -llvm-*,
+  # -llvmlibc-*,
+  # -mpi-*,
+  # -objc-*,
+  # -openmp-*,
+  # -zircon-*,
+
+  # --------------------------------------------------------------------------
+  # Globally interesting check groups. (Perhaps this is easier to list...)
+
   bugprone-*,
-  bugprone-easily-swappable-parameters,
-  -bugprone-narrowing-conversions,
-  -bugprone-unchecked-optional-access,
   cert-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+
+  # --------------------------------------------------------------------------
+  # Checks enabled from groups where the group itself is not fully enabled.
+
   google-build-namespaces,
+  google-default-arguments,
+  google-explicit-constructor,
+  google-readability-avoid-underscore-in-googletest-name,
+  google-upgrade-googletest-case,
   llvm-header-guard,
   llvm-include-order,
   llvm-namespace-comment,
-  misc-*,
+
+  # --------------------------------------------------------------------------
+  # Disabled: too many warnings that are not meaningfully silenceable locally,
+  # or simply checks that are not in line with the project's style.
+
+  -bugprone-narrowing-conversions,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,
-  modernize-*,
   -modernize-avoid-c-arrays,
-  -modernize-concat-nested-namespaces,
-  -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
-  performance-*,
-  readability-*,
   -readability-braces-around-statements,
-  -readability-convert-member-functions-to-static,
   -readability-function-cognitive-complexity,
   -readability-implicit-bool-conversion,
-  readability-identifier-naming,
   -readability-identifier-length,
-  readability-suspicious-call-argument
+
+  # --------------------------------------------------------------------------
+  # Broken (see http://github.com/llvm/llvm-project/issues?q=is%3Aissue+is%3Aopen+bugprone-unchecked-optional-access)
+
+  -bugprone-unchecked-optional-access,
+
 CheckOptions:
   - key:             bugprone-easily-swappable-parameters.QualifiersMix
     value:           true

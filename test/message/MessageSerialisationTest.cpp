@@ -6,7 +6,7 @@
 
 #include "monomux/message/Message.hpp"
 
-// NOLINTBEGIN(cert-err58-cpp)
+/* NOLINTBEGIN(cert-err58-cpp) */
 
 /// Helper function for removing the explicit terminator from the created buffer
 /// for ease of testing.
@@ -360,4 +360,4 @@ TEST(ControlMessageSerialisation, StatisticsResponse)
   }
 }
 
-// NOLINTEND(cert-err58-cpp)
+/* NOLINTEND(cert-err58-cpp) */

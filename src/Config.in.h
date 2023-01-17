@@ -65,8 +65,10 @@ EXPOSE_CONFIG(NonEssentialLogs, MONOMUX_NON_ESSENTIAL_LOGS)
  *     #if MONOMUX_PLATFORM_ID == MONOMUX_PLATFORM_Unix
  * ) for more complex code where a simple #if(n)def does not suffice.
  */
+/* NOLINTBEGIN(modernize-macro-to-enum) */
 #define MONOMUX_PLATFORM_ID_Unsupported 0
 #define MONOMUX_PLATFORM_ID_Unix 1
+/* NOLINTEND(modernize-macro-to-enum) */
 
 /* The current platform's ID. Always selected from the MONOMUX_PLATFORM_ID_*
  * macros at build time.
