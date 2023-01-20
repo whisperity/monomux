@@ -39,6 +39,13 @@ set(binmonomux_SOURCES
 set(binmonomux_DEPENDS "")
 set(binmonomux_LIBS "")
 
+# Compile embeddable resources.
+reset_resources()
+generate_resources(monomuxResources
+  "monomux"
+  "${CMAKE_BINARY_DIR}/include/monomux/resources"
+  "${CMAKE_CURRENT_BINARY_DIR}/Resources.cpp")
+
 if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
   # The monomux binary adds the user-facing command-line parset to the mix,
   # creating a proper executable.

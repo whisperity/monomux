@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: LGPL-3.0-only
-
 add_executable(dto_compiler
   DTOCompiler.cpp
   Lex.cpp

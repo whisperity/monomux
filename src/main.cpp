@@ -102,7 +102,6 @@ int main(int ArgC, char* ArgV[])
   using namespace monomux;
   using namespace monomux::system;
 
-
   // ------------------------ Parse command-line options -----------------------
   bool ParseErrors = false;
   MainOptions MainOpts{};

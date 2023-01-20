@@ -62,8 +62,10 @@ Checks: >-
 
   -bugprone-narrowing-conversions,
   -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,
   -modernize-avoid-c-arrays,
