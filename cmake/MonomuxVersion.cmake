@@ -143,19 +143,37 @@ if (NOT VERSIONING_FROM_TRAMPOLINE)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-  add_custom_command(OUTPUT "${VERSION_HEADER_RESULT}"
-    COMMENT "Generating Version information"
-    DEPENDS "${git_dir_path}/logs/HEAD"
+  add_custom_command(
+    OUTPUT
+      "${VERSION_HEADER_RESULT}"
+      "${VERSION_TXT_RESULT}"
+    COMMENT
+      "Generating and writing version information..."
+    MAIN_DEPENDENCY
+      "${git_dir_path}/logs/HEAD"
+    DEPENDS
       "${VERSION_GENERATOR_SCRIPT}"
       "${VERSION_HEADER_TEMPLATE}"
-    COMMAND ${CMAKE_COMMAND}
-      -P "${VERSION_GENERATOR_SCRIPT}")
+    COMMAND
+      ${CMAKE_COMMAND}
+        -P "${VERSION_GENERATOR_SCRIPT}"
+    )
   add_custom_target(monomux_generate_version_h
-      DEPENDS "${VERSION_HEADER_RESULT}")
+    DEPENDS
+      "${VERSION_HEADER_RESULT}"
+      "${VERSION_TXT_RESULT}"
+    )
 
-  set_source_files_properties("${VERSION_HEADER_RESULT}"
-    PROPERTIES GENERATED TRUE
-               HEADER_FILE_ONLY TRUE
+  set_source_files_properties("${VERSION_HEADER_RESULT}" "${VERSION_TXT_RESULT}"
+    PROPERTIES
+      GENERATED TRUE
+      HEADER_FILE_ONLY TRUE
+    )
+
+  set_property(TARGET monomux_generate_version_h
+    APPEND
+    PROPERTY ADDITIONAL_CLEAN_FILES
+      "${VERSION_HEADER_RESULT}" "${VERSION_TXT_RESULT}"
     )
 
   unset(VERSION_GENERATOR_SCRIPT)

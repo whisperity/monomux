@@ -3,11 +3,15 @@
 # Create some variables to store files needed for distributing Monomux's core as
 # a reusable library.
 set(libmonomuxCore_SOURCES "")
+set(libmonomuxCore_DEPENDS "")
+set(libmonomuxCore_LIBS "")
 add_subdirectory(core)
 
 # Create some variables to store filenames needed to package the
 # platform-specific tooling.
 set(libmonomuxPlatform_SOURCES "")
+set(libmonomuxPlatform_DEPENDS "")
+set(libmonomuxPlatform_LIBS "")
 if (MONOMUX_PLATFORM_UNIX)
   add_subdirectory(unix)
 endif()
@@ -15,11 +19,15 @@ endif()
 # Create some variables to store filenames needed to package the implementation
 # of Monomux's internals.
 set(libmonomuxImplementation_SOURCES "")
+set(libmonomuxImplementation_DEPENDS "")
+set(libmonomuxImplementation_LIBS "")
 add_subdirectory(implementation)
 
 # Create some variables to store filenames needed to package the reference
 # implementation of Monomux's client-facing program.
 set(libmonomuxFrontend_SOURCES "")
+set(libmonomuxFrontend_DEPENDS "")
+set(libmonomuxFrontend_LIBS "")
 add_subdirectory(frontend)
 
 # Create variables to store the filenames that are only needed for the
@@ -28,65 +36,53 @@ set(binmonomux_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/Config.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   )
+set(binmonomux_DEPENDS "")
+set(binmonomux_LIBS "")
 
 if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
-  # monomuxCore is the library that contains the freely embeddable subset of
-  # Monomux that exposes a reusable API. This should be safe to embed because
-  # everything done and created by the library is owned by the library
-  # instances.
-  add_library(monomuxCore ${MONOMUX_LIBRARY_TYPE}
-    ${libmonomuxCore_SOURCES}
-    )
-  add_dependencies(monomuxCore
-    monomux_generate_version_h)
-
-  # monomuxPlatform is the platform-specific library that implements OS
-  # primitives against the interface specified by monomuxCore.
-  add_library(monomux${MONOMUX_PLATFORM}Platform ${MONOMUX_LIBRARY_TYPE}
-    ${libmonomuxPlatform_SOURCES}
-    )
-  target_link_libraries(monomux${MONOMUX_PLATFORM}Platform PUBLIC
-    monomuxCore
-    util
-    dl
-    )
-
-  # monomuxImplementation contains the implementation of a capable Server and
-  # Client built on top of monomuxCore.
-  add_library(monomuxImplementation ${MONOMUX_LIBRARY_TYPE}
-    ${libmonomuxImplementation_SOURCES}
-    )
-  target_link_libraries(monomuxImplementation PUBLIC
-    monomuxCore
-    monomux${MONOMUX_PLATFORM}Platform
-    )
-
-  # monomuxFrontend contains additional tools that might not be completely safe
-  # to embed in another application, because direct control of application
-  # state (signals, terminal, etc.) is done in this library.
-  add_library(monomuxFrontend ${MONOMUX_LIBRARY_TYPE}
-    ${libmonomuxFrontend_SOURCES}
-    )
-  target_link_libraries(monomuxFrontend PUBLIC
-    monomuxCore
-    monomux${MONOMUX_PLATFORM}Platform
-    monomuxImplementation
-    )
-
   # The monomux binary adds the user-facing command-line parset to the mix,
   # creating a proper executable.
   add_executable(monomux
     ${binmonomux_SOURCES}
     )
+  if (binmonomux_DEPENDS)
+    add_dependencies(monomux
+      ${binmonomux_DEPENDS}
+      )
+  endif()
+  if (binmonomux_LIBS)
+    target_link_libraries(monomux PUBLIC
+      ${binmonomux_LIBS}
+      )
+  endif()
   target_link_libraries(monomux PUBLIC
-    monomuxCore
-    monomux${MONOMUX_PLATFORM}Platform
-    monomuxImplementation
     monomuxFrontend
     )
 else()
+  # Expose the true "core" libraries that implement system-specific stuff as a
+  # reusable library **even** in Unity mode. (This is needed for the embedded
+  # tooling.)
+  add_library(monomuxInternalForTooling_CoreAndPlatform STATIC
+    ${libmonomuxCore_SOURCES}
+    ${libmonomuxPlatform_SOURCES}
+    )
+  if (libmonomuxCore_DEPENDS OR libmonomuxPlatform_DEPENDS)
+    add_dependencies(monomuxInternalForTooling_CoreAndPlatform
+      ${libmonomuxCore_DEPENDS}
+      ${libmonomuxPlatform_DEPENDS}
+      )
+  endif()
+  if (libmonomuxCore_LIBS OR libmonomuxPlatform_LIBS)
+    target_link_libraries(monomuxInternalForTooling_CoreAndPlatform PUBLIC
+      ${libmonomuxCore_LIBS}
+      ${libmonomuxPlatform_LIBS}
+      )
+  endif()
+
   # In Unity build, we'll create a single output executable comprised of all
-  # the source files that would have been part of separate libraries.
+  # the source files that would have been part of separate libraries. This is
+  # generally expected to allow the compiler better optimise the resulting
+  # binary. It is also expected that *most* users will consume the UNITY build.
   add_executable(monomux
     ${libmonomuxCore_SOURCES}
     ${libmonomuxPlatform_SOURCES}
@@ -94,12 +90,32 @@ else()
     ${libmonomuxFrontend_SOURCES}
     ${binmonomux_SOURCES}
     )
-  add_dependencies(monomux
-    monomux_generate_version_h)
-  target_link_libraries(monomux PUBLIC
-    dl
-    util
-    )
+  if (libmonomuxCore_DEPENDS OR
+      libmonomuxPlatform_DEPENDS OR
+      libmonomuxImplementation_DEPENDS OR
+      libmonomuxFrontend_DEPENDS OR
+      binmonomux_DEPENDS)
+    add_dependencies(monomux
+      ${libmonomuxCore_DEPENDS}
+      ${libmonomuxPlatform_DEPENDS}
+      ${libmonomuxImplementation_DEPENDS}
+      ${libmonomuxFrontend_DEPENDS}
+      ${binmonomux_DEPENDS}
+      )
+  endif()
+  if (libmonomuxCore_LIBS OR
+      libmonomuxPlatform_LIBS OR
+      libmonomuxImplementation_LIBS OR
+      libmonomuxFrontend_LIBS OR
+      binmonomux_LIBS)
+    target_link_libraries(monomux PUBLIC
+      ${libmonomuxCore_LIBS}
+      ${libmonomuxPlatform_LIBS}
+      ${libmonomuxImplementation_LIBS}
+      ${libmonomuxFrontend_LIBS}
+      ${binmonomux_LIBS}
+      )
+  endif()
 endif()
 
 set_target_properties(monomux PROPERTIES
@@ -115,6 +131,9 @@ if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
     )
   install(TARGETS monomux${MONOMUX_PLATFORM}Platform
     COMPONENT "${MONOMUX_PLATFORM_LIBRARY_DEV_NAME}"
+    )
+  install(TARGETS monomuxImplementation
+    COMPONENT "${MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME}"
     )
   install(TARGETS monomuxFrontend
     COMPONENT "${MONOMUX_FRONTEND_LIBRARY_DEV_NAME}"

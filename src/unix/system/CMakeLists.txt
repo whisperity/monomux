@@ -14,3 +14,9 @@ list(APPEND libmonomuxPlatform_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/UnixTerminal.cpp
   )
 set(libmonomuxPlatform_SOURCES "${libmonomuxPlatform_SOURCES}" PARENT_SCOPE)
+
+list(APPEND libmonomuxPlatform_LIBS
+  dl
+  util
+  )
+set(libmonomuxPlatform_LIBS "${libmonomuxPlatform_LIBS}" PARENT_SCOPE)

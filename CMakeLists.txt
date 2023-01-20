@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-cmake_minimum_required(VERSION 3.15.0)
+cmake_minimum_required(VERSION 3.16.5)
 
 # Just simply do not let the user do this, because this litters the project
 # tree with weird contents that are not verbosely elaborated in a .gitignore...
@@ -22,7 +22,8 @@ project(monomux
   LANGUAGES CXX
   VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK}
   DESCRIPTION "MonoMux: Monophone Terminal Multiplexer"
-  HOMEPAGE_URL "http://github.com/whisperity/MonoMux")
+  HOMEPAGE_URL "http://github.com/whisperity/MonoMux"
+  )
 
 if (NOT UNIX)
   message(FATAL_ERROR "This project supports only POSIX Unix/Linux platforms!")
@@ -93,6 +94,8 @@ if (MONOMUX_PLATFORM_UNIX)
     "${CMAKE_SOURCE_DIR}/include/unix"
     )
 endif()
+
+add_subdirectory(tools)
 
 add_subdirectory(include)
 add_subdirectory(src)

@@ -5,6 +5,9 @@ set(MONOMUX_CORE_LIBRARY_DEV_NAME "MonomuxCoreLibraryDevelopoment")
 set(MONOMUX_PLATFORM_LIBRARY_NAME "MonomuxPlatformLibrary")
 set(MONOMUX_PLATFORM_LIBRARY_DEV_NAME "MonomuxPlatformLibraryDevelopoment")
 
+set(MONOMUX_IMPLEMENTATION_LIBRARY_NAME "MonomuxImplementationLibrary")
+set(MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME "MonomuxImplementationLibraryDevelopment")
+
 set(MONOMUX_FRONTEND_LIBRARY_NAME "MonomuxFrontendLibrary")
 set(MONOMUX_FRONTEND_LIBRARY_DEV_NAME "MonomuxFrontendLibraryDevelopment")
 
@@ -44,7 +47,12 @@ set(MONOMUX_NON_ESSENTIAL_LOGS ON CACHE BOOL
   "If set, the built binaries will contain some additional log outputs that are needed for verbose debugging of the project. Turn off to cut down further on the binary size for production."
   )
 
-configure_file(src/Config.in.h include/monomux/Config.h)
+configure_file("src/Config.in.h" "include/monomux/Config.h")
+set_source_files_properties("include/monomux/Config.h"
+  PROPERTIES
+    GENERATED TRUE
+    HEADER_FILE_ONLY TRUE
+  )
 install(FILES
     "${CMAKE_BINARY_DIR}/include/monomux/Config.h"
     "${CMAKE_BINARY_DIR}/include/monomux/Version.h"
