@@ -11,7 +11,7 @@ if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
     )
 else()
   target_link_libraries(dto_compiler PUBLIC
-    _monomuxCoreAndPlatform
+    monomuxInternalForTooling_CoreAndPlatform
     )
 endif()
 
