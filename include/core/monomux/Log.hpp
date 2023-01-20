@@ -96,9 +96,12 @@ public:
   /// spawned. Otherwise, returns \p nullptr.
   [[nodiscard]] static Logger* tryGet();
 
-  /// \returns the number of digits (when written in decimal notation) of the
-  /// given \p Number.
-  [[nodiscard]] static std::size_t digits(std::size_t Number);
+  /// \returns the number of digits (when written in \p Base radix notation) of
+  /// the given \p Number.
+  [[nodiscard]] static std::size_t
+  digits(std::size_t Number,
+         // NOLINTNEXTLINE(readability-magic-numbers)
+         std::size_t Base = 10);
 
   /// Creates a new \p Logger object that has no connection with the global
   /// logging instance.

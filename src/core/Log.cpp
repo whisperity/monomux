@@ -61,12 +61,15 @@ Logger& Logger::get()
 
 Logger* Logger::tryGet() { return Singleton.get(); }
 
-std::size_t Logger::digits(std::size_t Number)
+std::size_t Logger::digits(std::size_t Number, std::size_t Base)
 {
-  std::size_t R = 1;
+  if (Number == 0)
+    return 1;
+
+  std::size_t R = 0;
   while (Number > 0)
   {
-    Number /= 10; // NOLINT(readability-magic-numbers)
+    Number /= Base;
     ++R;
   }
   return R;

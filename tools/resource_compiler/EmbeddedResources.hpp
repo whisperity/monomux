@@ -21,17 +21,19 @@
 #define EMBEDDED_RESOURCES_ARRAY_REF                                           \
   CONCAT(EMBEDDED_RESOURCES_PROJECT_NAMESPACE, array_ref)
 
+#ifdef __cplusplus
+#define STDLIB_TYPE(T) std::T
+#else /* ! __cplusplus */
+#define STDLIB_TYPE(T) T
+#endif /* __cplusplus */
+
 /* NOLINTBEGIN(readability-identifier-naming) */
 /// Weak reference to a contiguous buffer with a known size.
 struct EMBEDDED_RESOURCES_ARRAY_REF
 {
-  const char* begin;
-  const char* end;
-#ifdef __cplusplus
-  std::size_t size;
-#else
-  size_t size;
-#endif /* __cplusplus */
+  const STDLIB_TYPE(uint8_t) * begin;
+  const STDLIB_TYPE(uint8_t) * end;
+  STDLIB_TYPE(size_t) size;
 };
 /* NOLINTEND(readability-identifier-naming) */
 
