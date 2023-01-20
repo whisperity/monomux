@@ -6,11 +6,10 @@ add_executable(dto_compiler
 if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
   target_link_libraries(dto_compiler PUBLIC
     monomuxCore
-    monomux${MONOMUX_PLATFORM}Platform
     )
 else()
   target_link_libraries(dto_compiler PUBLIC
-    monomuxInternalForTooling_CoreAndPlatform
+    monomuxCoreStatic
     )
 endif()
 

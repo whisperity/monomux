@@ -37,6 +37,8 @@ struct EMBEDDED_RESOURCES_ARRAY_REF
 };
 /* NOLINTEND(readability-identifier-naming) */
 
+#undef STDLIB_TYPE
+
 #define EMBEDDED_RESOURCES_GETTER                                              \
   CONCAT(EMBEDDED_RESOURCES_PROJECT_NAMESPACE, get_resource)
 

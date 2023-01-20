@@ -48,7 +48,6 @@ if (MONOMUX_BUILD_TESTS)
     )
   target_link_libraries(monomux_tests PRIVATE
     monomuxCore
-    monomux${MONOMUX_PLATFORM}Platform
     monomuxImplementation
     )
   target_link_libraries(monomux_tests PUBLIC

@@ -47,6 +47,27 @@ generate_resources(monomuxResources
   "${CMAKE_CURRENT_BINARY_DIR}/Resources.cpp")
 
 if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
+  # monomuxCore is the library that contains the freely embeddable subset of
+  # Monomux that exposes a reusable API. This should be safe to embed because
+  # everything done and created by the library is owned by the library
+  # instances.
+  add_library(monomuxCore ${MONOMUX_LIBRARY_TYPE}
+    ${libmonomuxCore_SOURCES}
+    ${libmonomuxPlatform_SOURCES}
+    )
+  if (libmonomuxCore_DEPENDS OR libmonomuxPlatform_DEPENDS)
+    add_dependencies(monomuxCore
+      ${libmonomuxCore_DEPENDS}
+      ${libmonomuxPlatform_DEPENDS}
+      )
+  endif()
+  if (libmonomuxCore_LIBS OR libmonomuxPlatform_LIBS)
+    target_link_libraries(monomuxCore PUBLIC
+      ${libmonomuxCore_LIBS}
+      ${libmonomuxPlatform_LIBS}
+      )
+  endif()
+
   # The monomux binary adds the user-facing command-line parset to the mix,
   # creating a proper executable.
   add_executable(monomux
@@ -69,18 +90,18 @@ else()
   # Expose the true "core" libraries that implement system-specific stuff as a
   # reusable library **even** in Unity mode. (This is needed for the embedded
   # tooling.)
-  add_library(monomuxInternalForTooling_CoreAndPlatform STATIC
+  add_library(monomuxCoreStatic STATIC
     ${libmonomuxCore_SOURCES}
     ${libmonomuxPlatform_SOURCES}
     )
   if (libmonomuxCore_DEPENDS OR libmonomuxPlatform_DEPENDS)
-    add_dependencies(monomuxInternalForTooling_CoreAndPlatform
+    add_dependencies(monomuxCoreStatic
       ${libmonomuxCore_DEPENDS}
       ${libmonomuxPlatform_DEPENDS}
       )
   endif()
   if (libmonomuxCore_LIBS OR libmonomuxPlatform_LIBS)
-    target_link_libraries(monomuxInternalForTooling_CoreAndPlatform PUBLIC
+    target_link_libraries(monomuxCoreStatic PUBLIC
       ${libmonomuxCore_LIBS}
       ${libmonomuxPlatform_LIBS}
       )
@@ -136,9 +157,6 @@ if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
   install(TARGETS monomuxCore
     COMPONENT "${MONOMUX_CORE_LIBRARY_DEV_NAME}"
     )
-  install(TARGETS monomux${MONOMUX_PLATFORM}Platform
-    COMPONENT "${MONOMUX_PLATFORM_LIBRARY_DEV_NAME}"
-    )
   install(TARGETS monomuxImplementation
     COMPONENT "${MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME}"
     )
@@ -159,7 +177,6 @@ else()
   install(TARGETS
       monomux
       monomuxCore
-      monomux${MONOMUX_PLATFORM}Platform
       monomuxImplementation
       monomuxFrontend
     COMPONENT "${MONOMUX_NAME}")

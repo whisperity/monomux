@@ -2,9 +2,6 @@
 set(MONOMUX_CORE_LIBRARY_NAME "MonomuxCoreLibrary")
 set(MONOMUX_CORE_LIBRARY_DEV_NAME "MonomuxCoreLibraryDevelopoment")
 
-set(MONOMUX_PLATFORM_LIBRARY_NAME "MonomuxPlatformLibrary")
-set(MONOMUX_PLATFORM_LIBRARY_DEV_NAME "MonomuxPlatformLibraryDevelopoment")
-
 set(MONOMUX_IMPLEMENTATION_LIBRARY_NAME "MonomuxImplementationLibrary")
 set(MONOMUX_IMPLEMENTATION_LIBRARY_DEV_NAME "MonomuxImplementationLibraryDevelopment")
 

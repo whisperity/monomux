@@ -17,23 +17,3 @@ list(APPEND libmonomuxCore_DEPENDS
   monomux_generate_version_h
   )
 set(libmonomuxCore_DEPENDS "${libmonomuxCore_DEPENDS}" PARENT_SCOPE)
-
-if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
-  # monomuxCore is the library that contains the freely embeddable subset of
-  # Monomux that exposes a reusable API. This should be safe to embed because
-  # everything done and created by the library is owned by the library
-  # instances.
-  add_library(monomuxCore ${MONOMUX_LIBRARY_TYPE}
-    ${libmonomuxCore_SOURCES}
-    )
-  if (libmonomuxCore_DEPENDS)
-    add_dependencies(monomuxCore
-      ${libmonomuxCore_DEPENDS}
-      )
-  endif()
-  if (libmonomuxCore_LIBS)
-    target_link_libraries(monomuxCore PUBLIC
-      ${libmonomuxCore_LIBS}
-      )
-  endif()
-endif()

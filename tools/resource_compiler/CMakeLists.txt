@@ -13,11 +13,10 @@ add_executable(resource_compiler
 if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
   target_link_libraries(resource_compiler PUBLIC
     monomuxCore
-    monomux${MONOMUX_PLATFORM}Platform
     )
 else()
   target_link_libraries(resource_compiler PUBLIC
-    monomuxInternalForTooling_CoreAndPlatform
+    monomuxCoreStatic
     )
 endif()
 

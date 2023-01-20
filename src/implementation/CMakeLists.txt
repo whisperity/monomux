@@ -46,6 +46,5 @@ if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
   endif()
   target_link_libraries(monomuxImplementation PUBLIC
     monomuxCore
-    monomux${MONOMUX_PLATFORM}Platform
     )
 endif()
