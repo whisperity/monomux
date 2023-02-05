@@ -55,7 +55,7 @@ CH_SPELLING_TOKEN(LBrace, '{')
 CH_SPELLING_TOKEN(RBrace, '}')
 
 /* Keywords ... */
-STR_SPELLING_TOKEN(Namespace, 'n', 'a', 'm', 'e', 's', 'p', 'a', 'c', 'e')
+STR_SPELLING_TOKEN(Namespace, "namespace")
 
 
 #undef TOKEN

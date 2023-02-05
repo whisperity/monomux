@@ -40,11 +40,11 @@ set(binmonomux_DEPENDS "")
 set(binmonomux_LIBS "")
 
 # Compile embeddable resources.
-reset_resources()
-generate_resources(monomuxResources
-  "monomux"
-  "${CMAKE_BINARY_DIR}/include/monomux/resources"
-  "${CMAKE_CURRENT_BINARY_DIR}/Resources.cpp")
+# reset_resources()
+# generate_resources(monomuxResources
+#   "monomux"
+#   "${CMAKE_BINARY_DIR}/include/monomux/resources"
+#   "${CMAKE_CURRENT_BINARY_DIR}/Resources.cpp")
 
 if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
   # monomuxCore is the library that contains the freely embeddable subset of

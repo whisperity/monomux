@@ -331,8 +331,8 @@ Lexer::Lexer(std::string_view Buffer)
 
   std::cerr << "DEBUG: Building sequenced lexical analysis table..."
             << std::endl;
-#define STR_SPELLING_TOKEN(NAME, ...)                                          \
-  SeqLexer->addNewCharSequence<__VA_ARGS__>(Token::NAME);
+#define STR_SPELLING_TOKEN(NAME, SPELLING)                                     \
+  SeqLexer->addNewCharSequence(Token::NAME, SPELLING);
 #include "Tokens.inc.h"
   std::cerr << "DEBUG: Lexical analysis table created." << std::endl;
 }
