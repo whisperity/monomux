@@ -16,6 +16,9 @@
  */
 #define EMBEDDED_RESOURCES_REPLACE_THIS_WITH(WITH)
 
+// FIXME: This "library" does not support compiling multiple resource images
+// and having them loaded as multiple shared objects.
+
 #include <array>
 #include <cstdint>
 #include <memory>

@@ -75,6 +75,9 @@ class SmallIndexMap
   std::size_t Size = 0;
 
 public:
+  using key_type = KeyTy;
+  using mapped_type = T;
+
   /// Initialises an empty \p SmallIndexMap that starts in the small
   /// representation.
   SmallIndexMap() : Storage(SmallRepresentation{})
