@@ -118,6 +118,20 @@ class CharSequenceLexer
                            /* KeyType =*/std::uint8_t>
       Next{};
 
+    /// If set and a transition in \p Next is not set, instead of going into
+    /// the error state, transition to the state specified by the \e index
+    /// here.
+    std::optional<std::size_t> DefaultNextState;
+
+    [[nodiscard]] std::size_t getNextState(std::uint8_t TransitionChar) const
+    {
+      if (const std::size_t* NextIndex = Next.tryGet(TransitionChar))
+        return *NextIndex;
+      if (DefaultNextState)
+        return *DefaultNextState;
+      return -1;
+    }
+
 #ifndef NDEBUG
     std::string DebugConsumedPrefix{};
 #endif /* !NDEBUG */
@@ -160,14 +174,14 @@ public:
     {
       if (const auto* Forward = std::get_if<ForwardState>(&State()))
       {
-        std::uint8_t NextChar = !Buffer.empty() ? Buffer.front() : '\0';
-        if (const std::size_t* NextIndex = Forward->Next.tryGet(NextChar))
-        {
-          Buffer.remove_prefix(1);
-          StateIndex = *NextIndex;
-        }
-        else
+        const std::uint8_t NextChar = !Buffer.empty() ? Buffer.front() : '\0';
+        const std::size_t NextIndex = Forward->getNextState(NextChar);
+        if (NextIndex == static_cast<std::size_t>(-1))
+          // Received error state.
           return std::nullopt;
+
+        Buffer.remove_prefix(1);
+        StateIndex = NextIndex;
       }
       else if (const auto* Accept = std::get_if<AcceptState>(&State()))
         return Accept->AcceptedToken;
@@ -220,7 +234,9 @@ private:
   template <typename T, typename... Args>
   [[nodiscard]] std::size_t makeState(Args&&... Argv)
   {
-    return std::get<T>(States.emplace_back(T{{std::forward<Args>(Argv)}...}))
+    // NOLINT(-Wmissing-...): Using an additional set of {}s breaks G++-8
+    // on Ubuntu 18.04.
+    return std::get<T>(States.emplace_back(T{std::forward<Args>(Argv)...}))
       .Index;
   }
 

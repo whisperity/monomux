@@ -60,11 +60,13 @@ Checks: >-
   # Disabled: too many warnings that are not meaningfully silenceable locally,
   # or simply checks that are not in line with the project's style.
 
+  -bugprone-macro-parantheses,
   -bugprone-narrowing-conversions,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-pro-type-reinterpret-cast,
