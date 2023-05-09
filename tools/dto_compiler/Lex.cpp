@@ -10,18 +10,17 @@
 #include <variant>
 #include <vector>
 
+#include "monomux/adt/FunctionExtras.hpp"
 #include "monomux/adt/Metaprogramming.hpp"
+#include "monomux/adt/SmallIndexMap.hpp"
 #include "monomux/adt/StateMachine.hpp"
-// #include "monomux/adt/FunctionExtras.hpp"
-// #include "monomux/adt/SmallIndexMap.hpp"
-// #include "monomux/unreachable.hpp"
-//
-// #include "Lex.hpp"
+#include "monomux/unreachable.hpp"
 
+#include "Lex.hpp"
 
 namespace dto_compiler
 {
-#if 0
+
 std::string_view tokNiceName(Token TK)
 {
   switch (TK)
@@ -101,264 +100,58 @@ template <char... Cs> std::string stringify()
 
 constexpr std::size_t NumCharValues = (UINT8_MAX + 1);
 
-/// Builds, contains, and executes a dynamically constructed character sequence
-/// lexing automaton.
-class CharSequenceLexer
+// static const auto CommentLexer = []() {
+//   using namespace monomux::state_machine;
+//   auto Start = createMachine<char, void>();
+//   auto Comment = Start.addOrTraverseTransition<'/'>();
+//   auto LineCommentBegin = Comment.addOrTraverseTransition<'/'>();
+//   auto BlockCommentBegin =
+//   LineCommentBegin.switchToState<Comment.CurrentStateIndex>().addOrTraverseTransition<'*'>();
+//
+//   auto WithinComment = BlockCommentBegin.addNewState();
+//   auto WithinCommentEdge =
+//   WithinComment.switchToState<LineCommentBegin.CurrentStateIndex>().setDefaultTransitionTarget<WithinComment.CurrentStateIndex>();
+//
+//   auto WithinBlockComment =
+//   WithinCommentEdge.switchToState<BlockCommentBegin.CurrentStateIndex>().addNewState();
+//   auto WithinBlockCommentEdge =
+//   WithinBlockComment.switchToState<BlockCommentBegin.CurrentStateIndex>().setDefaultTransitionTarget<WithinBlockComment.CurrentStateIndex>();
+//
+//   auto Machine = WithinBlockCommentEdge;
+//   return compile(Machine);
+// }();
+
+template <class Machine, Token Tok, char... Str> struct TokenBuilder;
+template <class Machine, Token Tok, char C, char... Cs>
+struct TokenBuilder<Machine, Tok, C, Cs...>
 {
-  struct State
-  {
-    std::size_t Index;
-  };
-
-  struct AcceptState : public State
-  {
-    Token AcceptedToken;
-  };
-
-  struct ForwardState : public State
-  {
-    monomux::SmallIndexMap<std::size_t,
-                           NumCharValues,
-                           /* StoreInPlace =*/true,
-                           /* IntrusiveDefaultSentinel =*/true,
-                           /* KeyType =*/std::uint8_t>
-      Next{};
-
-    /// If set and a transition in \p Next is not set, instead of going into
-    /// the error state, transition to the state specified by the \e index
-    /// here.
-    std::optional<std::size_t> DefaultNextState;
-
-    [[nodiscard]] std::size_t getNextState(std::uint8_t TransitionChar) const
-    {
-      if (const std::size_t* NextIndex = Next.tryGet(TransitionChar))
-        return *NextIndex;
-      if (DefaultNextState)
-        return *DefaultNextState;
-      return -1;
-    }
-
-#ifndef NDEBUG
-    std::string DebugConsumedPrefix{};
-#endif /* !NDEBUG */
-  };
-
-  struct ErrorState : public State
-  {};
-
-  using StateTy = std::variant<AcceptState, ForwardState, ErrorState>;
-
-  std::vector<StateTy> States;
-
-  monomux::SmallIndexMap<
-    std::size_t,
-    static_cast<std::size_t>(Token::LastTokenSentinel),
-    /* StoreInPlace =*/true,
-    /* IntrusiveDefaultSentinel =*/true,
-    /* KeyType =*/std::make_unsigned_t<std::underlying_type_t<Token>>>
-    Acceptors;
-
-  std::size_t StartStateIndex = -1;
-
-public:
-  CharSequenceLexer()
-  {
-    // By default, error.
-    States.emplace_back(ErrorState{0});
-  }
-
-  /// Lexes the given \p Chars into a \p Token based on the dynamic spelling
-  /// table (created by \p addNewCharSequence)
-  [[nodiscard]] std::optional<Token>
-  lexToken(std::string_view Chars) const noexcept
-  {
-    std::size_t StateIndex = StartStateIndex;
-    auto State = [&]() -> const StateTy& { return States.at(StateIndex); };
-
-    std::string_view Buffer = Chars;
-    while (true)
-    {
-      if (const auto* Forward = std::get_if<ForwardState>(&State()))
-      {
-        const std::uint8_t NextChar = !Buffer.empty() ? Buffer.front() : '\0';
-        const std::size_t NextIndex = Forward->getNextState(NextChar);
-        if (NextIndex == static_cast<std::size_t>(-1))
-          // Received error state.
-          return std::nullopt;
-
-        Buffer.remove_prefix(1);
-        StateIndex = NextIndex;
-      }
-      else if (const auto* Accept = std::get_if<AcceptState>(&State()))
-        return Accept->AcceptedToken;
-      else if (const auto* Error = std::get_if<ErrorState>(&State()))
-        return std::nullopt;
-      else
-      {
-        std::cerr << "ERROR: Unhandled state type at #" << StateIndex
-                  << " when reading" << Buffer << " at the end of  " << Chars
-                  << std::endl;
-        return std::nullopt;
-      }
-    }
-  }
-
-  template <char... Cs> void addNewCharSequence(Token Tok)
-  {
-    const std::string Str = stringify<Cs...>();
-    addNewCharSequence(Tok, Str);
-  }
-
-  void addNewCharSequence(Token Tok, std::string_view Str)
-  {
-    std::cerr << "CharSequence for Token::" << tokNiceName(Tok) << " = " << '"'
-              << Str << '"' << " (size: " << Str.size() << ')' << std::endl;
-    (void)createStartStateIfNone();
-    States.reserve(States.size() + 1 /* Acceptor state */ +
-                   Str.size() /* Letter transitions...*/ +
-                   1 /* NULL transition */);
-
-    const std::size_t AcceptStateIndex = [&]() {
-      auto RawTok = static_cast<decltype(Acceptors)::key_type>(Tok);
-      if (std::size_t* MaybeAcceptorIndex = Acceptors.tryGet(RawTok))
-        return *MaybeAcceptorIndex;
-
-      std::size_t I = makeState<AcceptState>(States.size(), Tok);
-      Acceptors.set(RawTok, I);
-      return I;
-    }();
-    std::cerr << '#' << AcceptStateIndex << " = AcceptState("
-              << tokNiceName(Tok) << ')' << std::endl;
-
-    continueBuildCharLexSequence(
-      Str,
-      std::get<AcceptState>(States.at(AcceptStateIndex)),
-      std::get<ForwardState>(States.at(StartStateIndex)));
-  }
-
-private:
-  template <typename T, typename... Args>
-  [[nodiscard]] std::size_t makeState(Args&&... Argv)
-  {
-    // NOLINT(-Wmissing-...): Using an additional set of {}s breaks G++-8
-    // on Ubuntu 18.04.
-    return std::get<T>(States.emplace_back(T{std::forward<Args>(Argv)...}))
-      .Index;
-  }
-
-  [[nodiscard]] std::size_t createStartStateIfNone()
-  {
-    if (StartStateIndex != static_cast<std::size_t>(-1))
-      return StartStateIndex;
-    std::cerr << '#' << States.size() << " = StartState" << std::endl;
-    return StartStateIndex = makeState<ForwardState>(States.size());
-  }
-
-  void continueBuildCharLexSequence(std::string_view Str,
-                                    const AcceptState& ExpectedAcceptState,
-                                    ForwardState& ParentState)
-  {
-    if (Str.empty())
-    {
-      finishCharLexSequence(ExpectedAcceptState, ParentState);
-      return;
-    }
-
-    const char C = Str.front();
-    const std::size_t NextStateIndex = [&]() {
-      if (std::size_t* MaybeNextIndex = ParentState.Next.tryGet(C))
-        return *MaybeNextIndex;
-
-      std::size_t NextStateIndex = makeState<ForwardState>(States.size());
-#ifndef NDEBUG
-      std::get<ForwardState>(States.at(NextStateIndex)).DebugConsumedPrefix =
-        ParentState.DebugConsumedPrefix;
-      std::get<ForwardState>(States.at(NextStateIndex))
-        .DebugConsumedPrefix.push_back(C);
-#endif /* !NDEBUG */
-
-      return NextStateIndex;
-    }();
-
-    ParentState.Next.set(C, NextStateIndex);
-    std::cerr << "step(#" << ParentState.Index << ", '" << C << "') := #"
-              << NextStateIndex;
-#ifndef NDEBUG
-    std::cerr
-      << " (" << '"'
-      << std::get<ForwardState>(States.at(NextStateIndex)).DebugConsumedPrefix
-      << '"' << ')';
-#endif /* !NDEBUG */
-    std::cerr << std::endl;
-
-
-    if (Str.size() > 1)
-      continueBuildCharLexSequence(
-        Str.substr(1),
-        ExpectedAcceptState,
-        std::get<ForwardState>(States.at(NextStateIndex)));
-    else
-      // Add an empty transition with the NULL character to finish off the
-      // automaton. This is needed as both "foo" and "foobar" might need to be
-      // accepted by the client.
-      continueBuildCharLexSequence(
-        "\0",
-        ExpectedAcceptState,
-        std::get<ForwardState>(States.at(NextStateIndex)));
-  }
-
-  void finishCharLexSequence(const AcceptState& Acceptor,
-                             ForwardState& ParentState)
-  {
-    auto PrintFinish = [&]() {
-      std::cerr << "finish(#" << ParentState.Index;
-
-#ifndef NDEBUG
-      std::cerr << " /* " << '"' << ParentState.DebugConsumedPrefix << '"'
-                << " */";
-#endif /* !NDEBUG */
-
-      std::cerr << ')';
-    };
-
-    if (std::size_t* NextIndex = ParentState.Next.tryGet('\0'))
-    {
-      std::cerr << "ERROR: Attempting to build non-deterministic automaton.\n";
-      PrintFinish();
-      std::cerr << " = #" << *NextIndex << " == Accept("
-                << tokNiceName(
-                     std::get<AcceptState>(States.at(*NextIndex)).AcceptedToken)
-                << "), already.\nAttempted accepting "
-                << tokNiceName(Acceptor.AcceptedToken) << " here instead."
-                << std::endl;
-      throw char{0};
-    }
-
-    ParentState.Next.set('\0', Acceptor.Index);
-    PrintFinish();
-    std::cerr << " := #" << Acceptor.Index << " == Accept("
-              << tokNiceName(Acceptor.AcceptedToken) << ')' << std::endl;
-  }
+  using type =
+    typename TokenBuilder<decltype(
+                            Machine{}.template addOrTraverseTransition<C>()),
+                          Cs...>::type;
+};
+template <class Machine, Token Tok, char C> struct TokenBuilder<Machine, Tok, C>
+{
+  using type = typename decltype(
+    Machine{}
+      .template addOrTraverseTransition<C>()
+      .template addOrTraverseTransition<'\0'>([]() {
+        std::cout << "Accept " << tokNiceName(Tok) << std::endl;
+      }))::type;
 };
 
 } // namespace detail
-#endif
 
-#if 0
 Lexer::~Lexer() = default;
 
 Lexer::Lexer(std::string_view Buffer)
-  : SeqLexer(std::make_unique<detail::CharSequenceLexer>()),
-    OriginalFullBuffer(Buffer), CurrentState({Buffer, Token::NullToken, {}})
+  : OriginalFullBuffer(Buffer), CurrentState({Buffer, Token::NullToken, {}})
 {
   setCurrentToken<Token::BeginningOfFile>();
 
-  std::cerr << "DEBUG: Building sequenced lexical analysis table..."
-            << std::endl;
 #define STR_SPELLING_TOKEN(NAME, SPELLING)                                     \
-  SeqLexer->addNewCharSequence(Token::NAME, SPELLING);
+  /*SeqLexer->addNewCharSequence(Token::NAME, SPELLING)*/;
 #include "Tokens.inc.h"
-  std::cerr << "DEBUG: Lexical analysis table created." << std::endl;
 }
 
 template <Token TK, typename... Args>
@@ -428,8 +221,8 @@ Token Lexer::lexToken()
         TokenBufferEndAtReadBuffer(1); // Restore the last consumed char.
 
         // Check if identifier is reserved keyword.
-        if (std::optional<Token> Keyword = SeqLexer->lexToken(TokenBuffer))
-          return setCurrentTokenRaw(*Keyword, std::monostate{});
+        // if (std::optional<Token> Keyword = SeqLexer->lexToken(TokenBuffer))
+        //   return setCurrentTokenRaw(*Keyword, std::monostate{});
 
         return setCurrentToken<Token::Identifier>(std::string{TokenBuffer});
       }
@@ -584,8 +377,5 @@ std::uint8_t Lexer::peekChar() noexcept
   CurrentState.Buffer = BufferSave;
   return Ch;
 }
-#endif
 
 } // namespace dto_compiler
-
-int main() {}

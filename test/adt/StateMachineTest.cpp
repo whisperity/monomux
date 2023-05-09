@@ -36,7 +36,7 @@ TEST(MetaprogrammingStateMachine, Trivial)
   EXPECT_EQ(Machine.CurrentStateIndex, 1);
 
   auto M2 = Machine.switchToState<1>();
-  EXPECT_EQ(Machine.CurrentStateIndex, 1);
+  EXPECT_EQ(M2.CurrentStateIndex, 1);
 
   auto M3 = M2.addOrTraverseTransition<'A'>();
   EXPECT_EQ(M3.CurrentStateIndex, 2);
@@ -86,5 +86,119 @@ TEST(MetaprogrammingStateMachine, Trivial)
   EXPECT_TRUE(RuntimeMachine.hasErrored());
 }
 
+TEST(MetaprogrammingStateMachine, Loop)
+{
+  auto Machine = createMachine<char>();
+  EXPECT_EQ(Machine.CurrentStateIndex, 1);
+
+  auto M2 = Machine.switchToState<1>();
+  EXPECT_EQ(M2.CurrentStateIndex, 1);
+
+  auto M3 = M2.addOrTraverseTransition<'A'>();
+  EXPECT_EQ(M3.CurrentStateIndex, 2);
+
+  auto M4 = M3.addTransition<'B', 1>();
+  EXPECT_EQ(M4.CurrentStateIndex, 1);
+
+  auto RuntimeMachine = compile(M4);
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), Machine.CurrentStateIndex);
+
+  RuntimeMachine('A');
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M3.CurrentStateIndex);
+
+  RuntimeMachine('B');
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M4.CurrentStateIndex);
+
+  RuntimeMachine('C');
+  EXPECT_TRUE(RuntimeMachine.hasErrored());
+
+  RuntimeMachine.reset();
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), Machine.CurrentStateIndex);
+
+  RuntimeMachine('A');
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M3.CurrentStateIndex);
+
+  RuntimeMachine('B');
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M4.CurrentStateIndex);
+
+  RuntimeMachine('A');
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M3.CurrentStateIndex);
+}
+
+TEST(MetaprogrammingStateMachine, InvalidInputKeepsState)
+{
+  auto Machine = createMachine<char>();
+  EXPECT_EQ(Machine.CurrentStateIndex, 1);
+
+  auto M2 = Machine.switchToState<1>();
+  EXPECT_EQ(M2.CurrentStateIndex, 1);
+
+  auto M3 = M2.addOrTraverseTransition<'A'>();
+  EXPECT_EQ(M3.CurrentStateIndex, 2);
+
+  auto M4 = M3.addOrTraverseTransition<'B'>();
+  EXPECT_EQ(M4.CurrentStateIndex, 3);
+
+  auto RuntimeMachine = compile(M4, true);
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), Machine.CurrentStateIndex);
+
+  RuntimeMachine('A');
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M3.CurrentStateIndex);
+
+  RuntimeMachine('B');
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M4.CurrentStateIndex);
+
+  RuntimeMachine('C');
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M4.CurrentStateIndex);
+
+  RuntimeMachine('D');
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M4.CurrentStateIndex);
+}
+
+TEST(MetaprogrammingStateMachine, DefaultStateEdge)
+{
+  auto Machine = createMachine<char>();
+  EXPECT_EQ(Machine.CurrentStateIndex, 1);
+
+  auto M2 = Machine.switchToState<1>();
+  EXPECT_EQ(M2.CurrentStateIndex, 1);
+
+  auto M3 = M2.addOrTraverseTransition<'A'>();
+  EXPECT_EQ(M3.CurrentStateIndex, 2);
+
+  auto M4 = M3.addOrTraverseTransition<'B'>();
+  EXPECT_EQ(M4.CurrentStateIndex, 3);
+
+  auto M5 = M4.addNewState()
+              .switchToState<Machine.CurrentStateIndex>()
+              .setDefaultTransitionTarget<4>();
+  EXPECT_EQ(M5.CurrentStateIndex, 1);
+  EXPECT_EQ(M5.StateCount, 4);
+
+  auto RuntimeMachine = compile(M5, false);
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), Machine.CurrentStateIndex);
+
+  RuntimeMachine('A');
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M3.CurrentStateIndex);
+
+  RuntimeMachine('B');
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), M4.CurrentStateIndex);
+
+  RuntimeMachine('C');
+  EXPECT_TRUE(RuntimeMachine.hasErrored());
+
+  RuntimeMachine.reset();
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+
+  RuntimeMachine('z'); // Unmapped, but has a default.
+  EXPECT_FALSE(RuntimeMachine.hasErrored());
+  EXPECT_EQ(RuntimeMachine.getCurrentState(), 4);
+}
 /* NOLINTEND(cert-err58-cpp,cppcoreguidelines-avoid-goto,cppcoreguidelines-owning-memory)
  */

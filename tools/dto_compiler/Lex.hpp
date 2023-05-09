@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 #pragma once
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -48,17 +47,8 @@ using AllTokenInfos = std::variant<std::monostate
 /// contained in \p Info.
 std::string tokToString(const AllTokenInfos& Info);
 
-namespace detail
-{
-
-class CharSequenceLexer;
-
-} // namespace detail
-
 class Lexer
 {
-  std::unique_ptr<detail::CharSequenceLexer> SeqLexer;
-
   /// The original buffer the Lexer was constructed with.
   const std::string_view OriginalFullBuffer;
 

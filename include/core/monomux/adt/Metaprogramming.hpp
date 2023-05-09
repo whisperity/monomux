@@ -567,12 +567,28 @@ make_integral_constants(std::integer_sequence<T, Ts...> /*Seq*/)
   return List::L<std::integral_constant<T, Ts>...>{};
 }
 
+template <template <class...> class List, class... Es>
+constexpr std::array<std::remove_cv_t<decltype(List<Es...>::Head::value)>,
+                     size_v<List<Es...>>>
+integral_constants_to_array_impl(List<Es...>&& /*L*/)
+{
+  return std::array{Es::value...};
+}
+
 } // namespace detail
 
 /// Converts an \p integer_sequence into a lits of \p std::integral_constants.
 template <class IntegerSequence>
 using make_integral_constants_t =
   decltype(detail::make_integral_constants(IntegerSequence{}));
+
+/// Converts an \p integral_constants_t to a \p std::array.
+template <class L>
+constexpr std::array<std::remove_cv_t<decltype(L::Head::value)>, size_v<L>>
+integral_constants_to_array()
+{
+  return detail::integral_constants_to_array_impl(L{});
+}
 
 } // namespace monomux::meta
 

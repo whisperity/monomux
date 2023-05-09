@@ -103,7 +103,7 @@ public:
       TargetStateIndex(static_cast<meta::index_t>(0))
   {}
 
-  /// "Initialises" a \p Transition without a callback.
+  /// Initialises a \p Transition without a callback.
   ///
   /// This function only participates in overload resolution if the state
   /// machine does not have a user-defined state, and as such, can not have
@@ -178,9 +178,18 @@ struct Base
 
   /// A core state of the state machine. States are identified by a numeric
   /// index. The state machine being in a particular state is its main property.
-  template <Index I> struct State
+  ///
+  /// \tparam DefaultTransitionTargetIndex The index of the \p State where the
+  /// state machine should translate if receiving an input that does not exist
+  /// as an outgoing edge. If \p 0, the default traversal is disabled.
+  template <Index I, Index DefaultTransitionTargetIndex = 0> struct State
   {
     static inline constexpr const auto Index = I;
+    static inline constexpr const auto DefaultTransitionTarget =
+      DefaultTransitionTargetIndex;
+
+    static inline constexpr const bool HasDefaultTransition =
+      DefaultTransitionTarget != 0;
   };
 
   /// A transition of the state machine from \p From to the \p To state, if
@@ -326,6 +335,42 @@ struct Mutator : public Config
     return {};
   }
 
+  inline constexpr auto addNewState()
+  {
+    using NewStateList =
+      meta::append_t<typename Configuration::BaseT::template State<
+                       meta::size_v<typename Configuration::States>>,
+                     typename Configuration::States>;
+    using NewStateCallbackList = std::conditional_t<
+      CanHaveCallbacks,
+      meta::append_t<void, typename Configuration::StateCallbacks>,
+      meta::empty_list>;
+
+    using NewConfig = typename detail::Configuration<
+      EdgeType,
+      NewStateList,
+      typename Configuration::Transitions,
+      typename Configuration::BaseT::UserStateType,
+      NewStateCallbackList>;
+    return Mutator<CurrentStateIndex, NewConfig>{};
+  }
+
+  template <Index DefaultTransitionTarget>
+  inline constexpr auto setDefaultTransitionTarget()
+  {
+    using NewConfig = typename detail::Configuration<
+      EdgeType,
+      meta::replace_t<
+        typename Configuration::States,
+        CurrentStateIndex,
+        typename Configuration::BaseT::template State<CurrentStateIndex,
+                                                      DefaultTransitionTarget>>,
+      typename Configuration::Transitions,
+      typename Configuration::BaseT::UserStateType,
+      typename Configuration::StateCallbacks>;
+    return Mutator<CurrentStateIndex, NewConfig>{};
+  }
+
   /// Switches the current \p Mutator by traversing from the \b Current state
   /// the transition that has the given \p EdgeValue. If such a transition does
   /// \e not exist, a new state is created and to it, a transition is added.
@@ -345,6 +390,76 @@ struct Mutator : public Config
         CurrentStateIndex,
         EdgeValue,
         !AlreadyExistingTransition::value>;
+      using NewConfig = typename detail::Configuration<
+        EdgeType,
+        typename NewLists::NewStateList,
+        typename NewLists::NewTransitionList,
+        typename Configuration::BaseT::UserStateType,
+        typename NewLists::NewStateCallbackList>;
+
+      return Mutator<NewLists::TargetStateIndex, NewConfig>{};
+    }
+    else
+      return Mutator<AlreadyExistingTransition::type::To, Configuration>{};
+  }
+
+  /// Switches the current \p Mutator by traversing from the \b Current state
+  /// the transition that has the given \p EdgeValue. If such a transition does
+  /// \e not exist, a new state is created and to it, a transition is added.
+  /// If it already exists, only the traversal is performed. Nevertheless,
+  /// returns a \p Mutator which mutates the result of the transition.
+  template <EdgeType EdgeValue, class CallbackType>
+  inline constexpr auto addOrTraverseTransition(CallbackType&& /*Callback*/)
+  {
+    static_assert(
+      CanHaveCallbacks || std::is_same_v<CallbackType, void>,
+      "Callback cannot be specified if there is no user-specified state");
+    using AlreadyExistingTransition =
+      meta::find_t<TransitionAccessFactory<CurrentStateIndex,
+                                           EdgeType,
+                                           EdgeValue>::template Fn,
+                   typename Configuration::Transitions>;
+
+    if constexpr (!AlreadyExistingTransition::value)
+    {
+      using NewLists = typename Configuration::template NewStatesAndTransitions<
+        CurrentStateIndex,
+        EdgeValue,
+        !AlreadyExistingTransition::value,
+        CallbackType>;
+      using NewConfig = typename detail::Configuration<
+        EdgeType,
+        typename NewLists::NewStateList,
+        typename NewLists::NewTransitionList,
+        typename Configuration::BaseT::UserStateType,
+        typename NewLists::NewStateCallbackList>;
+
+      return Mutator<NewLists::TargetStateIndex, NewConfig>{};
+    }
+    else
+      return Mutator<AlreadyExistingTransition::type::To, Configuration>{};
+  }
+
+  /// Switches the current \p Mutator by adding (or traversing, if already
+  /// exists) from the \b Current state via the transition that has the given
+  /// \p EdgeValue to the \p ToState. Nevertheless, returns a \p Mutator which
+  /// mutates the result of the transition.
+  template <EdgeType EdgeValue, Index ToStateIdx>
+  inline constexpr auto addTransition()
+  {
+    using AlreadyExistingTransition =
+      meta::find_t<TransitionAccessFactory<CurrentStateIndex,
+                                           EdgeType,
+                                           EdgeValue>::template Fn,
+                   typename Configuration::Transitions>;
+
+    if constexpr (!AlreadyExistingTransition::value)
+    {
+      using NewLists = typename Configuration::template NewStatesAndTransitions<
+        CurrentStateIndex,
+        EdgeValue,
+        !AlreadyExistingTransition::value,
+        ToStateIdx>;
       using NewConfig = typename detail::Configuration<
         EdgeType,
         typename NewLists::NewStateList,
@@ -503,6 +618,20 @@ toTransitionArrayOfArrays(
     meta::access_t<StateIndices + 1, ListOfTransitionArrayBuilders>::Array...};
 }
 
+template <class MetaState> struct StateToDefaultTransition
+{
+  using type =
+    std::integral_constant<meta::index_t, MetaState::DefaultTransitionTarget>;
+};
+
+template <class State, std::size_t StateCount>
+using CallbackVectorType =
+  std::array<std::conditional_t<!std::is_void_v<State>,
+                                typename detail::ConditionalUserCallbackMember<
+                                  State>::CallbackType,
+                                char>,
+             !std::is_void_v<State> ? StateCount : 1>;
+
 } // namespace detail
 
 /// A run-time evaluateable data structure representing a state machine,
@@ -525,16 +654,34 @@ class Machine
 
   using Transition = detail::Transition<State>;
 
+  const bool InvalidInputKeepsState = false;
   /// Holds the lookup table for all states, first indexed by the current state
   /// leading to the transition objects.
   const detail::LookupTableType<State, LookupTableSize, StateCount> Transitions;
+
+  /// Holds the default transition target for each state (at the index in the
+  /// array), or \p 0 if there is no defualt transition targets.
+  const std::array<meta::index_t, StateCount> DefaultTargets;
+
+  using CallbackVectorType = detail::CallbackVectorType<State, StateCount>;
+  /// Holds the list of \p Callbacks that are fired when the state machine
+  /// reaches a \p State as indexed in this array, if a user-defined state
+  /// exists.
+  const CallbackVectorType Callbacks;
+
   meta::index_t CurrentState = 0;
   bool Errored = false;
 
 public:
-  explicit constexpr Machine(
-    detail::LookupTableType<State, LookupTableSize, StateCount> Transitions)
-    : Transitions(std::move(Transitions))
+  constexpr Machine(
+    detail::LookupTableType<State, LookupTableSize, StateCount> Transitions,
+    std::array<meta::index_t, StateCount> DefaultTransitions,
+    CallbackVectorType StateCallbacks,
+    bool InvalidInputKeepsState)
+    : InvalidInputKeepsState(InvalidInputKeepsState),
+      Transitions(std::move(Transitions)),
+      DefaultTargets(std::move(DefaultTransitions)),
+      Callbacks(std::move(StateCallbacks))
   {
     reset();
   }
@@ -564,7 +711,8 @@ public:
     if (CurrentState == 0 || Errored)
       return *this;
 
-    const auto& TransitionsFromCurrentState = Transitions.at(CurrentState - 1);
+    const meta::index_t StateAsLookupIdx = CurrentState - 1;
+    const auto& TransitionsFromCurrentState = Transitions.at(StateAsLookupIdx);
 
     // Translate the input value to its offset in the lookup table. The lookup
     // table was constructed only for the range of edge values where actual
@@ -574,7 +722,10 @@ public:
     const meta::index_t Offset = Input - LowestBoundValue;
     if (Offset >= LookupTableSize)
     {
-      Errored = true;
+      if (const auto DefTgt = DefaultTargets.at(StateAsLookupIdx); DefTgt != 0)
+        CurrentState = DefTgt;
+      else if (!InvalidInputKeepsState)
+        Errored = true;
       return *this;
     }
 
@@ -582,18 +733,27 @@ public:
       TransitionsFromCurrentState.at(Offset);
     if (!SelectedTransition.leadsAnywhere())
     {
-      Errored = true;
+      if (const auto DefTgt = DefaultTargets.at(StateAsLookupIdx); DefTgt != 0)
+        CurrentState = DefTgt;
+      else if (!InvalidInputKeepsState)
+        Errored = true;
       return *this;
     }
 
     CurrentState = SelectedTransition.getTarget();
+    if constexpr (HasState)
+    {
+      SelectedTransition.getCallback()(this->getState());
+    }
     return *this;
   }
 };
 
 /// Compiles the specified in-progress state machine into a run-time executable
 /// data structure.
-template <typename Mutator> static inline constexpr auto compile(Mutator /*M*/)
+template <typename Mutator>
+static inline constexpr auto compile(Mutator /*M*/,
+                                     bool InvalidInputKeepsState = false)
 {
   using namespace monomux::meta;
   using Index = typename Mutator::Index;
@@ -629,11 +789,21 @@ template <typename Mutator> static inline constexpr auto compile(Mutator /*M*/)
     detail::toTransitionArrayOfArrays<StateType, Range, TransitionMap>(
       std::make_integer_sequence<Index, Configuration::StateCount>{});
 
+  using ProjectedStateDefaultTransitions =
+    map_t<detail::StateToDefaultTransition, typename Configuration::States>;
+
+  using StateCallbackVectorType =
+    detail::CallbackVectorType<StateType, Configuration::StateCount>;
+  if constexpr (Configuration::CanHaveCallbacks) {}
+
   return Machine<EdgeType,
                  MinTransitionEdgeValue,
                  Configuration::StateCount,
                  Range,
-                 StateType>(LookupArray);
+                 StateType>(
+    LookupArray,
+    meta::integral_constants_to_array<ProjectedStateDefaultTransitions>(),
+    InvalidInputKeepsState);
 }
 
 /// Creates the \b compile-time metastructure for a new state machine that
