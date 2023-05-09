@@ -2,6 +2,8 @@
 #pragma once
 #include <type_traits>
 
+#include "monomux/adt/Metaprogramming.hpp"
+
 #define MONOMUX_DETAIL_FUNCTION_HEAD(                                          \
   RET_TY, NAME, ARGUMENTS, ATTRIBUTES, QUALIFIERS)                             \
   ATTRIBUTES RET_TY NAME(ARGUMENTS) QUALIFIERS
@@ -75,44 +77,27 @@ namespace monomux
 namespace detail
 {
 
-using IndexTy = unsigned long long;
-
-template <IndexTy N, typename T0, typename... Ts> struct TypeVecAccess
+template <meta::index_t I, typename... Ts> struct Argument;
+template <meta::index_t I, typename RetTy, typename... Args>
+struct Argument<I, RetTy(Args...)>
 {
-  using type = typename TypeVecAccess<N - 1, Ts...>::type;
+  using type = typename meta::access_t<I, meta::list<Args...>>;
 };
-
-template <typename T0, typename... Ts> struct TypeVecAccess<1, T0, Ts...>
-{
-  using type = T0;
-};
-
-template <detail::IndexTy N, typename... Ts> struct ArgumentType;
-
-template <detail::IndexTy N, typename RetTy, typename... Args>
-struct ArgumentType<N, RetTy(Args...)>
-{
-  using type = typename TypeVecAccess<N, Args...>::type;
-};
-
-template <detail::IndexTy N, typename RetTy, typename... Args>
-struct ArgumentType<N, RetTy(Args...) noexcept>
-  : ArgumentType<N, RetTy(Args...)>
+template <meta::index_t I, typename RetTy, typename... Args>
+struct Argument<I, RetTy(Args...) noexcept> : Argument<I, RetTy(Args...)>
 {};
-template <detail::IndexTy N, typename RetTy, typename... Args>
-struct ArgumentType<N, RetTy (*)(Args...)> : ArgumentType<N, RetTy(Args...)>
+template <meta::index_t I, typename RetTy, typename... Args>
+struct Argument<I, RetTy (*)(Args...)> : Argument<I, RetTy(Args...)>
 {};
-template <detail::IndexTy N, typename RetTy, typename... Args>
-struct ArgumentType<N, RetTy (&)(Args...)> : ArgumentType<N, RetTy(Args...)>
+template <meta::index_t I, typename RetTy, typename... Args>
+struct Argument<I, RetTy (&)(Args...)> : Argument<I, RetTy(Args...)>
 {};
 
 template <typename> struct ReturnType;
-
 template <typename RetTy, typename... Args> struct ReturnType<RetTy(Args...)>
 {
   using type = RetTy;
 };
-
 template <typename RetTy, typename... Args>
 struct ReturnType<RetTy(Args...) noexcept> : ReturnType<RetTy(Args...)>
 {};
@@ -127,8 +112,8 @@ struct ReturnType<RetTy (&)(Args...)> : ReturnType<RetTy(Args...)>
 
 /// \returns the Nth argument type of the specified function, which must be a
 /// uniquely resolved overload.
-template <detail::IndexTy N, typename Fn>
-using argument_t = typename detail::ArgumentType<N, Fn>::type;
+template <meta::index_t I, typename Fn>
+using argument_t = typename detail::Argument<I, Fn>::type;
 
 /// \returns the return type of the specified function, which must be a
 /// uniquely resolved overload.

@@ -38,8 +38,10 @@ if (MONOMUX_BUILD_TESTS)
   add_executable(monomux_tests
     main.cpp
 
+    adt/MetaprogrammingTest.cpp
     adt/RingBufferTest.cpp
     adt/SmallIndexMapTest.cpp
+    adt/StateMachineTest.cpp
     message/MessageSerialisationTest.cpp
     )
   target_include_directories(monomux_tests PUBLIC

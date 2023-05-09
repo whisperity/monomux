@@ -3,7 +3,8 @@
 
 #include "monomux/adt/SmallIndexMap.hpp"
 
-/* NOLINTBEGIN(cert-err58-cpp) */
+/* NOLINTBEGIN(cert-err58-cpp,cppcoreguidelines-avoid-goto,cppcoreguidelines-owning-memory)
+ */
 
 using namespace monomux;
 
@@ -437,4 +438,5 @@ TEST(SmallIndexMap, LargeMap)
   EXPECT_TRUE(M.isSmall());
 }
 
-/* NOLINTEND(cert-err58-cpp) */
+/* NOLINTEND(cert-err58-cpp,cppcoreguidelines-avoid-goto,cppcoreguidelines-owning-memory)
+ */
