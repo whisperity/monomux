@@ -10,18 +10,14 @@
 #include <variant>
 #include <vector>
 
-#include "monomux/adt/Metaprogramming.hpp"
-#include "monomux/adt/StateMachine.hpp"
-// #include "monomux/adt/FunctionExtras.hpp"
-// #include "monomux/adt/SmallIndexMap.hpp"
-// #include "monomux/unreachable.hpp"
-//
-// #include "Lex.hpp"
+#include "monomux/adt/FunctionExtras.hpp"
+#include "monomux/adt/SmallIndexMap.hpp"
+#include "monomux/unreachable.hpp"
 
+#include "Lex.hpp"
 
 namespace dto_compiler
 {
-#if 0
 std::string_view tokNiceName(Token TK)
 {
   switch (TK)
@@ -342,9 +338,7 @@ private:
 };
 
 } // namespace detail
-#endif
 
-#if 0
 Lexer::~Lexer() = default;
 
 Lexer::Lexer(std::string_view Buffer)
@@ -584,8 +578,5 @@ std::uint8_t Lexer::peekChar() noexcept
   CurrentState.Buffer = BufferSave;
   return Ch;
 }
-#endif
 
 } // namespace dto_compiler
-
-int main() {}
