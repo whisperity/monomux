@@ -63,5 +63,11 @@ int main(int ArgC, char* ArgV[])
   while ((T = L.lex()) != Token::EndOfFile)
   {
     std::cout << tokToString(L.getTokenInfoRaw()) << std::endl;
+
+    if (T == Token::SyntaxError)
+    {
+      std::cerr << "ERROR!" << std::endl;
+      return EXIT_FAILURE;
+    }
   }
 }

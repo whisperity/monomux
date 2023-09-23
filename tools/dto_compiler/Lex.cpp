@@ -117,7 +117,7 @@ class CharSequenceLexer
                            NumCharValues,
                            /* StoreInPlace =*/true,
                            /* IntrusiveDefaultSentinel =*/true,
-                           /* KeyType =*/std::uint8_t>
+                           /* KeyType =*/Lexer::Char>
       Next{};
 
     /// If set and a transition in \p Next is not set, instead of going into
@@ -125,7 +125,7 @@ class CharSequenceLexer
     /// here.
     std::optional<std::size_t> DefaultNextState;
 
-    [[nodiscard]] std::size_t getNextState(std::uint8_t TransitionChar) const
+    [[nodiscard]] std::size_t getNextState(Lexer::Char TransitionChar) const
     {
       if (const std::size_t* NextIndex = Next.tryGet(TransitionChar))
         return *NextIndex;
@@ -176,7 +176,7 @@ public:
     {
       if (const auto* Forward = std::get_if<ForwardState>(&State()))
       {
-        const std::uint8_t NextChar = !Buffer.empty() ? Buffer.front() : '\0';
+        const Lexer::Char NextChar = !Buffer.empty() ? Buffer.front() : '\0';
         const std::size_t NextIndex = Forward->getNextState(NextChar);
         if (NextIndex == static_cast<std::size_t>(-1))
           // Received error state.
@@ -387,23 +387,13 @@ Token Lexer::lexToken()
 {
   std::string_view TokenBuffer = CurrentState.Buffer;
   auto TokenBufferEndAtReadBuffer = [&](std::size_t KeepCharsAtEnd = 0) {
-    const std::size_t TokenLength =
-      TokenBuffer.size() - CurrentState.Buffer.size() - KeepCharsAtEnd;
-    if (KeepCharsAtEnd > 0)
-    {
-      // Save out the original buffer so KeepCharsAtEnd chars will effectively
-      // be kept in the running read buffer.
-      std::string_view OriginalBuffer = TokenBuffer;
-      OriginalBuffer.remove_prefix(TokenLength);
-      CurrentState.Buffer = OriginalBuffer;
-    }
-    TokenBuffer.remove_suffix(TokenBuffer.size() - TokenLength);
+    tokenBufferSetEndAtReadBuffer(TokenBuffer, KeepCharsAtEnd);
   };
-  std::uint8_t Ch = getChar();
+  Char Ch = getChar();
 
   switch (Ch)
   {
-    case static_cast<std::uint8_t>(EOF):
+    case static_cast<Char>(EOF):
       return setCurrentToken<Token::EndOfFile>();
     case ' ':
     case '\t':
@@ -480,7 +470,7 @@ Token Lexer::lexToken()
             Ch = getChar();
             switch (Ch)
             {
-              case static_cast<std::uint8_t>(EOF):
+              case static_cast<Char>(EOF):
                 setCurrentToken<Token::SyntaxError>("Unterminated /* comment");
                 return;
               case '/':
@@ -518,10 +508,76 @@ Token Lexer::lexToken()
 
       return lexToken();
     }
+
+    case ':':
+    {
+      Ch = getChar();
+      if (Ch == ':') // ::
+        return setCurrentToken<Token::Scope>();
+
+      return setCurrentToken<Token::SyntaxError>(
+        std::string("Unexpected ") + static_cast<char>(Ch) + " when reading " +
+        std::string{TokenBuffer});
+    }
+
+    case '-':
+    {
+      if (peekChar() == '>') // ->
+      {
+        (void)getChar(); // Consume the '>'.
+        return setCurrentToken<Token::Arrow>();
+      }
+
+      return lexIntegerlLiteral(TokenBuffer);
+    }
+
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      return lexIntegerlLiteral(TokenBuffer);
   }
 
   std::cerr << TokenBuffer << std::endl;
   unreachable("switch() statement should've returned appropriate Token");
+}
+
+Token Lexer::lexIntegerlLiteral(std::string_view& TokenBuffer)
+{
+  bool IsNegative = TokenBuffer.front() == '-';
+  Char Ch = getChar();
+  while (std::isdigit(Ch))
+    Ch = getChar();
+
+  tokenBufferSetEndAtReadBuffer(TokenBuffer, 1); // Restore the last consumed
+                                                 // non-digit.
+  if (IsNegative)
+    return setCurrentToken<Token::Integral>(
+      std::stoll(std::string{TokenBuffer}));
+  return setCurrentToken<Token::Integral>(
+    std::stoull(std::string{TokenBuffer}));
+}
+
+void Lexer::tokenBufferSetEndAtReadBuffer(std::string_view& TokenBuffer,
+                                          std::size_t KeepCharsAtEnd)
+{
+  const std::size_t TokenLength =
+    TokenBuffer.size() - CurrentState.Buffer.size() - KeepCharsAtEnd;
+  if (KeepCharsAtEnd > 0)
+  {
+    // Save out the original buffer so KeepCharsAtEnd chars will effectively
+    // be kept in the running read buffer.
+    std::string_view OriginalBuffer = TokenBuffer;
+    OriginalBuffer.remove_prefix(TokenLength);
+    CurrentState.Buffer = OriginalBuffer;
+  }
+  TokenBuffer.remove_suffix(TokenBuffer.size() - TokenLength);
 }
 
 Token Lexer::lex() { return lexToken(); }
@@ -534,13 +590,13 @@ Token Lexer::peek()
   return Peeked;
 }
 
-std::uint8_t Lexer::getChar() noexcept
+Lexer::Char Lexer::getChar() noexcept
 {
   if (CurrentState.Buffer.empty() ||
       (CurrentState.Buffer.size() == 1 && CurrentState.Buffer.front() == '\0'))
     return EOF;
 
-  auto Ch = static_cast<std::uint8_t>(CurrentState.Buffer.front());
+  auto Ch = static_cast<Char>(CurrentState.Buffer.front());
   // Ch has been consumed.
   CurrentState.Buffer.remove_prefix(1);
 
@@ -561,7 +617,7 @@ std::uint8_t Lexer::getChar() noexcept
     case '\n':
     case '\r':
     {
-      auto NextCh = static_cast<std::uint8_t>(CurrentState.Buffer.front());
+      auto NextCh = static_cast<Char>(CurrentState.Buffer.front());
       // Consume whitespace. If observing a "\n\r" or "\r\n" sequence, ignore
       // the '\r' and report it as a single newline.
       if ((NextCh == '\n' || NextCh == '\r') && NextCh != Ch)
@@ -571,10 +627,10 @@ std::uint8_t Lexer::getChar() noexcept
   }
 }
 
-std::uint8_t Lexer::peekChar() noexcept
+Lexer::Char Lexer::peekChar() noexcept
 {
   auto BufferSave = CurrentState.Buffer;
-  std::uint8_t Ch = getChar();
+  Char Ch = getChar();
   CurrentState.Buffer = BufferSave;
   return Ch;
 }

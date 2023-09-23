@@ -10,7 +10,7 @@
 namespace dto_compiler
 {
 
-/// Contains the definitions for the tokens supported by the DTO DSL.
+/// Contains the kinds of tokens supported by the DTO DSL.
 enum class Token
 {
   NullToken,
@@ -78,6 +78,8 @@ class Lexer
   State CurrentState;
 
 public:
+  using Char = std::uint8_t;
+
   explicit Lexer(std::string_view Buffer);
   Lexer(const Lexer&) = delete;
   Lexer(Lexer&&) = delete;
@@ -111,15 +113,25 @@ public:
 private:
   /// \returns the first "meaningful" (non-whitespace) character at the
   /// beginning of the to-be-read \p Buffer.
-  [[nodiscard]] std::uint8_t getChar() noexcept;
+  [[nodiscard]] Char getChar() noexcept;
 
   /// \returns the first "meaningful" (non-whitespace) character at the
   /// beginning of the to-be-read \p Buffer without altering it.
-  [[nodiscard]] std::uint8_t peekChar() noexcept;
+  [[nodiscard]] Char peekChar() noexcept;
+
+  /// Cut \p TokenBuffer to end at the already consumed portion of the \p Lexer
+  /// read-buffer, optionally restoring \p KeepCharsAtEnd number of characters
+  /// back to the end.
+  void tokenBufferSetEndAtReadBuffer(std::string_view& TokenBuffer,
+                                     std::size_t KeepCharsAtEnd = 0);
 
   /// Lexes the next token and return its identifying kind, mutating the state
   /// of the lexer in the process.
   [[nodiscard]] Token lexToken();
+
+  /// Lexes an integer literal from the pending \p TokenBuffer that starts with
+  /// the \p Ch character.
+  [[nodiscard]] Token lexIntegerlLiteral(std::string_view& TokenBuffer);
 
   template <Token TK, typename... Args> Token setCurrentToken(Args&&... Argv);
   Token setCurrentTokenRaw(Token TK, AllTokenInfos Info);

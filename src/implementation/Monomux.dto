@@ -3,7 +3,21 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 /*! SPDX-License-Identifier: /* LGPL-3.0-only */ */
 
-namespace monomux::_generated
+namespace monomux::message
 {
 
-} //! namespace monomux::_generated
+literal ui64 APIMajor = 1;
+literal ui64 APIMinor = 0;
+
+function ClientID() -> {ui64 ID;
+                        ui64 Nonce;
+                        }
+
+record ProcessSpawnOptions {
+  string              Program;
+  vector<string>      Arguments;
+  map<string, string> SetEnvironment;
+  vector<string>      UnsetEnvironment;
+};
+
+} //! namespace monomux::message

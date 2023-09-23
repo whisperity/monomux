@@ -27,6 +27,10 @@
 #define CH_SPELLING_TOKEN(NAME, SPELLING) SIMPLE_TOKEN(NAME)
 #endif /* CH_SPELLING_TOKEN */
 
+#ifndef SYMBOL_TOKEN
+#define SYMBOL_TOKEN(NAME, SPELLING) SIMPLE_TOKEN(NAME)
+#endif /* SYMBOL_TOKEN */
+
 #ifndef STR_SPELLING_TOKEN
 #define STR_SPELLING_TOKEN(NAME, ...) SIMPLE_TOKEN(NAME)
 #endif /* STR_SPELLING_TOKEN */
@@ -47,15 +51,29 @@ COMPLEX_TOKEN(SyntaxError, TOKEN_INFO(std::string, Exception))
 
 /* Verbatim structures ... */
 COMPLEX_TOKEN(Identifier, TOKEN_INFO(std::string, Identifier))
+COMPLEX_TOKEN(Integral, TOKEN_INFO(std::size_t, Value))
 COMPLEX_TOKEN(Comment,
               TOKEN_INFO(bool, IsBlockComment) TOKEN_INFO(std::string, Comment))
 
 /* Symbols ... */
+CH_SPELLING_TOKEN(Comma, ',')
+CH_SPELLING_TOKEN(Semicolon, ';')
+CH_SPELLING_TOKEN(Eq, '=')
+CH_SPELLING_TOKEN(LParen, '(')
+CH_SPELLING_TOKEN(RParen, ')')
 CH_SPELLING_TOKEN(LBrace, '{')
 CH_SPELLING_TOKEN(RBrace, '}')
+CH_SPELLING_TOKEN(LAcute, '<')
+CH_SPELLING_TOKEN(RAcute, '>')
+
+SYMBOL_TOKEN(Arrow, "->")
+SYMBOL_TOKEN(Scope, "::")
 
 /* Keywords ... */
 STR_SPELLING_TOKEN(Namespace, "namespace")
+STR_SPELLING_TOKEN(Literal, "literal")
+STR_SPELLING_TOKEN(Function, "function")
+STR_SPELLING_TOKEN(Record, "record")
 
 
 #undef TOKEN
@@ -63,6 +81,7 @@ STR_SPELLING_TOKEN(Namespace, "namespace")
 #undef AFTER_TOKEN
 #undef TOKEN_INFO
 #undef SIMPLE_TOKEN
+#undef SYMBOL_TOKEN
 #undef CH_SPELLING_TOKEN
 #undef STR_SPELLING_TOKEN
 #undef COMPLEX_TOKEN
