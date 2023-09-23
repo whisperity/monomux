@@ -43,7 +43,7 @@ std::string parser::parse_potentially_scoped_identifier()
   std::string Identifier;
   while (true)
   {
-    token T = Lexer.current_token();
+    token T = get_current_token();
     if (T == token::Scope)
       Identifier.append("::");
     else if (T == token::Identifier)
@@ -54,28 +54,32 @@ std::string parser::parse_potentially_scoped_identifier()
     else
       return Identifier;
 
-    (void)Lexer.lex();
+    (void)get_next_token();
   }
 }
 
 bool parser::parse_namespace()
 {
   // First, need to consume the identifier of the namespace.
-  assert(Lexer.current_token() == token::Namespace && "Expected 'namespace'");
-  (void)Lexer.lex();
+  assert(get_current_token() == token::Namespace && "Expected 'namespace'");
+  (void)get_next_token();
   std::string Identifier = parse_potentially_scoped_identifier();
 
-  if (Lexer.lex() != token::LBrace)
+  if (get_current_token() != token::LBrace)
     set_error_to_current_token("Expected '{' after namespace declaration");
 
   auto* NSD = DeclContext->get_or_create_child_decl<ast::namespace_decl>(
     std::move(Identifier));
   restore_guard G{DeclContext};
   DeclContext = NSD;
+  (void)get_next_token();
   bool Inner = parse();
 
-  if (Inner && Lexer.current_token() != token::RBrace)
+  if (Inner && get_current_token() != token::RBrace)
+  {
     set_error_to_current_token("Parsing of a 'namespace' ended without a '}'");
+    return false;
+  }
 
   return Inner;
 }
@@ -86,11 +90,11 @@ bool parser::parse()
 
   while (true)
   {
-    switch (Lexer.current_token())
+    switch (get_current_token())
     {
       case token::BeginningOfFile:
       {
-        (void)Lexer.lex();
+        (void)get_next_token();
         continue;
       }
 
@@ -101,10 +105,9 @@ bool parser::parse()
         return false;
 
       default:
-        set_error_to_current_token(
-          std::string{"Unexpected "} +
-          std::string{to_string(Lexer.current_token())} +
-          std::string{" encountered while parsing."});
+        set_error_to_current_token(std::string{"Unexpected "} +
+                                   std::string{to_string(get_current_token())} +
+                                   std::string{" encountered while parsing."});
         return false;
 
       case token::RBrace:
@@ -128,7 +131,10 @@ bool parser::parse()
         break;
     }
 
-    (void)Lexer.lex();
+    if (!has_error())
+      (void)get_next_token();
+    else
+      return false;
   }
 
   return true;
@@ -150,13 +156,25 @@ const parser::error_info& parser::get_error() const noexcept
 void parser::set_error_to_current_token(std::string Reason) noexcept
 {
   Error.emplace(error_info{.Location = Lexer.get_location(),
-                           .TokenKind = Lexer.current_token(),
+                           .TokenKind = get_current_token(),
                            .TokenInfo = Lexer.get_token_info_raw(),
                            .Reason = std::move(Reason)});
 }
 
+token parser::get_current_token() noexcept
+{
+  MONOMUX_DEBUG(std::cout << "< ### Access...> ");
+  token T = Lexer.current_token();
+  MONOMUX_DEBUG(std::cout << Lexer.get_location().Line << ':'
+                          << Lexer.get_location().Column << ' ';
+                std::cout << to_string(Lexer.get_token_info_raw())
+                          << std::endl;);
+  return T;
+}
+
 token parser::get_next_token() noexcept
 {
+  MONOMUX_DEBUG(std::cout << "< ---> Lex...> ");
   token T = Lexer.lex();
   if (T == token::SyntaxError)
   {

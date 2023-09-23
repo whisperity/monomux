@@ -45,6 +45,7 @@ private:
   std::optional<error_info> Error;
   void set_error_to_current_token(std::string Reason) noexcept;
 
+  [[nodiscard]] token get_current_token() noexcept;
   [[nodiscard]] token get_next_token() noexcept;
 
   ast::decl_context* DeclContext;
