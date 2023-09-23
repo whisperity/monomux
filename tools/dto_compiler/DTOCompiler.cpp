@@ -6,7 +6,9 @@
 #include <string>
 #include <string_view>
 
-#include "lex.hpp"
+#include "dto_unit.hpp"
+#include "lexer.hpp"
+#include "parser.hpp"
 
 namespace
 {
@@ -57,17 +59,32 @@ int main(int ArgC, char* ArgV[])
   std::cout << "Input string:\n" << InputBuffer << std::endl;
 
   using namespace monomux::tools::dto_compiler;
+
   lexer L{InputBuffer};
+  parser P{L};
+  bool Success = P.parse();
+  std::cout << P.get_unit().dump().str() << std::endl;
 
-  token T{};
-  while ((T = L.lex()) != token::EndOfFile)
+  if (!Success)
   {
-    std::cout << to_string(L.get_token_info_raw()) << std::endl;
+    std::cerr << "ERROR! " << P.get_error().Location.Line << ':'
+              << P.get_error().Location.Column << ": " << P.get_error().Reason
+              << std::endl;
+    std::string_view ErrorLine = [&]() -> std::string_view {
+      auto RemainingRowCnt = P.get_error().Location.Line - 1;
+      std::size_t LinePos = 0;
+      while (RemainingRowCnt)
+      {
+        LinePos = InputBuffer.find('\n', LinePos) + 1;
+        --RemainingRowCnt;
+      }
 
-    if (T == token::SyntaxError)
-    {
-      std::cerr << "ERROR!" << std::endl;
-      return EXIT_FAILURE;
-    }
+      std::string_view Line = InputBuffer;
+      Line.remove_prefix(LinePos);
+      return Line.substr(0, Line.find('\n'));
+    }();
+    std::cerr << "     " << ErrorLine << std::endl;
+    std::cerr << "     " << std::string(P.get_error().Location.Column - 1, ' ')
+              << '^' << std::endl;
   }
 }

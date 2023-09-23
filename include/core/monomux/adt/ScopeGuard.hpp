@@ -13,7 +13,8 @@ namespace monomux
 ///   \code{.cpp}
 ///   scope_guard RAII{[] { enter(); }, [] { exit(); }};
 ///   \endcode
-template <typename EnterFunction, typename ExitFunction> struct ScopeGuard
+template <typename EnterFunction, typename ExitFunction>
+struct [[deprecated("Replace by scope_guard")]] ScopeGuard
 {
   ScopeGuard(EnterFunction&& Enter, ExitFunction&& Exit) : Exit(Exit)
   {

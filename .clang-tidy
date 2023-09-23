@@ -63,6 +63,7 @@ Checks: >-
   -bugprone-macro-parantheses,
   -bugprone-narrowing-conversions,
   -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-do-while,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-macro-usage,

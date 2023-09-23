@@ -4,6 +4,21 @@
 
 #include "monomux/adt/Metaprogramming.hpp"
 
+#define MONOMUX_MAKE_NON_COPYABLE(CLASS_NAME)                                  \
+  CLASS_NAME(const CLASS_NAME&) = delete;                                      \
+  CLASS_NAME& operator=(const CLASS_NAME&) = delete;
+#define MONOMUX_MAKE_NON_MOVABLE(CLASS_NAME)                                   \
+  CLASS_NAME(CLASS_NAME&&) = delete;                                           \
+  CLASS_NAME& operator=(CLASS_NAME&&) = delete;
+#define MONOMUX_MAKE_NON_COPYABLE_MOVABLE(CLASS_NAME)                          \
+  MONOMUX_MAKE_NON_COPYABLE(CLASS_NAME)                                        \
+  MONOMUX_MAKE_NON_MOVABLE(CLASS_NAME)
+
+#define MONOMUX_MAKE_STRICT_TYPE(CLASS_NAME, VIRTUAL_DTOR)                     \
+  CLASS_NAME() = default;                                                      \
+  MONOMUX_MAKE_NON_COPYABLE_MOVABLE(CLASS_NAME)                                \
+  VIRTUAL_DTOR ~CLASS_NAME() = default;
+
 #define MONOMUX_DETAIL_FUNCTION_HEAD(                                          \
   RET_TY, NAME, ARGUMENTS, ATTRIBUTES, QUALIFIERS)                             \
   ATTRIBUTES RET_TY NAME(ARGUMENTS) QUALIFIERS
@@ -17,11 +32,13 @@
 #define MONOMUX_DETAIL_CONST_TYPE                                              \
   using Const = std::add_pointer_t<                                            \
     std::add_const_t<std::remove_pointer_t<decltype(this)>>>
-#define MONOMUX_DETAIL_CONST_OBJ const_cast<Const>(this)
 #define MONOMUX_DETAIL_CONST_VALUE(CALL) const auto& Value = CALL
+/* NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast) */
+#define MONOMUX_DETAIL_CONST_OBJ const_cast<Const>(this)
 /* NOLINTBEGIN(bugprone-macro-parantheses) */
 #define MONOMUX_DETAIL_RETURN_CAST(RET_TY, OBJ) return const_cast<RET_TY>(OBJ)
 /* NOLINTEND(bugprone-macro-parantheses) */
+/* NOLINTEND(cppcoreguidelines-pro-type-const-cast) */
 
 #define MONOMUX_DETAIL_FUNCTION_BODY(RET_TY, CALL)                             \
   {                                                                            \

@@ -7,6 +7,8 @@
 #include <string_view>
 #include <variant>
 
+#include "monomux/adt/FunctionExtras.hpp"
+
 namespace monomux::tools::dto_compiler
 {
 
@@ -63,8 +65,27 @@ class lexer
   std::unique_ptr<detail::char_sequence_lexer> SequenceLexer;
 
   /// The original buffer the Lexer was constructed with.
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
   const std::string_view OriginalFullBuffer;
 
+public:
+  struct location
+  {
+    std::size_t Absolute;
+    std::size_t Line, Column;
+
+    /// Creates a \p location based on the position where \p Buffer begins
+    /// within the \p FullBuffer.
+    static location make_location(std::string_view FullBuffer,
+                                  std::string_view Buffer) noexcept;
+
+    /// Creates a \p location for the position marked by \p AbsoluteLoc in the
+    /// \p Buffer.
+    static location make_location(std::string_view Buffer,
+                                  std::size_t AbsoluteLoc) noexcept;
+  };
+
+private:
   struct state
   {
     /// The currently lexed tail end of the buffer. Same as \p
@@ -74,9 +95,14 @@ class lexer
     /// The last lexed token.
     token Tok;
     /// Information about the last lexed token, if any.
+    ///
     /// This is \b guaranteed to contain the appropriate \p TokenKind
     /// specialisation.
     all_token_infos_type Info;
+
+    /// The absolute location (first char in the buffer at index 0) where the
+    /// last lexed token \p Tok begun.
+    std::size_t Loc;
   };
   state CurrentState;
 
@@ -85,19 +111,25 @@ public:
   using Char = std::uint8_t;
 
   explicit lexer(std::string_view Buffer);
-  lexer(const lexer&) = delete;
-  lexer(lexer&&) = delete;
-  lexer& operator=(const lexer&) = delete;
-  lexer& operator=(lexer&&) = delete;
+  MONOMUX_MAKE_NON_COPYABLE_MOVABLE(lexer);
   ~lexer();
 
   /// Lexes the next token and returns its identifying kind. The state of the
   /// lexer is updated by this operation.
-  [[nodiscard]] token lex();
+  [[nodiscard]] token lex() noexcept;
+
+  /// Returns the type of the last lexed \p token without lexing a new one.
+  [[nodiscard]] token current_token() const noexcept
+  {
+    return CurrentState.Tok;
+  }
+
+  /// \returns the \p location of the last \p token returned by \p lex().
+  [[nodiscard]] location get_location() const noexcept;
 
   /// Lexes the next token and returns its identifying kind, but discards the
   /// result without affecting the state of the lexer.
-  [[nodiscard]] token peek();
+  [[nodiscard]] token peek() noexcept;
 
   /// \returns the currently stored token info, without any semantic checks to
   /// its value.
@@ -111,7 +143,7 @@ public:
   template <token TK>
   [[nodiscard]] std::optional<token_info<TK>> get_token_info() const noexcept
   {
-    if (auto* TKInfo = std::get_if<token_info<TK>>(CurrentState.Info))
+    if (auto* TKInfo = std::get_if<token_info<TK>>(&CurrentState.Info))
       return *TKInfo;
     return std::nullopt;
   }
@@ -128,24 +160,26 @@ private:
   /// Cut \p TokenBuffer to end at the already consumed portion of the \p Lexer
   /// read-buffer, optionally restoring \p KeepCharsAtEnd number of characters
   /// back to the end.
-  void token_buffer_set_end_at_consumed_buffer(std::string_view& TokenBuffer,
-                                               std::size_t KeepCharsAtEnd = 0);
+  void token_buffer_set_end_at_consumed_buffer(
+    std::string_view& TokenBuffer, std::size_t KeepCharsAtEnd = 0) noexcept;
 
   /// Lexes the next token and return its identifying kind, mutating the state
   /// of the lexer in the process.
-  [[nodiscard]] token lex_token();
+  [[nodiscard]] token lex_token() noexcept;
 
   /// Lexes a comment, either by ignoring it to a \p NullToken, or by creating
   /// a \p Comment token that contains the lexed value for the comment.
   [[nodiscard]] token lex_comment(std::string_view& TokenBuffer,
-                                  bool MultiLine);
+                                  bool MultiLine) noexcept;
 
   /// Lexes an integer literal from the pending \p TokenBuffer that starts with
   /// the \p Ch character.
-  [[nodiscard]] token lex_integer_literal(std::string_view& TokenBuffer);
+  [[nodiscard]] token
+  lex_integer_literal(std::string_view& TokenBuffer) noexcept;
 
-  template <token TK, typename... Args> token set_current_token(Args&&... Argv);
-  token set_current_token_raw(token TK, all_token_infos_type Info);
+  template <token TK, typename... Args>
+  token set_current_token(Args&&... Argv) noexcept;
+  token set_current_token_raw(token TK, all_token_infos_type Info) noexcept;
 };
 
 } // namespace monomux::tools::dto_compiler

@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 add_executable(dto_compiler
   DTOCompiler.cpp
-  lex.cpp
+
+  dto_unit.cpp
+  lexer.cpp
+  parser.cpp
+
+  ast/decl.cpp
   )
 if (NOT MONOMUX_LIBRARY_TYPE STREQUAL "UNITY")
   target_link_libraries(dto_compiler PUBLIC

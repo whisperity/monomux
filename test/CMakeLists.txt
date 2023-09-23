@@ -40,6 +40,7 @@ if (MONOMUX_BUILD_TESTS)
 
     adt/MetaprogrammingTest.cpp
     adt/RingBufferTest.cpp
+    adt/scope_guard_test.cpp
     adt/SmallIndexMapTest.cpp
     message/MessageSerialisationTest.cpp
     )

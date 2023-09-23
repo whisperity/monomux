@@ -1,23 +1,32 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
-#include <array>
+#include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstring>
-#include <iostream>
-#include <limits>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#ifndef NDEBUG
+#include <iostream>
+#endif /* !NDEBUG */
+
+#include "monomux/Debug.h"
 #include "monomux/adt/FunctionExtras.hpp"
 #include "monomux/adt/SmallIndexMap.hpp"
+#include "monomux/adt/scope_guard.hpp"
 #include "monomux/unreachable.hpp"
 
-#include "lex.hpp"
+#include "lexer.hpp"
 
 namespace monomux::tools::dto_compiler
 {
+
 std::string_view to_string(token TK)
 {
   switch (TK)
@@ -195,9 +204,9 @@ public:
         return std::nullopt;
       else
       {
-        std::cerr << "ERROR: Unhandled state type at #" << StateIndex
-                  << " when reading" << Buffer << " at the end of  " << Chars
-                  << std::endl;
+        MONOMUX_DEBUG(std::cerr << "ERROR: Unhandled state type at #"
+                                << StateIndex << " when reading" << Buffer
+                                << " at the end of  " << Chars << std::endl);
         return std::nullopt;
       }
     }
@@ -211,8 +220,9 @@ public:
 
   void add_new_char_sequence(token Tok, std::string_view Str)
   {
-    std::cerr << "CharSequence for Token::" << to_string(Tok) << " = " << '"'
-              << Str << '"' << " (size: " << Str.size() << ')' << std::endl;
+    MONOMUX_DEBUG(std::cerr << "CharSequence for Token::" << to_string(Tok)
+                            << " = " << '"' << Str << '"'
+                            << " (size: " << Str.size() << ')' << std::endl);
     (void)create_start_state_if_none();
     States.reserve(States.size() + 1 /* Acceptor state */ +
                    Str.size() /* Letter transitions...*/ +
@@ -227,8 +237,8 @@ public:
       Acceptors.set(RawTok, I);
       return I;
     }();
-    std::cerr << '#' << AcceptStateIndex << " = AcceptState(" << to_string(Tok)
-              << ')' << std::endl;
+    MONOMUX_DEBUG(std::cerr << '#' << AcceptStateIndex << " = AcceptState("
+                            << to_string(Tok) << ')' << std::endl);
 
     continue_building_char_lex_sequence(
       Str,
@@ -250,7 +260,8 @@ private:
   {
     if (StartStateIndex != static_cast<std::size_t>(-1))
       return StartStateIndex;
-    std::cerr << '#' << States.size() << " = StartState" << std::endl;
+    MONOMUX_DEBUG(std::cerr << '#' << States.size() << " = StartState"
+                            << std::endl);
     return StartStateIndex = make_state<forward_state>(States.size());
   }
 
@@ -271,27 +282,23 @@ private:
         return *MaybeNextIndex;
 
       std::size_t NextStateIndex = make_state<forward_state>(States.size());
-#ifndef NDEBUG
-      std::get<forward_state>(States.at(NextStateIndex)).DebugConsumedPrefix =
-        ParentState.DebugConsumedPrefix;
-      std::get<forward_state>(States.at(NextStateIndex))
-        .DebugConsumedPrefix.push_back(C);
-#endif /* !NDEBUG */
-
+      MONOMUX_DEBUG(
+        std::get<forward_state>(States.at(NextStateIndex)).DebugConsumedPrefix =
+          ParentState.DebugConsumedPrefix;
+        std::get<forward_state>(States.at(NextStateIndex))
+          .DebugConsumedPrefix.push_back(C););
       return NextStateIndex;
     }();
 
     ParentState.Next.set(C, NextStateIndex);
-    std::cerr << "step(#" << ParentState.Index << ", '" << C << "') := #"
-              << NextStateIndex;
-#ifndef NDEBUG
-    std::cerr
+    MONOMUX_DEBUG(
+      std::cerr << "step(#" << ParentState.Index << ", '" << C << "') := #"
+                << NextStateIndex;
+      std::cerr
       << " (" << '"'
       << std::get<forward_state>(States.at(NextStateIndex)).DebugConsumedPrefix
       << '"' << ')';
-#endif /* !NDEBUG */
-    std::cerr << std::endl;
-
+      std::cerr << std::endl;);
 
     if (Str.size() > 1)
       continue_building_char_lex_sequence(
@@ -311,63 +318,93 @@ private:
   void finish_char_lex_sequence(const accept_state& Acceptor,
                                 forward_state& ParentState)
   {
+#ifndef NDEBUG
     auto PrintFinish = [&]() {
       std::cerr << "finish(#" << ParentState.Index;
 
-#ifndef NDEBUG
-      std::cerr << " /* " << '"' << ParentState.DebugConsumedPrefix << '"'
-                << " */";
-#endif /* !NDEBUG */
+      MONOMUX_DEBUG(std::cerr << " /* " << '"'
+                              << ParentState.DebugConsumedPrefix << '"'
+                              << " */");
 
       std::cerr << ')';
     };
+#endif /* !NDEBUG */
 
     if (const std::size_t* NextIndex = ParentState.Next.tryGet('\0'))
     {
-      std::cerr << "ERROR: Attempting to build non-deterministic automaton.\n";
-      PrintFinish();
-      std::cerr
+      MONOMUX_DEBUG(
+        std::cerr
+          << "ERROR: Attempting to build non-deterministic automaton.\n";
+        PrintFinish();
+        std::cerr
         << " = #" << *NextIndex << " == Accept("
         << to_string(
              std::get<accept_state>(States.at(*NextIndex)).AcceptedToken)
         << "), already.\nAttempted accepting "
-        << to_string(Acceptor.AcceptedToken) << " here instead." << std::endl;
+        << to_string(Acceptor.AcceptedToken) << " here instead." << std::endl;);
       throw char{0};
     }
 
     ParentState.Next.set('\0', Acceptor.Index);
-    PrintFinish();
-    std::cerr << " := #" << Acceptor.Index << " == Accept("
-              << to_string(Acceptor.AcceptedToken) << ')' << std::endl;
+    MONOMUX_DEBUG(PrintFinish(); std::cerr
+                                 << " := #" << Acceptor.Index << " == Accept("
+                                 << to_string(Acceptor.AcceptedToken) << ')'
+                                 << std::endl;);
   }
 };
 
 } // namespace detail
 
+lexer::location lexer::location::make_location(std::string_view FullBuffer,
+                                               std::string_view Buffer) noexcept
+{
+  assert(FullBuffer.size() >= Buffer.size() && "Buffer overflow!");
+  const std::size_t LocationFromStart = FullBuffer.size() - Buffer.size();
+  return make_location(FullBuffer, LocationFromStart);
+}
+
+lexer::location lexer::location::make_location(std::string_view Buffer,
+                                               std::size_t AbsoluteLoc) noexcept
+{
+  std::string_view BufferBeforeLoc = Buffer;
+  BufferBeforeLoc.remove_suffix(BufferBeforeLoc.size() - AbsoluteLoc);
+
+  const std::size_t Rows = std::count_if(BufferBeforeLoc.begin(),
+                                         BufferBeforeLoc.end(),
+                                         [](char Ch) { return Ch == '\n'; });
+  const decltype(std::string_view::npos) LastNewlineIndex =
+    BufferBeforeLoc.find_last_of('\n');
+  return location{.Absolute = AbsoluteLoc,
+                  .Line = Rows + 1,
+                  .Column = BufferBeforeLoc.size() - LastNewlineIndex};
+}
+
 lexer::~lexer() = default;
 
 lexer::lexer(std::string_view Buffer)
   : SequenceLexer(std::make_unique<detail::char_sequence_lexer>()),
-    OriginalFullBuffer(Buffer), CurrentState({Buffer, token::NullToken, {}})
+    OriginalFullBuffer(Buffer), CurrentState({Buffer, token::NullToken, {}, {}})
 {
   set_current_token<token::BeginningOfFile>();
 
-  std::cerr << "DEBUG: Building sequenced lexical analysis table..."
-            << std::endl;
+  MONOMUX_DEBUG(
+    std::cerr << "DEBUG: Building sequenced lexical analysis table..."
+              << std::endl);
 #define STR_SPELLING_TOKEN(NAME, SPELLING)                                     \
   SequenceLexer->add_new_char_sequence(token::NAME, SPELLING);
 #include "Tokens.inc.h"
-  std::cerr << "DEBUG: Lexical analysis table created." << std::endl;
+  MONOMUX_DEBUG(std::cerr << "DEBUG: Lexical analysis table created."
+                          << std::endl);
 }
 
 template <token TK, typename... Args>
-token lexer::set_current_token(Args&&... Argv)
+token lexer::set_current_token(Args&&... Argv) noexcept
 {
   CurrentState.Info = token_info<TK>{std::forward<Args>(Argv)...};
   return CurrentState.Tok = TK;
 }
 
-token lexer::set_current_token_raw(token TK, all_token_infos_type Info)
+token lexer::set_current_token_raw(token TK, all_token_infos_type Info) noexcept
 {
   switch (TK)
   {
@@ -389,7 +426,7 @@ token lexer::set_current_token_raw(token TK, all_token_infos_type Info)
 }
 
 void lexer::token_buffer_set_end_at_consumed_buffer(
-  std::string_view& TokenBuffer, std::size_t KeepCharsAtEnd)
+  std::string_view& TokenBuffer, std::size_t KeepCharsAtEnd) noexcept
 {
   const std::size_t TokenLength =
     TokenBuffer.size() - CurrentState.Buffer.size() - KeepCharsAtEnd;
@@ -404,9 +441,10 @@ void lexer::token_buffer_set_end_at_consumed_buffer(
   TokenBuffer.remove_suffix(TokenBuffer.size() - TokenLength);
 }
 
-token lexer::lex_token()
+token lexer::lex_token() noexcept
 {
   std::string_view TokenBuffer = CurrentState.Buffer;
+  CurrentState.Loc = OriginalFullBuffer.size() - CurrentState.Buffer.size();
   auto TokenBufferEndAtReadBuffer = [&](std::size_t KeepCharsAtEnd = 0) {
     token_buffer_set_end_at_consumed_buffer(TokenBuffer, KeepCharsAtEnd);
   };
@@ -432,10 +470,18 @@ token lexer::lex_token()
     {
       // Consume various comment kinds.
       Ch = get_char();
+      token T{};
       if (Ch == '/') // //
-        return lex_comment(TokenBuffer, /*MultiLine=*/false);
-      if (Ch == '*') // /*
-        return lex_comment(TokenBuffer, /*MultiLine=*/true);
+        T = lex_comment(TokenBuffer, /*MultiLine=*/false);
+      else if (Ch == '*') // /*
+        T = lex_comment(TokenBuffer, /*MultiLine=*/true);
+
+      if (T == token::Comment)
+        return T;
+      if (T == token::NullToken)
+        // The comment did not need to be lexed, as it will be stripped from the
+        // output.
+        return lex_token();
 
       return set_current_token<token::SyntaxError>(
         std::string("Unexpected ") + static_cast<char>(Ch) + " when reading " +
@@ -476,7 +522,6 @@ token lexer::lex_token()
     case '9':
       return lex_integer_literal(TokenBuffer);
 
-
     default:
     {
       if (std::isalpha(Ch) || Ch == '_')
@@ -501,11 +546,11 @@ token lexer::lex_token()
     }
   }
 
-  std::cerr << TokenBuffer << std::endl;
+  MONOMUX_DEBUG(std::cerr << TokenBuffer << std::endl);
   unreachable("switch() statement should've returned appropriate Token");
 }
 
-token lexer::lex_comment(std::string_view& TokenBuffer, bool MultiLine)
+token lexer::lex_comment(std::string_view& TokenBuffer, bool MultiLine) noexcept
 {
   // "//" comments are line comments that should be stripped, unless
   // they are "//!" comments, which need to stay in the generated code.
@@ -578,7 +623,7 @@ token lexer::lex_comment(std::string_view& TokenBuffer, bool MultiLine)
   return token::NullToken;
 }
 
-token lexer::lex_integer_literal(std::string_view& TokenBuffer)
+token lexer::lex_integer_literal(std::string_view& TokenBuffer) noexcept
 {
   bool IsNegative = TokenBuffer.front() == '-';
   Char Ch = get_char();
@@ -594,14 +639,17 @@ token lexer::lex_integer_literal(std::string_view& TokenBuffer)
 }
 
 
-token lexer::lex() { return lex_token(); }
+token lexer::lex() noexcept { return lex_token(); }
 
-token lexer::peek()
+token lexer::peek() noexcept
 {
-  state SavedState = CurrentState;
-  token Peeked = lex_token();
-  CurrentState = SavedState;
-  return Peeked;
+  restore_guard G{CurrentState};
+  return lex_token();
+}
+
+lexer::location lexer::get_location() const noexcept
+{
+  return location::make_location(OriginalFullBuffer, CurrentState.Loc);
 }
 
 lexer::Char lexer::get_char() noexcept
@@ -622,10 +670,11 @@ lexer::Char lexer::get_char() noexcept
     case '\0':
       // Observing a 0x00 (NUL) byte in the middle of the input stream means
       // something has gone wrong.
-      std::cerr << "WARNING: Encountered NUL ('\\0') character at position "
-                << (OriginalFullBuffer.size() - CurrentState.Buffer.size())
-                << " before true EOF.\nReplacing with SPACE (' ')..."
-                << std::endl;
+      MONOMUX_DEBUG(std::cerr
+                    << "WARNING: Encountered NUL ('\\0') character at position "
+                    << (OriginalFullBuffer.size() - CurrentState.Buffer.size())
+                    << " before true EOF.\nReplacing with SPACE (' ')..."
+                    << std::endl);
       return ' ';
 
     case '\n':
@@ -643,10 +692,8 @@ lexer::Char lexer::get_char() noexcept
 
 lexer::Char lexer::peek_char() noexcept
 {
-  auto BufferSave = CurrentState.Buffer;
-  Char Ch = get_char();
-  CurrentState.Buffer = BufferSave;
-  return Ch;
+  restore_guard G{CurrentState.Buffer};
+  return get_char();
 }
 
 } // namespace monomux::tools::dto_compiler
