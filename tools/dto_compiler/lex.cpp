@@ -14,42 +14,42 @@
 #include "monomux/adt/SmallIndexMap.hpp"
 #include "monomux/unreachable.hpp"
 
-#include "Lex.hpp"
+#include "lex.hpp"
 
-namespace dto_compiler
+namespace monomux::tools::dto_compiler
 {
-std::string_view tokNiceName(Token TK)
+std::string_view to_string(token TK)
 {
   switch (TK)
   {
     default:
       return "Unknown TokenKind!";
 #define TOKEN(NAME)                                                            \
-  case Token::NAME:                                                            \
+  case token::NAME:                                                            \
     return #NAME;
 #include "Tokens.inc.h"
   };
 }
 
 #define BEFORE_TOKEN(NAME)                                                     \
-  std::string TokenInfo<Token::NAME>::toString() const                         \
+  std::string token_info<token::NAME>::to_string() const                       \
   {                                                                            \
     std::ostringstream OS;                                                     \
-    OS << tokNiceName(Token::NAME) << '(';
+    OS << dto_compiler::to_string(token::NAME) << '(';
 #define TOKEN_INFO(TYPE, NAME)                                                 \
   OS << "/* " << #NAME << " =*/ ";                                             \
   if constexpr (std::is_same_v<TYPE, std::string> ||                           \
                 std::is_same_v<TYPE, std::string_view>)                        \
   {                                                                            \
-    OS << '"' << NAME << '"';                                                  \
+    OS << '"' << (NAME) << '"';                                                \
   }                                                                            \
   else if constexpr (std::is_same_v<TYPE, bool>)                               \
   {                                                                            \
-    OS << std::boolalpha << NAME << std::noboolalpha;                          \
+    OS << std::boolalpha << (NAME) << std::noboolalpha;                        \
   }                                                                            \
   else                                                                         \
   {                                                                            \
-    OS << NAME;                                                                \
+    OS << (NAME);                                                              \
   }                                                                            \
   OS << ',' << ' ';
 #define AFTER_TOKEN(NAME)                                                      \
@@ -63,12 +63,12 @@ std::string_view tokNiceName(Token TK)
   }
 #include "Tokens.inc.h"
 
-std::string tokToString(const AllTokenInfos& Info)
+std::string to_string(const all_token_infos_type& Info)
 {
   /* NOLINTBEGIN(bugprone-macro-parantheses) */
 #define TOKEN(NAME)                                                            \
-  if (auto* NAME = std::get_if<TokenInfo<Token::NAME>>(&Info))                 \
-    return NAME->toString();
+  if (const auto* NAME = std::get_if<token_info<token::NAME>>(&Info))          \
+    return NAME->to_string();
 #include "Tokens.inc.h"
   /* NOLINTEND(bugprone-macro-parantheses) */
 
@@ -78,46 +78,51 @@ std::string tokToString(const AllTokenInfos& Info)
 namespace detail
 {
 
-template <typename Str> void stringifyImpl(Str& /* S */)
+namespace
+{
+
+template <typename Str> void stringify_impl(Str& /* S */)
 { /* Noop. */
 }
 
-template <typename Str, char C, char... Cs> void stringifyImpl(Str& S)
+template <typename Str, char C, char... Cs> void stringify_impl(Str& S)
 {
   S.push_back(C);
-  stringifyImpl<Str, Cs...>(S);
+  stringify_impl<Str, Cs...>(S);
 }
 
 template <char... Cs> std::string stringify()
 {
   std::string S;
-  stringifyImpl<std::string, Cs...>(S);
+  stringify_impl<std::string, Cs...>(S);
   return S;
 }
+
+} // namespace
 
 constexpr std::size_t NumCharValues = (UINT8_MAX + 1);
 
 /// Builds, contains, and executes a dynamically constructed character sequence
 /// lexing automaton.
-class CharSequenceLexer
+class char_sequence_lexer
 {
-  struct State
+  struct state
   {
     std::size_t Index;
   };
 
-  struct AcceptState : public State
+  struct accept_state : public state
   {
-    Token AcceptedToken;
+    token AcceptedToken;
   };
 
-  struct ForwardState : public State
+  struct forward_state : public state
   {
     monomux::SmallIndexMap<std::size_t,
                            NumCharValues,
                            /* StoreInPlace =*/true,
                            /* IntrusiveDefaultSentinel =*/true,
-                           /* KeyType =*/Lexer::Char>
+                           /* KeyType =*/lexer::Char>
       Next{};
 
     /// If set and a transition in \p Next is not set, instead of going into
@@ -125,7 +130,7 @@ class CharSequenceLexer
     /// here.
     std::optional<std::size_t> DefaultNextState;
 
-    [[nodiscard]] std::size_t getNextState(Lexer::Char TransitionChar) const
+    [[nodiscard]] std::size_t get_next_state(lexer::Char TransitionChar) const
     {
       if (const std::size_t* NextIndex = Next.tryGet(TransitionChar))
         return *NextIndex;
@@ -139,45 +144,44 @@ class CharSequenceLexer
 #endif /* !NDEBUG */
   };
 
-  struct ErrorState : public State
+  struct error_state : public state
   {};
 
-  using StateTy = std::variant<AcceptState, ForwardState, ErrorState>;
-
-  std::vector<StateTy> States;
+  using states = std::variant<accept_state, forward_state, error_state>;
+  std::vector<states> States;
 
   monomux::SmallIndexMap<
     std::size_t,
-    static_cast<std::size_t>(Token::LastTokenSentinel),
+    static_cast<std::size_t>(token::LastTokenSentinel),
     /* StoreInPlace =*/true,
     /* IntrusiveDefaultSentinel =*/true,
-    /* KeyType =*/std::make_unsigned_t<std::underlying_type_t<Token>>>
+    /* KeyType =*/std::make_unsigned_t<std::underlying_type_t<token>>>
     Acceptors;
 
   std::size_t StartStateIndex = -1;
 
 public:
-  CharSequenceLexer()
+  char_sequence_lexer()
   {
     // By default, error.
-    States.emplace_back(ErrorState{0});
+    States.emplace_back(error_state{0});
   }
 
   /// Lexes the given \p Chars into a \p Token based on the dynamic spelling
   /// table (created by \p addNewCharSequence)
-  [[nodiscard]] std::optional<Token>
-  lexToken(std::string_view Chars) const noexcept
+  [[nodiscard]] std::optional<token>
+  lex_token(std::string_view Chars) const noexcept
   {
     std::size_t StateIndex = StartStateIndex;
-    auto State = [&]() -> const StateTy& { return States.at(StateIndex); };
+    auto State = [&]() -> const states& { return States.at(StateIndex); };
 
     std::string_view Buffer = Chars;
     while (true)
     {
-      if (const auto* Forward = std::get_if<ForwardState>(&State()))
+      if (const auto* Forward = std::get_if<forward_state>(&State()))
       {
-        const Lexer::Char NextChar = !Buffer.empty() ? Buffer.front() : '\0';
-        const std::size_t NextIndex = Forward->getNextState(NextChar);
+        const lexer::Char NextChar = !Buffer.empty() ? Buffer.front() : '\0';
+        const std::size_t NextIndex = Forward->get_next_state(NextChar);
         if (NextIndex == static_cast<std::size_t>(-1))
           // Received error state.
           return std::nullopt;
@@ -185,9 +189,9 @@ public:
         Buffer.remove_prefix(1);
         StateIndex = NextIndex;
       }
-      else if (const auto* Accept = std::get_if<AcceptState>(&State()))
+      else if (const auto* Accept = std::get_if<accept_state>(&State()))
         return Accept->AcceptedToken;
-      else if (const auto* Error = std::get_if<ErrorState>(&State()))
+      else if (std::holds_alternative<error_state>(State()))
         return std::nullopt;
       else
       {
@@ -199,17 +203,17 @@ public:
     }
   }
 
-  template <char... Cs> void addNewCharSequence(Token Tok)
+  template <char... Cs> void add_new_char_sequence(token Tok)
   {
     const std::string Str = stringify<Cs...>();
-    addNewCharSequence(Tok, Str);
+    add_new_char_sequence(Tok, Str);
   }
 
-  void addNewCharSequence(Token Tok, std::string_view Str)
+  void add_new_char_sequence(token Tok, std::string_view Str)
   {
-    std::cerr << "CharSequence for Token::" << tokNiceName(Tok) << " = " << '"'
+    std::cerr << "CharSequence for Token::" << to_string(Tok) << " = " << '"'
               << Str << '"' << " (size: " << Str.size() << ')' << std::endl;
-    (void)createStartStateIfNone();
+    (void)create_start_state_if_none();
     States.reserve(States.size() + 1 /* Acceptor state */ +
                    Str.size() /* Letter transitions...*/ +
                    1 /* NULL transition */);
@@ -219,22 +223,22 @@ public:
       if (std::size_t* MaybeAcceptorIndex = Acceptors.tryGet(RawTok))
         return *MaybeAcceptorIndex;
 
-      std::size_t I = makeState<AcceptState>(States.size(), Tok);
+      std::size_t I = make_state<accept_state>(States.size(), Tok);
       Acceptors.set(RawTok, I);
       return I;
     }();
-    std::cerr << '#' << AcceptStateIndex << " = AcceptState("
-              << tokNiceName(Tok) << ')' << std::endl;
+    std::cerr << '#' << AcceptStateIndex << " = AcceptState(" << to_string(Tok)
+              << ')' << std::endl;
 
-    continueBuildCharLexSequence(
+    continue_building_char_lex_sequence(
       Str,
-      std::get<AcceptState>(States.at(AcceptStateIndex)),
-      std::get<ForwardState>(States.at(StartStateIndex)));
+      std::get<accept_state>(States.at(AcceptStateIndex)),
+      std::get<forward_state>(States.at(StartStateIndex)));
   }
 
 private:
   template <typename T, typename... Args>
-  [[nodiscard]] std::size_t makeState(Args&&... Argv)
+  [[nodiscard]] std::size_t make_state(Args&&... Argv)
   {
     // NOLINT(-Wmissing-...): Using an additional set of {}s breaks G++-8
     // on Ubuntu 18.04.
@@ -242,21 +246,22 @@ private:
       .Index;
   }
 
-  [[nodiscard]] std::size_t createStartStateIfNone()
+  [[nodiscard]] std::size_t create_start_state_if_none()
   {
     if (StartStateIndex != static_cast<std::size_t>(-1))
       return StartStateIndex;
     std::cerr << '#' << States.size() << " = StartState" << std::endl;
-    return StartStateIndex = makeState<ForwardState>(States.size());
+    return StartStateIndex = make_state<forward_state>(States.size());
   }
 
-  void continueBuildCharLexSequence(std::string_view Str,
-                                    const AcceptState& ExpectedAcceptState,
-                                    ForwardState& ParentState)
+  void
+  continue_building_char_lex_sequence(std::string_view Str,
+                                      const accept_state& ExpectedAcceptState,
+                                      forward_state& ParentState)
   {
     if (Str.empty())
     {
-      finishCharLexSequence(ExpectedAcceptState, ParentState);
+      finish_char_lex_sequence(ExpectedAcceptState, ParentState);
       return;
     }
 
@@ -265,11 +270,11 @@ private:
       if (std::size_t* MaybeNextIndex = ParentState.Next.tryGet(C))
         return *MaybeNextIndex;
 
-      std::size_t NextStateIndex = makeState<ForwardState>(States.size());
+      std::size_t NextStateIndex = make_state<forward_state>(States.size());
 #ifndef NDEBUG
-      std::get<ForwardState>(States.at(NextStateIndex)).DebugConsumedPrefix =
+      std::get<forward_state>(States.at(NextStateIndex)).DebugConsumedPrefix =
         ParentState.DebugConsumedPrefix;
-      std::get<ForwardState>(States.at(NextStateIndex))
+      std::get<forward_state>(States.at(NextStateIndex))
         .DebugConsumedPrefix.push_back(C);
 #endif /* !NDEBUG */
 
@@ -282,29 +287,29 @@ private:
 #ifndef NDEBUG
     std::cerr
       << " (" << '"'
-      << std::get<ForwardState>(States.at(NextStateIndex)).DebugConsumedPrefix
+      << std::get<forward_state>(States.at(NextStateIndex)).DebugConsumedPrefix
       << '"' << ')';
 #endif /* !NDEBUG */
     std::cerr << std::endl;
 
 
     if (Str.size() > 1)
-      continueBuildCharLexSequence(
+      continue_building_char_lex_sequence(
         Str.substr(1),
         ExpectedAcceptState,
-        std::get<ForwardState>(States.at(NextStateIndex)));
+        std::get<forward_state>(States.at(NextStateIndex)));
     else
       // Add an empty transition with the NULL character to finish off the
       // automaton. This is needed as both "foo" and "foobar" might need to be
       // accepted by the client.
-      continueBuildCharLexSequence(
+      continue_building_char_lex_sequence(
         "\0",
         ExpectedAcceptState,
-        std::get<ForwardState>(States.at(NextStateIndex)));
+        std::get<forward_state>(States.at(NextStateIndex)));
   }
 
-  void finishCharLexSequence(const AcceptState& Acceptor,
-                             ForwardState& ParentState)
+  void finish_char_lex_sequence(const accept_state& Acceptor,
+                                forward_state& ParentState)
   {
     auto PrintFinish = [&]() {
       std::cerr << "finish(#" << ParentState.Index;
@@ -317,60 +322,60 @@ private:
       std::cerr << ')';
     };
 
-    if (std::size_t* NextIndex = ParentState.Next.tryGet('\0'))
+    if (const std::size_t* NextIndex = ParentState.Next.tryGet('\0'))
     {
       std::cerr << "ERROR: Attempting to build non-deterministic automaton.\n";
       PrintFinish();
-      std::cerr << " = #" << *NextIndex << " == Accept("
-                << tokNiceName(
-                     std::get<AcceptState>(States.at(*NextIndex)).AcceptedToken)
-                << "), already.\nAttempted accepting "
-                << tokNiceName(Acceptor.AcceptedToken) << " here instead."
-                << std::endl;
+      std::cerr
+        << " = #" << *NextIndex << " == Accept("
+        << to_string(
+             std::get<accept_state>(States.at(*NextIndex)).AcceptedToken)
+        << "), already.\nAttempted accepting "
+        << to_string(Acceptor.AcceptedToken) << " here instead." << std::endl;
       throw char{0};
     }
 
     ParentState.Next.set('\0', Acceptor.Index);
     PrintFinish();
     std::cerr << " := #" << Acceptor.Index << " == Accept("
-              << tokNiceName(Acceptor.AcceptedToken) << ')' << std::endl;
+              << to_string(Acceptor.AcceptedToken) << ')' << std::endl;
   }
 };
 
 } // namespace detail
 
-Lexer::~Lexer() = default;
+lexer::~lexer() = default;
 
-Lexer::Lexer(std::string_view Buffer)
-  : SeqLexer(std::make_unique<detail::CharSequenceLexer>()),
-    OriginalFullBuffer(Buffer), CurrentState({Buffer, Token::NullToken, {}})
+lexer::lexer(std::string_view Buffer)
+  : SequenceLexer(std::make_unique<detail::char_sequence_lexer>()),
+    OriginalFullBuffer(Buffer), CurrentState({Buffer, token::NullToken, {}})
 {
-  setCurrentToken<Token::BeginningOfFile>();
+  set_current_token<token::BeginningOfFile>();
 
   std::cerr << "DEBUG: Building sequenced lexical analysis table..."
             << std::endl;
 #define STR_SPELLING_TOKEN(NAME, SPELLING)                                     \
-  SeqLexer->addNewCharSequence(Token::NAME, SPELLING);
+  SequenceLexer->add_new_char_sequence(token::NAME, SPELLING);
 #include "Tokens.inc.h"
   std::cerr << "DEBUG: Lexical analysis table created." << std::endl;
 }
 
-template <Token TK, typename... Args>
-Token Lexer::setCurrentToken(Args&&... Argv)
+template <token TK, typename... Args>
+token lexer::set_current_token(Args&&... Argv)
 {
-  CurrentState.Info = TokenInfo<TK>{std::forward<Args>(Argv)...};
+  CurrentState.Info = token_info<TK>{std::forward<Args>(Argv)...};
   return CurrentState.Tok = TK;
 }
 
-Token Lexer::setCurrentTokenRaw(Token TK, AllTokenInfos Info)
+token lexer::set_current_token_raw(token TK, all_token_infos_type Info)
 {
   switch (TK)
   {
 #define TOKEN(NAME)                                                            \
-  case Token::NAME:                                                            \
+  case token::NAME:                                                            \
     if (std::holds_alternative<std::monostate>(Info))                          \
-      Info = TokenInfo<Token::NAME>{};                                         \
-    assert(std::holds_alternative<TokenInfo<Token::NAME>>(Info) &&             \
+      Info = token_info<token::NAME>{};                                        \
+    assert(std::holds_alternative<token_info<token::NAME>>(Info) &&            \
            "TokenKind " #NAME " mismatch contained value of Info struct");     \
     break;
 #include "Tokens.inc.h"
@@ -383,189 +388,8 @@ Token Lexer::setCurrentTokenRaw(Token TK, AllTokenInfos Info)
   return TK;
 }
 
-Token Lexer::lexToken()
-{
-  std::string_view TokenBuffer = CurrentState.Buffer;
-  auto TokenBufferEndAtReadBuffer = [&](std::size_t KeepCharsAtEnd = 0) {
-    tokenBufferSetEndAtReadBuffer(TokenBuffer, KeepCharsAtEnd);
-  };
-  Char Ch = getChar();
-
-  switch (Ch)
-  {
-    case static_cast<Char>(EOF):
-      return setCurrentToken<Token::EndOfFile>();
-    case ' ':
-    case '\t':
-    case '\n':
-      return lexToken();
-    case '\r':
-      unreachable("getChar() should have never returned a '\r'");
-
-    default:
-      if (std::isalpha(Ch) || Ch == '_')
-      {
-        // Try lexing as an identifier...
-        while (std::isalpha(Ch) || std::isdigit(Ch) || Ch == '_')
-          Ch = getChar();
-
-        TokenBufferEndAtReadBuffer(1); // Restore the last consumed char.
-
-        // Check if identifier is reserved keyword.
-        if (std::optional<Token> Keyword = SeqLexer->lexToken(TokenBuffer))
-          return setCurrentTokenRaw(*Keyword, std::monostate{});
-
-        return setCurrentToken<Token::Identifier>(std::string{TokenBuffer});
-      }
-
-      TokenBufferEndAtReadBuffer();
-      return setCurrentToken<Token::SyntaxError>(
-        std::string("Unexpected ") + static_cast<char>(Ch) + " when reading " +
-        std::string{TokenBuffer});
-
-#define CH_SPELLING_TOKEN(NAME, SPELLING)                                      \
-  case SPELLING:                                                               \
-    return setCurrentToken<Token::NAME>();
-#include "Tokens.inc.h"
-
-    case '/':
-    {
-      // Consume various comment kinds.
-      Ch = getChar();
-      if (Ch == '/') // //
-      {
-        // "//" comments are line comments that should be stripped, unless
-        // they are "//!" comments, which need to stay in the generated code.
-        bool KeepComment = peekChar() == '!';
-        if (KeepComment)
-          (void)getChar();
-
-        auto LineEndPos = CurrentState.Buffer.find_first_of("\r\n");
-        if (LineEndPos == std::string_view::npos)
-          LineEndPos = CurrentState.Buffer.size();
-
-        // Discard until end of line.
-        CurrentState.Buffer.remove_prefix(LineEndPos);
-        if (KeepComment)
-        {
-          TokenBufferEndAtReadBuffer();
-          TokenBuffer.remove_prefix(std::strlen("//!"));
-          return setCurrentToken<Token::Comment>(false,
-                                                 std::string{TokenBuffer});
-        }
-      }
-      else if (Ch == '*') // /*
-      {
-        // "/*" comments are block comments that should be stripped, unless
-        // the initial sequence is "/*!" which indicates it needs to stay.
-        bool KeepComment = peekChar() == '!';
-        if (KeepComment)
-          (void)getChar();
-
-        // Find where the comment block ends...
-        [&]() -> void {
-          std::size_t CommentDepth = 1;
-          while (true)
-          {
-            Ch = getChar();
-            switch (Ch)
-            {
-              case static_cast<Char>(EOF):
-                setCurrentToken<Token::SyntaxError>("Unterminated /* comment");
-                return;
-              case '/':
-                if (peekChar() == '*')
-                {
-                  // Start of a new nested comment.
-                  (void)getChar();
-                  ++CommentDepth;
-                }
-                break;
-              case '*':
-                if (peekChar() == '/')
-                {
-                  // End of a nested comment.
-                  (void)getChar();
-                  --CommentDepth;
-                }
-                if (CommentDepth == 0)
-                  return;
-                break;
-            }
-          }
-        }();
-
-        if (KeepComment)
-        {
-          TokenBufferEndAtReadBuffer();
-          TokenBuffer.remove_prefix(std::strlen("/*!"));
-          TokenBuffer.remove_suffix(std::strlen("*/"));
-
-          return setCurrentToken<Token::Comment>(true,
-                                                 std::string{TokenBuffer});
-        }
-      }
-
-      return lexToken();
-    }
-
-    case ':':
-    {
-      Ch = getChar();
-      if (Ch == ':') // ::
-        return setCurrentToken<Token::Scope>();
-
-      return setCurrentToken<Token::SyntaxError>(
-        std::string("Unexpected ") + static_cast<char>(Ch) + " when reading " +
-        std::string{TokenBuffer});
-    }
-
-    case '-':
-    {
-      if (peekChar() == '>') // ->
-      {
-        (void)getChar(); // Consume the '>'.
-        return setCurrentToken<Token::Arrow>();
-      }
-
-      return lexIntegerlLiteral(TokenBuffer);
-    }
-
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-      return lexIntegerlLiteral(TokenBuffer);
-  }
-
-  std::cerr << TokenBuffer << std::endl;
-  unreachable("switch() statement should've returned appropriate Token");
-}
-
-Token Lexer::lexIntegerlLiteral(std::string_view& TokenBuffer)
-{
-  bool IsNegative = TokenBuffer.front() == '-';
-  Char Ch = getChar();
-  while (std::isdigit(Ch))
-    Ch = getChar();
-
-  tokenBufferSetEndAtReadBuffer(TokenBuffer, 1); // Restore the last consumed
-                                                 // non-digit.
-  if (IsNegative)
-    return setCurrentToken<Token::Integral>(
-      std::stoll(std::string{TokenBuffer}));
-  return setCurrentToken<Token::Integral>(
-    std::stoull(std::string{TokenBuffer}));
-}
-
-void Lexer::tokenBufferSetEndAtReadBuffer(std::string_view& TokenBuffer,
-                                          std::size_t KeepCharsAtEnd)
+void lexer::token_buffer_set_end_at_consumed_buffer(
+  std::string_view& TokenBuffer, std::size_t KeepCharsAtEnd)
 {
   const std::size_t TokenLength =
     TokenBuffer.size() - CurrentState.Buffer.size() - KeepCharsAtEnd;
@@ -580,17 +404,207 @@ void Lexer::tokenBufferSetEndAtReadBuffer(std::string_view& TokenBuffer,
   TokenBuffer.remove_suffix(TokenBuffer.size() - TokenLength);
 }
 
-Token Lexer::lex() { return lexToken(); }
-
-Token Lexer::peek()
+token lexer::lex_token()
 {
-  State SavedState = CurrentState;
-  Token Peeked = lexToken();
+  std::string_view TokenBuffer = CurrentState.Buffer;
+  auto TokenBufferEndAtReadBuffer = [&](std::size_t KeepCharsAtEnd = 0) {
+    token_buffer_set_end_at_consumed_buffer(TokenBuffer, KeepCharsAtEnd);
+  };
+  Char Ch = get_char();
+
+  switch (Ch)
+  {
+    case static_cast<Char>(EOF):
+      return set_current_token<token::EndOfFile>();
+    case ' ':
+    case '\t':
+    case '\n':
+      return lex_token();
+    case '\r':
+      unreachable("getChar() should have never returned a '\r'!");
+
+#define CH_SPELLING_TOKEN(NAME, SPELLING)                                      \
+  case SPELLING:                                                               \
+    return set_current_token<token::NAME>();
+#include "Tokens.inc.h"
+
+    case '/':
+    {
+      // Consume various comment kinds.
+      Ch = get_char();
+      if (Ch == '/') // //
+        return lex_comment(TokenBuffer, /*MultiLine=*/false);
+      if (Ch == '*') // /*
+        return lex_comment(TokenBuffer, /*MultiLine=*/true);
+
+      return set_current_token<token::SyntaxError>(
+        std::string("Unexpected ") + static_cast<char>(Ch) + " when reading " +
+        std::string{TokenBuffer});
+    }
+
+    case ':':
+    {
+      Ch = get_char();
+      if (Ch == ':') // ::
+        return set_current_token<token::Scope>();
+
+      return set_current_token<token::SyntaxError>(
+        std::string("Unexpected ") + static_cast<char>(Ch) + " when reading " +
+        std::string{TokenBuffer});
+    }
+
+    case '-':
+    {
+      if (peek_char() == '>') // ->
+      {
+        (void)get_char(); // Consume the '>'.
+        return set_current_token<token::Arrow>();
+      }
+
+      return lex_integer_literal(TokenBuffer);
+    }
+
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      return lex_integer_literal(TokenBuffer);
+
+
+    default:
+    {
+      if (std::isalpha(Ch) || Ch == '_')
+      {
+        // Try lexing as an identifier...
+        while (std::isalpha(Ch) || std::isdigit(Ch) || Ch == '_')
+          Ch = get_char();
+        TokenBufferEndAtReadBuffer(1); // Restore the last consumed char.
+
+        // Check if identifier is reserved keyword.
+        if (const std::optional<token> Keyword =
+              SequenceLexer->lex_token(TokenBuffer))
+          return set_current_token_raw(*Keyword, std::monostate{});
+
+        return set_current_token<token::Identifier>(std::string{TokenBuffer});
+      }
+
+      TokenBufferEndAtReadBuffer();
+      return set_current_token<token::SyntaxError>(
+        std::string("Unexpected ") + static_cast<char>(Ch) + " when reading " +
+        std::string{TokenBuffer});
+    }
+  }
+
+  std::cerr << TokenBuffer << std::endl;
+  unreachable("switch() statement should've returned appropriate Token");
+}
+
+token lexer::lex_comment(std::string_view& TokenBuffer, bool MultiLine)
+{
+  // "//" comments are line comments that should be stripped, unless
+  // they are "//!" comments, which need to stay in the generated code.
+  //
+  // "/*" comments are block comments that should be stripped, unless
+  // the initial sequence is "/*!" which indicates it needs to stay.
+  const bool KeepComment = peek_char() == '!';
+  if (KeepComment)
+    (void)get_char(); // Consume the '!'.
+
+  if (!MultiLine)
+  {
+    auto LineEndPos = CurrentState.Buffer.find_first_of("\r\n");
+    if (LineEndPos == std::string_view::npos)
+      LineEndPos = CurrentState.Buffer.size();
+
+    // Discard until end of line.
+    CurrentState.Buffer.remove_prefix(LineEndPos);
+    if (KeepComment)
+    {
+      token_buffer_set_end_at_consumed_buffer(TokenBuffer);
+      TokenBuffer.remove_prefix(std::strlen("//!"));
+      return set_current_token<token::Comment>(false, std::string{TokenBuffer});
+    }
+  }
+  else
+  {
+    // Find where the comment block ends...
+    [&]() -> void {
+      std::size_t CommentDepth = 1;
+      while (true)
+      {
+        switch (get_char())
+        {
+          case static_cast<Char>(EOF):
+            set_current_token<token::SyntaxError>("Unterminated /* comment");
+            return;
+          case '/':
+            if (peek_char() == '*')
+            {
+              // Start of a new nested comment.
+              (void)get_char();
+              ++CommentDepth;
+            }
+            break;
+          case '*':
+            if (peek_char() == '/')
+            {
+              // End of a nested comment.
+              (void)get_char();
+              --CommentDepth;
+            }
+            if (CommentDepth == 0)
+              return;
+            break;
+        }
+      }
+    }();
+
+    if (KeepComment)
+    {
+      token_buffer_set_end_at_consumed_buffer(TokenBuffer);
+      TokenBuffer.remove_prefix(std::strlen("/*!"));
+      TokenBuffer.remove_suffix(std::strlen("*/"));
+
+      return set_current_token<token::Comment>(true, std::string{TokenBuffer});
+    }
+  }
+
+  return token::NullToken;
+}
+
+token lexer::lex_integer_literal(std::string_view& TokenBuffer)
+{
+  bool IsNegative = TokenBuffer.front() == '-';
+  Char Ch = get_char();
+  while (std::isdigit(Ch))
+    Ch = get_char();
+
+  // Restore the last consumed non-digit.
+  token_buffer_set_end_at_consumed_buffer(TokenBuffer, 1);
+
+  const std::string TokenValueStr{TokenBuffer};
+  return set_current_token<token::Integral>(
+    IsNegative ? std::stoll(TokenValueStr) : std::stoull(TokenValueStr));
+}
+
+
+token lexer::lex() { return lex_token(); }
+
+token lexer::peek()
+{
+  state SavedState = CurrentState;
+  token Peeked = lex_token();
   CurrentState = SavedState;
   return Peeked;
 }
 
-Lexer::Char Lexer::getChar() noexcept
+lexer::Char lexer::get_char() noexcept
 {
   if (CurrentState.Buffer.empty() ||
       (CurrentState.Buffer.size() == 1 && CurrentState.Buffer.front() == '\0'))
@@ -627,12 +641,12 @@ Lexer::Char Lexer::getChar() noexcept
   }
 }
 
-Lexer::Char Lexer::peekChar() noexcept
+lexer::Char lexer::peek_char() noexcept
 {
   auto BufferSave = CurrentState.Buffer;
-  Char Ch = getChar();
+  Char Ch = get_char();
   CurrentState.Buffer = BufferSave;
   return Ch;
 }
 
-} // namespace dto_compiler
+} // namespace monomux::tools::dto_compiler

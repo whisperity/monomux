@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-#include "Lex.hpp"
+#include "lex.hpp"
 
 namespace
 {
@@ -56,15 +56,15 @@ int main(int ArgC, char* ArgV[])
 
   std::cout << "Input string:\n" << InputBuffer << std::endl;
 
-  using namespace dto_compiler;
-  Lexer L{InputBuffer};
+  using namespace monomux::tools::dto_compiler;
+  lexer L{InputBuffer};
 
-  Token T{};
-  while ((T = L.lex()) != Token::EndOfFile)
+  token T{};
+  while ((T = L.lex()) != token::EndOfFile)
   {
-    std::cout << tokToString(L.getTokenInfoRaw()) << std::endl;
+    std::cout << to_string(L.get_token_info_raw()) << std::endl;
 
-    if (T == Token::SyntaxError)
+    if (T == token::SyntaxError)
     {
       std::cerr << "ERROR!" << std::endl;
       return EXIT_FAILURE;

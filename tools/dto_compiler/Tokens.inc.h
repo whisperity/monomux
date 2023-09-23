@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 
+/**
+ * This file defines the "Token" kinds for the DTO DSL Compiler's lexical
+ * analysis implementation.
+ */
+
 #ifndef TOKEN
 #define TOKEN(NAME)
 #endif /* TOKEN */
@@ -27,8 +32,8 @@
 #define CH_SPELLING_TOKEN(NAME, SPELLING) SIMPLE_TOKEN(NAME)
 #endif /* CH_SPELLING_TOKEN */
 
-#ifndef SYMBOL_TOKEN
-#define SYMBOL_TOKEN(NAME, SPELLING) SIMPLE_TOKEN(NAME)
+#ifndef SYMBOLIC_TOKEN
+#define SYMBOLIC_TOKEN(NAME, SPELLING) SIMPLE_TOKEN(NAME)
 #endif /* SYMBOL_TOKEN */
 
 #ifndef STR_SPELLING_TOKEN
@@ -66,8 +71,8 @@ CH_SPELLING_TOKEN(RBrace, '}')
 CH_SPELLING_TOKEN(LAcute, '<')
 CH_SPELLING_TOKEN(RAcute, '>')
 
-SYMBOL_TOKEN(Arrow, "->")
-SYMBOL_TOKEN(Scope, "::")
+SYMBOLIC_TOKEN(Arrow, "->")
+SYMBOLIC_TOKEN(Scope, "::")
 
 /* Keywords ... */
 STR_SPELLING_TOKEN(Namespace, "namespace")
@@ -81,7 +86,7 @@ STR_SPELLING_TOKEN(Record, "record")
 #undef AFTER_TOKEN
 #undef TOKEN_INFO
 #undef SIMPLE_TOKEN
-#undef SYMBOL_TOKEN
 #undef CH_SPELLING_TOKEN
+#undef SYMBOLIC_TOKEN
 #undef STR_SPELLING_TOKEN
 #undef COMPLEX_TOKEN

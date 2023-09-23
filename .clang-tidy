@@ -92,16 +92,22 @@ CheckOptions:
   - key:             performance-move-const-arg.CheckTriviallyCopyableMove
     value:           false
   - key:             readability-identifier-naming.ClassCase
-    value:           CamelCase
+    value:           lower_case
   - key:             readability-identifier-naming.EnumCase
+    value:           lower_case
+  - key:             readability-identifier-naming.EnumConstantCase
     value:           CamelCase
   - key:             readability-identifier-naming.FunctionCase
-    value:           camelBack
+    value:           lower_case
   - key:             readability-identifier-naming.MemberCase
     value:           CamelCase
   - key:             readability-identifier-naming.ParameterCase
     value:           CamelCase
   - key:             readability-identifier-naming.UnionCase
+    value:           lower_case
+  - key:             readability-identifier-naming.TemplateParameterCase
     value:           CamelCase
+  - key:             readability-identifier-naming.TypedefCase
+    value:           lower_case
   - key:             readability-identifier-naming.VariableCase
     value:           CamelCase
