@@ -5,6 +5,7 @@
 
 namespace monomux
 {
+
 /// A simple scope guard that fires an optional callback function when it is
 /// constructed, and another callback function (usually, a lambda passed to the
 /// constructor) when destructed.
@@ -21,10 +22,13 @@ namespace monomux
 template <typename EnterFunction, typename ExitFunction> struct scope_guard
 {
   // NOLINTNEXTLINE(google-explicit-constructor)
-  scope_guard(ExitFunction&& Exit) noexcept : Alive(true), Exit(Exit) {}
-  scope_guard(EnterFunction&& Enter,
-              ExitFunction&& Exit) noexcept(noexcept(Enter()))
-    : Alive(false), Exit(Exit)
+  scope_guard(ExitFunction&& Exit) noexcept(
+    std::is_nothrow_move_constructible_v<ExitFunction>)
+    : Alive(true), Exit(std::move(Exit))
+  {}
+  scope_guard(EnterFunction&& Enter, ExitFunction&& Exit) noexcept(
+    noexcept(Enter()) && std::is_nothrow_move_constructible_v<ExitFunction>)
+    : Alive(false), Exit(std::move(Exit))
   {
     Enter();
     Alive = true; // NOLINT(cppcoreguidelines-prefer-member-initializer)
@@ -64,11 +68,11 @@ private:
 template <typename Ty> struct restore_guard
 {
   // NOLINTNEXTLINE(google-explicit-constructor)
-  restore_guard(Ty& Var) noexcept(std::is_copy_constructible_v<Ty>)
+  restore_guard(Ty& Var) noexcept(std::is_nothrow_copy_constructible_v<Ty>)
     : Address(std::addressof(Var)), Value(Var)
   {}
 
-  ~restore_guard() noexcept(std::is_move_assignable_v<Ty>)
+  ~restore_guard() noexcept(std::is_nothrow_move_assignable_v<Ty>)
   {
     *Address = std::move(Value);
     Address = nullptr;

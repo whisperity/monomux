@@ -154,6 +154,8 @@ bool parser::parse()
       case token::Literal:
       case token::Function:
       case token::Record:
+        set_error_to_current_token("TBD Keyword token.");
+        return false;
         break;
     }
 
