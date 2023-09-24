@@ -1,23 +1,17 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 #include <algorithm>
 #include <cassert>
-#include <cstdint>
 #include <cstring>
 #include <optional>
 #include <sstream>
-#include <string>
-#include <string_view>
 #include <type_traits>
 #include <utility>
-#include <variant>
-#include <vector>
 
 #ifndef NDEBUG
 #include <iostream>
 #endif /* !NDEBUG */
 
 #include "monomux/Debug.h"
-#include "monomux/adt/FunctionExtras.hpp"
 #include "monomux/adt/SmallIndexMap.hpp"
 #include "monomux/adt/scope_guard.hpp"
 #include "monomux/unreachable.hpp"

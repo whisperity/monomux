@@ -1,11 +1,9 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 #pragma once
-// #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
-// #include <string_view>
-// #include <variant>
+#include <vector>
 
 #include "monomux/adt/FunctionExtras.hpp"
 
@@ -50,7 +48,7 @@ private:
 
   ast::decl_context* DeclContext;
 
-  std::string parse_potentially_scoped_identifier();
+  std::vector<std::string> parse_potentially_scoped_identifier();
   bool parse_namespace();
 
 public:

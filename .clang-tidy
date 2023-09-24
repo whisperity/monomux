@@ -1,4 +1,4 @@
-# Last checked against Clang-Tidy 15.0.6
+# Last checked against Clang-Tidy 17.0.0
 
 # There **MUST** be an explicit newline between comments in the Checks: string
 # and the actual contents that should be part of the string!
@@ -7,6 +7,7 @@ Checks: >-
   -*,
   clang-diagnostic-*,
 
+
   # --------------------------------------------------------------------------
   # If I want CSA, I'll run CSA with CodeChecker! ;)
 
@@ -14,47 +15,56 @@ Checks: >-
 
 
   # --------------------------------------------------------------------------
-  # Uninteresting check groups for libraries or environments not relevant.
+  # Toggle check groups on or off globally first.
+  # Disabled ones are gneerally uninteresting because they target libraries or
+  # ecosystems that are not relevant to this project.
 
-  # -abseil-*,
-  # -android-*,
-  # -boost-*,
-  # -concurrency-*,
-  # -darwin-*,
-  # -fuchsia-*,
-  # -google-*,
-  # -hicpp-*,
-  # -linuxkernel-*,
-  # -llvm-*,
-  # -llvmlibc-*,
-  # -mpi-*,
-  # -objc-*,
-  # -openmp-*,
-  # -zircon-*,
-
-  # --------------------------------------------------------------------------
-  # Globally interesting check groups. (Perhaps this is easier to list...)
-
+  -abseil-*,
+  -altera-*,
+  -android-*,
+  -boost-*,
   bugprone-*,
   cert-*,
+  concurrency-*,
   cppcoreguidelines-*,
+  -darwin-*,
+  -fuchsia-*,
+  -google-*,
+  -hicpp-*,
+  -linuxkernel-*,
+  -llvm-*,
+  -llvmlibc-*,
   misc-*,
   modernize-*,
+  -mpi-*,
+  -objc-*,
+  -openmp-*,
   performance-*,
   portability-*,
   readability-*,
+  -zircon-*,
+
 
   # --------------------------------------------------------------------------
-  # Checks enabled from groups where the group itself is not fully enabled.
+  # Specific checks to be enabled from groups that were otherwise disabled.
 
+  fuchsia-multiple-iheritance,
+  fuchsia-statically-constructed-objects,
+  fuchsia-trailing-return,
   google-build-namespaces,
   google-default-arguments,
+  google-global-names-in-headers,
   google-explicit-constructor,
   google-readability-avoid-underscore-in-googletest-name,
+  google-readability-casting,
+  google-runtime-operator,
   google-upgrade-googletest-case,
+  hicpp-exception-baseclass,
+  hicpp-signed-bitwise,
   llvm-header-guard,
   llvm-include-order,
   llvm-namespace-comment,
+
 
   # --------------------------------------------------------------------------
   # Disabled: too many warnings that are not meaningfully silenceable locally,
@@ -80,10 +90,19 @@ Checks: >-
   -readability-implicit-bool-conversion,
   -readability-identifier-length,
 
+
   # --------------------------------------------------------------------------
   # Broken (see http://github.com/llvm/llvm-project/issues?q=is%3Aissue+is%3Aopen+bugprone-unchecked-optional-access)
 
   -bugprone-unchecked-optional-access,
+
+
+  # --------------------------------------------------------------------------
+  # Deprecated checks that trigger on the current project but will be removed
+  # in a future version of Clang-Tidy.
+
+  -cert-dcl21-cpp,
+
 
 CheckOptions:
   - key:             bugprone-easily-swappable-parameters.QualifiersMix

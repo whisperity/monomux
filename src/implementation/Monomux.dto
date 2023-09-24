@@ -18,6 +18,14 @@ namespace test3::test4
 namespace test5
 {
 }
+}
+
+namespace monomux::foo
+{
+}
+
+namespace monomux::message
+{
 
 literal ui64 APIMajor = 1;
 literal ui64 APIMinor = 0;

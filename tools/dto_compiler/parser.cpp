@@ -1,13 +1,5 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
-// #include <array>
 #include <cassert>
-// #include <cstring>
-// #include <limits>
-// #include <sstream>
-// #include <type_traits>
-// #include <utility>
-// #include <variant>
-// #include <vector>
 
 #ifndef NDEBUG
 #include <iostream>
@@ -15,9 +7,6 @@
 
 #include "monomux/Debug.h"
 #include "monomux/adt/scope_guard.hpp"
-// #include "monomux/adt/FunctionExtras.hpp"
-// #include "monomux/adt/SmallIndexMap.hpp"
-// #include "monomux/unreachable.hpp"
 
 #include "ast/decl.hpp"
 #include "dto_unit.hpp"
@@ -38,21 +27,27 @@ const parser::error_info EmptyError{};
 #define INFO(TOKEN_KIND)                                                       \
   const auto& Info = Lexer.get_token_info<token::TOKEN_KIND>();
 
-std::string parser::parse_potentially_scoped_identifier()
+std::vector<std::string> parser::parse_potentially_scoped_identifier()
 {
-  std::string Identifier;
+  std::vector<std::string> Identifiers;
+  Identifiers.emplace_back("");
   while (true)
   {
     token T = get_current_token();
     if (T == token::Scope)
-      Identifier.append("::");
+      Identifiers.emplace_back("");
     else if (T == token::Identifier)
     {
       INFO(Identifier);
-      Identifier.append(Info->Identifier);
+      Identifiers.back() = Info->Identifier;
     }
     else
-      return Identifier;
+    {
+      if (Identifiers.back().empty())
+        set_error_to_current_token("Invalid identifier sequence ended in "
+                                   "non-identifier.");
+      return Identifiers;
+    }
 
     (void)get_next_token();
   }
@@ -63,14 +58,40 @@ bool parser::parse_namespace()
   // First, need to consume the identifier of the namespace.
   assert(get_current_token() == token::Namespace && "Expected 'namespace'");
   (void)get_next_token();
-  std::string Identifier = parse_potentially_scoped_identifier();
+  std::vector<std::string> Identifiers = parse_potentially_scoped_identifier();
 
   if (get_current_token() != token::LBrace)
-    set_error_to_current_token("Expected '{' after namespace declaration");
+    set_error_to_current_token("Expected '{' after namespace identifier "
+                               "declaration");
 
-  auto* NSD = DeclContext->get_or_create_child_decl<ast::namespace_decl>(
-    std::move(Identifier));
   restore_guard G{DeclContext};
+  auto* NSD = [this,
+               &Identifiers,
+               Context = this->DeclContext]() mutable -> ast::namespace_decl* {
+    for (std::string NextScope : Identifiers)
+    {
+      ast::decl* ExistingD = Context->lookup_in_current(NextScope);
+      auto* ExistingNSD = dynamic_cast<ast::namespace_decl*>(ExistingD);
+      if (ExistingD && !ExistingNSD)
+      {
+        set_error_to_current_token(
+          std::string{"Attempted to create a namespace '"} + NextScope +
+          std::string{"' while a non-namespace with the same name already "
+                      "exists in the current scope"});
+        return nullptr;
+      }
+      auto* NSD =
+        Context->emplace_child<ast::namespace_decl>(std::move(NextScope));
+      if (ExistingNSD)
+        ExistingNSD->last_in_chain().add_to_chain(*NSD);
+      Context = NSD;
+    }
+
+    return dynamic_cast<ast::namespace_decl*>(Context);
+  }();
+  if (!NSD)
+    return false;
+
   DeclContext = NSD;
   (void)get_next_token();
   bool Inner = parse();
@@ -121,13 +142,18 @@ bool parser::parse()
       case token::Comment:
       {
         INFO(Comment);
-        CurrentContext->get_or_create_child_decl<ast::comment_decl>(
+        CurrentContext->emplace_child<ast::comment_decl>(
           ast::comment{Info->IsBlockComment, Info->Comment});
         break;
       }
 
       case token::Namespace:
         parse_namespace();
+        break;
+
+      case token::Literal:
+      case token::Function:
+      case token::Record:
         break;
     }
 

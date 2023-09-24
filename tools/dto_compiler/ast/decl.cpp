@@ -30,6 +30,8 @@ void print_ident(std::ostringstream& OS, std::size_t Indent)
 void decl_context::dump_children(std::ostringstream& OS,
                                  std::size_t Depth) const
 {
+  // This should only print the *local* children as the dump is expected to be
+  // in-order transitive.
   for (const auto& Child : Children)
   {
     print_ident(OS, Depth);
@@ -55,7 +57,12 @@ MONOMUX_DECL_DUMP(named_decl) {}
 
 MONOMUX_DECL_DUMP(namespace_decl)
 {
-  OS << "NamespaceDecl " << this << ' ' << get_identifier() << '\n';
+  OS << "NamespaceDecl " << this << ' ' << get_identifier() << ' ';
+  if (prev())
+    OS << "prev " << dynamic_cast<const namespace_decl*>(prev()) << ' ';
+  if (next())
+    OS << "next " << dynamic_cast<const namespace_decl*>(next()) << ' ';
+  OS << '\n';
   dump_children(OS, Depth);
 }
 
