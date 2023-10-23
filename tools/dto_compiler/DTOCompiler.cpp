@@ -7,6 +7,7 @@
 #include <string_view>
 
 #include "dto_unit.hpp"
+#include "generator.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
 
@@ -56,14 +57,18 @@ int main(int ArgC, char* ArgV[])
     InputBuffer = Buf.str();
   }
 
-  std::cout << "Input string:\n" << InputBuffer << std::endl;
+  // std::cout << "Input string:\n" << InputBuffer << std::endl;
 
   using namespace monomux::tools::dto_compiler;
 
   lexer L{InputBuffer};
   parser P{L};
   bool Success = P.parse();
-  std::cout << P.get_unit().dump().str() << std::endl;
+  std::cout << [&P] {
+    std::ostringstream OS;
+    P.get_unit().dump(OS);
+    return OS.str();
+  }() << std::endl;
 
   if (!Success)
   {
@@ -83,8 +88,20 @@ int main(int ArgC, char* ArgV[])
       Line.remove_prefix(LinePos);
       return Line.substr(0, Line.find('\n'));
     }();
-    std::cerr << "     " << ErrorLine << std::endl;
-    std::cerr << "     " << std::string(P.get_error().Location.Column - 1, ' ')
-              << '^' << std::endl;
+    std::string LineNumber = std::to_string(P.get_error().Location.Line);
+    std::cerr << "    " << LineNumber << " | " << ErrorLine << std::endl;
+    std::cerr << "    " << std::string(LineNumber.size(), ' ') << " | "
+              << std::string(P.get_error().Location.Column - 1, ' ') << '^'
+              << std::endl;
+    std::cerr << std::endl;
   }
+
+  std::ostringstream Header, Source; // NOLINT(readability-isolate-declaration)
+  generator G{std::move(P).take_unit(), Header, Source};
+  G.generate();
+
+  std::cout << "GENERATED CODE:\n\n";
+  std::cout << Header.str() << '\n';
+  // std::cout << "/* * * * * -----<8  -----   8>----- * * * * */\n\n";
+  // std::cout << Source.str() << '\n';
 }

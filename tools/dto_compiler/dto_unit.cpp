@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
+#include <iostream>
 #include <sstream>
 
 #include "dto_unit.hpp"
@@ -6,14 +7,34 @@
 namespace monomux::tools::dto_compiler
 {
 
-std::ostringstream dto_unit::dump() const
+void dto_unit::dump() const
 {
-  std::ostringstream Ret;
+  std::ostringstream OS;
 
-  Ret << "DTOContext " << this << '\n';
-  Root.dump_children(Ret, 1);
+  OS << "DTOContext " << this << '\n';
+  Root.dump_children(OS, 1);
 
-  return Ret;
+  std::cerr << OS.str() << std::endl;
+}
+
+void dto_unit::dump(std::ostringstream& OS) const
+{
+  OS << "DTOContext " << this << '\n';
+  Root.dump_children(OS, 1);
+}
+
+void dto_unit::add_to_preamble(
+  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+  std::string Token,
+  const std::string& Interface,
+  const std::string& Implementation)
+{
+  auto Insert = UsedPreambleTokens.insert(std::move(Token));
+  if (!Insert.second)
+    return;
+
+  InterfacePreamble << Interface << '\n';
+  ImplementationPreamble << Implementation << '\n';
 }
 
 } // namespace monomux::tools::dto_compiler

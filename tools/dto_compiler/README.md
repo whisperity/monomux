@@ -15,6 +15,11 @@ Format of the DTO DSL
 The communication protocol's specification must be made available as a **single** text file, commonly with the `.dto` extension.
 As a rule of thumb, the usual semantics and guidelines of C++ translation apply: things should be defined top to bottom, i.e., before using an entity, its definition **_MUST_** already have been made available.
 
+### Identifiers
+
+Any character sequence that is not matching to an explicitly defined meaning in this document is an _identifier_.
+Identifiers carry no meaning during compilation, and are translated verbatim into the generated output code.
+
 ### Comments
 
 ```
@@ -66,7 +71,7 @@ namespace MyProgram::Communication
 }
 ```
 
-Entities in the DTO DSL and the resulting C++ source code may be enclosed into `namespace`s.
+Entities in the DTO DSL and the resulting C++ source code may be enclosed into **`namespace`**s.
 The semantics adhere to how the language feature works in C++.
 
 A namespace's name **_MUST_** be a pure identifier, or a sequence of identifiers concatenated by the "scope operator" `::`.
@@ -84,6 +89,26 @@ It is **_NOT RECOMMENDED_** to reuse the same identifier for multiple declaratio
 
 ### Types
 
+The following types are available.
+
+ - Integer types of fixed bit width: `ui64`.
+
 #### Record types
+
+### Literals
+
+Integer literals are expressed as a sequence of decimal characters `0`, `1`, `2`, …, `9`.
+Integer literals can be negative, in case they are prefixed with a `-`.
+
+These expressions appear as the initialising values of constants.
+
+### Constants
+
+```
+literal ui64 Version = 1;
+```
+
+Constants are introduced with the **`literal`** keyword, followed by the [type](#types) of the constant, followed by its [identifier (name)](#identifiers) and an [initialising value](#literals).
+Constants are translated to the generated code as compile-time constant objects.
 
 ### Functions

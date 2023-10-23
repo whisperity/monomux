@@ -18,6 +18,7 @@ namespace ast
 {
 
 class decl_context;
+class expr;
 class namespace_decl;
 
 } // namespace ast
@@ -37,19 +38,24 @@ public:
   };
 
 private:
-  lexer& Lexer; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members).
+  lexer& Lexer; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
   std::unique_ptr<dto_unit> ParseUnit;
 
   std::optional<error_info> Error;
+  [[nodiscard]] error_info prepare_error(std::string Reason = {}) noexcept;
+  void set_error(error_info&& Err, std::string Reason = {}) noexcept;
   void set_error_to_current_token(std::string Reason) noexcept;
 
   [[nodiscard]] token get_current_token() noexcept;
   [[nodiscard]] token get_next_token() noexcept;
+  [[nodiscard]] token peek_next_token() noexcept;
 
   ast::decl_context* DeclContext;
 
   std::vector<std::string> parse_potentially_scoped_identifier();
   bool parse_namespace();
+  void parse_constant();
+  ast::expr* parse_expression();
 
 public:
   explicit parser(lexer& Lexer);

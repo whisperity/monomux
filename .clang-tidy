@@ -1,4 +1,4 @@
-# Last checked against Clang-Tidy 17.0.0
+# Last checked against Clang-Tidy 16.0.2
 
 # There **MUST** be an explicit newline between comments in the Checks: string
 # and the actual contents that should be part of the string!

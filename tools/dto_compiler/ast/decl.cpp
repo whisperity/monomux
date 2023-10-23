@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
+#include <algorithm>
 #include <sstream>
 
 #include "decl.hpp"
@@ -6,39 +7,27 @@
 namespace monomux::tools::dto_compiler::ast
 {
 
-namespace
+const named_decl*
+decl_context::lookup_in_current(std::string_view Identifier) const noexcept
 {
-
-void print_ident(std::ostringstream& OS, std::size_t Indent)
-{
-  if (Indent == 0)
-    OS << '.';
-
-  while (Indent > 1)
-  {
-    OS << "|  ";
-    --Indent;
-  }
-  if (Indent == 1)
-  {
-    OS << "|- ";
-  }
+  auto It = std::find_if(
+    Children.begin(), Children.end(), [Identifier](const auto& NodeUniquePtr) {
+      if (const auto* ND = dynamic_cast<const named_decl*>(NodeUniquePtr.get()))
+        return ND->get_identifier() == Identifier;
+      return false;
+    });
+  return It != Children.end() ? dynamic_cast<const named_decl*>(It->get())
+                              : nullptr;
 }
 
-} // namespace
-
-[[nodiscard]] const decl*
+const named_decl*
 decl_context::lookup(std::string_view Identifier) const noexcept
 {
   auto LookupInChain = [](const decl_context* C,
                           std::string_view I) -> const named_decl* {
-    for (C = &C->first_in_chain(); C != nullptr; C = C->next())
-    {
-      if (const auto* FoundChild =
-            dynamic_cast<const named_decl*>(C->lookup_in_current(I)))
+    for (C = &C->first_in_chain(); C; C = C->next())
+      if (const auto* FoundChild = C->lookup_in_current(I))
         return FoundChild;
-    }
-
     return nullptr;
   };
 
@@ -63,61 +52,24 @@ decl_context::lookup(std::string_view Identifier) const noexcept
   return nullptr;
 }
 
-[[nodiscard]] const decl*
-decl_context::lookup_in_current(std::string_view Identifier) const noexcept
+const named_decl*
+decl_context::lookup_with_parents(std::string_view Identifier) const noexcept
 {
-  for (const auto& NodeUPtr : Children)
-  {
-    if (const auto* ND = dynamic_cast<const named_decl*>(NodeUPtr.get());
-        ND && ND->get_identifier() == Identifier)
-      return ND;
-  }
+  const auto* D = lookup(Identifier);
+  if (D)
+    return D;
+  if (parent())
+    return parent()->lookup_with_parents(Identifier);
   return nullptr;
 }
 
-void decl_context::dump_children(std::ostringstream& OS,
-                                 std::size_t Depth) const
+const namespace_decl* namespace_decl::get_outermost_namespace() const noexcept
 {
-  // This should only print the *local* children as the dump is expected to be
-  // in-order transitive.
-  for (const auto& Child : Children)
-  {
-    print_ident(OS, Depth);
-    Child->dump(OS, Depth + 1);
-  }
+  if (!parent())
+    return this;
+  if (const auto* ParentNSD = dynamic_cast<const namespace_decl*>(parent()))
+    return ParentNSD->get_outermost_namespace();
+  return this;
 }
-
-#define MONOMUX_DECL_DUMP(TYPE)                                                \
-  void TYPE::dump(std::ostringstream& OS, std::size_t Depth) const
-
-MONOMUX_DECL_DUMP(decl) {}
-
-MONOMUX_DECL_DUMP(comment_decl)
-{
-  static constexpr std::size_t CommentPrintLength = 64;
-  OS << "CommentDecl " << this << ' ';
-  OS << (Comment.is_block_comment() ? "block " : "line  ");
-  OS << Comment.get_comment().substr(0, CommentPrintLength);
-  OS << '\n';
-}
-
-MONOMUX_DECL_DUMP(named_decl) {}
-
-MONOMUX_DECL_DUMP(namespace_decl)
-{
-  OS << "NamespaceDecl " << this << ' ' << get_identifier() << ' ';
-  if (prev())
-    OS << "prev " << dynamic_cast<const namespace_decl*>(prev()) << ' ';
-  if (next())
-    OS << "next " << dynamic_cast<const namespace_decl*>(next()) << ' ';
-  OS << '\n';
-  dump_children(OS, Depth);
-}
-
-MONOMUX_DECL_DUMP(value_decl) {}
-
-MONOMUX_DECL_DUMP(literal_decl) {}
-
-#undef MONOMUX_DECL_DUMP
 
 } // namespace monomux::tools::dto_compiler::ast

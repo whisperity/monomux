@@ -30,6 +30,11 @@ namespace monomux::message
 literal ui64 APIMajor = 1;
 literal ui64 APIMinor = 0;
 
+namespace inner
+{
+literal ui64 APIMajor = 3;
+}
+
 function ClientID() -> {ui64 ID;
                         ui64 Nonce;
                         }
@@ -42,6 +47,3 @@ record ProcessSpawnOptions {
 };
 
 } //! namespace monomux::message
-
-namespace a::b::c {}
-namespace a::b::c {}

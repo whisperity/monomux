@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: LGPL-3.0-only */
 #include <cassert>
+#include <numeric>
 
 #ifndef NDEBUG
 #include <iostream>
@@ -9,6 +10,8 @@
 #include "monomux/adt/scope_guard.hpp"
 
 #include "ast/decl.hpp"
+#include "ast/expr.hpp"
+#include "ast/type.hpp"
 #include "dto_unit.hpp"
 #include "lexer.hpp"
 
@@ -20,7 +23,31 @@ namespace monomux::tools::dto_compiler
 namespace
 {
 
+// NOLINTNEXTLINE(fuchsia-statically-constructed-objects)
 const parser::error_info EmptyError{};
+
+std::string join_scoped_identifiers(const std::vector<std::string>& Identifiers)
+{
+  if (Identifiers.size() == 1)
+    return Identifiers.front();
+  return std::accumulate(Identifiers.begin(),
+                         Identifiers.end(),
+                         std::string{},
+                         [](std::string Sum, std::string Elem) {
+                           return std::move(Sum) + "::" + std::move(Elem);
+                         });
+}
+
+/// Returns the top-level \p namespace_decl (which \p parent is the root)
+/// that corresponds to \p DC.
+const ast::namespace_decl*
+get_top_namespace_in_root_for(const ast::decl_context* DC)
+{
+  const auto* NSD = dynamic_cast<const ast::namespace_decl*>(DC);
+  if (!NSD)
+    return nullptr;
+  return NSD->get_outermost_namespace();
+}
 
 } // namespace
 
@@ -31,13 +58,24 @@ std::vector<std::string> parser::parse_potentially_scoped_identifier()
 {
   std::vector<std::string> Identifiers;
   Identifiers.emplace_back("");
+  bool PreviousTokenWasIdentifier = false;
   while (true)
   {
     token T = get_current_token();
     if (T == token::Scope)
+    {
+      PreviousTokenWasIdentifier = false;
+
       Identifiers.emplace_back("");
+    }
     else if (T == token::Identifier)
     {
+      if (PreviousTokenWasIdentifier)
+        // Two Identifier tokens following each other directly without a
+        // Scope token inbetween do not compose the same identifier.
+        return Identifiers;
+      PreviousTokenWasIdentifier = true;
+
       INFO(Identifier);
       Identifiers.back() = Info->Identifier;
     }
@@ -55,14 +93,16 @@ std::vector<std::string> parser::parse_potentially_scoped_identifier()
 
 bool parser::parse_namespace()
 {
-  // First, need to consume the identifier of the namespace.
   assert(get_current_token() == token::Namespace && "Expected 'namespace'");
-  (void)get_next_token();
+  (void)get_next_token(); // Consume 'namespace', begin identifiers...
   std::vector<std::string> Identifiers = parse_potentially_scoped_identifier();
 
   if (get_current_token() != token::LBrace)
+  {
     set_error_to_current_token("Expected '{' after namespace identifier "
                                "declaration");
+    return false;
+  }
 
   restore_guard G{DeclContext};
   auto* NSD = [this,
@@ -105,6 +145,114 @@ bool parser::parse_namespace()
   return Inner;
 }
 
+void parser::parse_constant()
+{
+  assert(get_current_token() == token::Literal && "Expected 'literal'");
+
+  (void)get_next_token(); // Consume 'literal', begin identifiers...
+  error_info NoTypeError = prepare_error();
+  std::vector<std::string> TypeIdentifier =
+    parse_potentially_scoped_identifier();
+  if (TypeIdentifier.empty())
+  {
+    set_error_to_current_token(
+      "A constant declaration must identify the type the constant has");
+    return;
+  }
+
+  const auto* TD = [&]() -> const ast::type_decl* {
+    std::string TypeId = join_scoped_identifiers(TypeIdentifier);
+    const auto* TD =
+      dynamic_cast<ast::type_decl*>(DeclContext->lookup_with_parents(TypeId));
+    if (!TD)
+    {
+      if (auto* T = ast::type::try_as_conjured(*ParseUnit, TypeId))
+        TD =
+          get_unit().get_root().emplace_child_in_chain_before<ast::type_decl>(
+            get_top_namespace_in_root_for(DeclContext), TypeId, T);
+
+      if (!TD)
+      {
+        set_error(std::move(NoTypeError),
+                  std::string{"Undefined type '"} + std::move(TypeId) +
+                    std::string{"'"});
+        return nullptr;
+      }
+    }
+
+    return TD;
+  }();
+  if (!TD)
+    return;
+
+  if (get_current_token() == token::Eq)
+  {
+    set_error_to_current_token("Expected precisely 2 identifiers for the type "
+                               "and the name of the constant");
+    return;
+  }
+  if (get_current_token() != token::Identifier)
+  {
+    set_error_to_current_token(std::string{"Unexpected '"} +
+                               std::string{to_string(get_current_token())} +
+                               std::string{"' instead of the constant's name"});
+    return;
+  }
+
+  std::string Identifier = [this] {
+    INFO(Identifier);
+    return Info->Identifier;
+  }();
+
+  if (const auto* ND = DeclContext->lookup(Identifier))
+  {
+    set_error_to_current_token(std::string{"Multiple definitions for '"} +
+                               Identifier +
+                               std::string{"' in the current scope"});
+    return;
+  }
+
+  if (get_next_token() != token::Eq)
+  {
+    set_error_to_current_token("Expected '='");
+    return;
+  }
+
+  ast::expr* InitExpr = parse_expression();
+  if (!InitExpr)
+    return;
+
+  error_info NoSemi = prepare_error();
+  if (get_next_token() != token::Semicolon)
+  {
+    set_error(std::move(NoSemi),
+              "All non-scope declarations must be terminated by ';'");
+    return;
+  }
+
+  DeclContext->emplace_child<ast::literal_decl>(
+    std::move(Identifier), TD->get_type(), InitExpr);
+}
+
+ast::expr* parser::parse_expression()
+{
+  token Init = get_next_token();
+  switch (Init)
+  {
+    case token::Integral:
+    {
+      INFO(Integral);
+      return new ast::unsigned_integral_literal{Info->Value};
+    }
+
+    default:
+      set_error_to_current_token(std::string{"Unexpected '"} +
+                                 std::string{to_string(get_current_token())} +
+                                 std::string{"' instead of an expression"});
+      return nullptr;
+  }
+}
+
 bool parser::parse()
 {
   ast::decl_context* CurrentContext = DeclContext;
@@ -126,9 +274,9 @@ bool parser::parse()
         return false;
 
       default:
-        set_error_to_current_token(std::string{"Unexpected "} +
+        set_error_to_current_token(std::string{"Unexpected '"} +
                                    std::string{to_string(get_current_token())} +
-                                   std::string{" encountered while parsing."});
+                                   std::string{"' encountered while parsing."});
         return false;
 
       case token::RBrace:
@@ -143,7 +291,7 @@ bool parser::parse()
       {
         INFO(Comment);
         CurrentContext->emplace_child<ast::comment_decl>(
-          ast::comment{Info->IsBlockComment, Info->Comment});
+          ast::detail::comment{Info->IsBlockComment, Info->Comment});
         break;
       }
 
@@ -152,6 +300,9 @@ bool parser::parse()
         break;
 
       case token::Literal:
+        parse_constant();
+        break;
+
       case token::Function:
       case token::Record:
         set_error_to_current_token("TBD Keyword token.");
@@ -183,10 +334,24 @@ const parser::error_info& parser::get_error() const noexcept
 
 void parser::set_error_to_current_token(std::string Reason) noexcept
 {
-  Error.emplace(error_info{.Location = Lexer.get_location(),
-                           .TokenKind = get_current_token(),
-                           .TokenInfo = Lexer.get_token_info_raw(),
-                           .Reason = std::move(Reason)});
+  if (Error && Error->TokenKind == token::SyntaxError)
+    return;
+  set_error(prepare_error(std::move(Reason)));
+}
+
+void parser::set_error(error_info&& Err, std::string Reason) noexcept
+{
+  if (!Reason.empty())
+    Err.Reason = std::move(Reason);
+  Error.emplace(std::move(Err));
+}
+
+parser::error_info parser::prepare_error(std::string Reason) noexcept
+{
+  return error_info{.Location = Lexer.get_location(),
+                    .TokenKind = get_current_token(),
+                    .TokenInfo = Lexer.get_token_info_raw(),
+                    .Reason = std::move(Reason)};
 }
 
 token parser::get_current_token() noexcept
@@ -218,6 +383,17 @@ token parser::get_next_token() noexcept
                 std::cout << to_string(Lexer.get_token_info_raw())
                           << std::endl;);
 
+  return T;
+}
+
+token parser::peek_next_token() noexcept
+{
+  MONOMUX_DEBUG(std::cout << "< ---> Peek...> ");
+  token T = Lexer.peek();
+  MONOMUX_DEBUG(std::cout << Lexer.get_location().Line << ':'
+                          << Lexer.get_location().Column << ' ';
+                std::cout << to_string(Lexer.get_token_info_raw())
+                          << std::endl;);
   return T;
 }
 
