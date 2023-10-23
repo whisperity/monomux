@@ -70,7 +70,7 @@ bool parser::parse_namespace()
                Context = this->DeclContext]() mutable -> ast::namespace_decl* {
     for (std::string NextScope : Identifiers)
     {
-      ast::decl* ExistingD = Context->lookup_in_current(NextScope);
+      ast::decl* ExistingD = Context->lookup(NextScope);
       auto* ExistingNSD = dynamic_cast<ast::namespace_decl*>(ExistingD);
       if (ExistingD && !ExistingNSD)
       {

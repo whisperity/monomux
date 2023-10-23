@@ -35,9 +35,7 @@
 #define MONOMUX_DETAIL_CONST_VALUE(CALL) const auto& Value = CALL
 /* NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast) */
 #define MONOMUX_DETAIL_CONST_OBJ const_cast<Const>(this)
-/* NOLINTBEGIN(bugprone-macro-parantheses) */
 #define MONOMUX_DETAIL_RETURN_CAST(RET_TY, OBJ) return const_cast<RET_TY>(OBJ)
-/* NOLINTEND(bugprone-macro-parantheses) */
 /* NOLINTEND(cppcoreguidelines-pro-type-const-cast) */
 
 #define MONOMUX_DETAIL_FUNCTION_BODY(RET_TY, CALL)                             \

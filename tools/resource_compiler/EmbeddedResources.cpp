@@ -128,7 +128,6 @@ extern "C"
 #endif                       /* __cplusplus 11 */
 }
 
-/* NOLINTBEGIN(bugprone-macro-parantheses) */
 // Note that the resulting type is deliberately **not** constexpr here.
 // Access to the resource is facilitated through a run-time identifier-based
 // getter anyway, and using "constexpr std::array<...>" would reult in some
@@ -139,7 +138,6 @@ extern "C"
 #define RESOURCE_INIT(DEVELOPER_NAME, SYMBOL_NAME)                             \
   StaticPtr->Map[DEVELOPER_NAME] =                                             \
     ArrayPtr{(SYMBOL_NAME).data(), (SYMBOL_NAME).size()};
-/* NOLINTEND(bugprone-macro-parantheses) */
 
 /* Following this line, except for the #undef directives at the very end of the
  * file, follows content that is **generated** from data that was available

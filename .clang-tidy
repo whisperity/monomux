@@ -70,7 +70,7 @@ Checks: >-
   # Disabled: too many warnings that are not meaningfully silenceable locally,
   # or simply checks that are not in line with the project's style.
 
-  -bugprone-macro-parantheses,
+  -bugprone-macro-parentheses,
   -bugprone-narrowing-conversions,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-do-while,

@@ -27,6 +27,54 @@ void print_ident(std::ostringstream& OS, std::size_t Indent)
 
 } // namespace
 
+[[nodiscard]] const decl*
+decl_context::lookup(std::string_view Identifier) const noexcept
+{
+  auto LookupInChain = [](const decl_context* C,
+                          std::string_view I) -> const named_decl* {
+    for (C = &C->first_in_chain(); C != nullptr; C = C->next())
+    {
+      if (const auto* FoundChild =
+            dynamic_cast<const named_decl*>(C->lookup_in_current(I)))
+        return FoundChild;
+    }
+
+    return nullptr;
+  };
+
+  std::string_view IdentifierUpToScopeOperator =
+    Identifier.substr(0, Identifier.find("::"));
+
+  if (IdentifierUpToScopeOperator == Identifier)
+  {
+    // No scope operator present in the lookup, perform a direct search.
+    return LookupInChain(this, IdentifierUpToScopeOperator);
+  }
+  // Otherwise, we found some sort of scope directive in the name.
+  if (const auto* Scope = dynamic_cast<const namespace_decl*>(
+        LookupInChain(this, IdentifierUpToScopeOperator)))
+  {
+    const auto* ScopeContext = dynamic_cast<const decl_context*>(Scope);
+    std::string_view IdentifierFollowingScopeOperator =
+      Identifier.substr(Identifier.find("::") + 2);
+    return ScopeContext->lookup(IdentifierFollowingScopeOperator);
+  }
+
+  return nullptr;
+}
+
+[[nodiscard]] const decl*
+decl_context::lookup_in_current(std::string_view Identifier) const noexcept
+{
+  for (const auto& NodeUPtr : Children)
+  {
+    if (const auto* ND = dynamic_cast<const named_decl*>(NodeUPtr.get());
+        ND && ND->get_identifier() == Identifier)
+      return ND;
+  }
+  return nullptr;
+}
+
 void decl_context::dump_children(std::ostringstream& OS,
                                  std::size_t Depth) const
 {

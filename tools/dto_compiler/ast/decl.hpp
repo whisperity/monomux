@@ -5,6 +5,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -253,22 +254,17 @@ public:
     return OwnedNode;
   }
 
+  [[nodiscard]] const decl* lookup(std::string_view Identifier) const noexcept;
+  MONOMUX_MEMBER_1(
+    decl*, lookup, [[nodiscard]], noexcept, std::string_view, Identifier);
+
   [[nodiscard]] const decl*
-  lookup_in_current(const std::string& Identifier) const noexcept
-  {
-    for (const auto& NodeUPtr : Children)
-    {
-      if (const auto* ND = dynamic_cast<const named_decl*>(NodeUPtr.get());
-          ND && ND->get_identifier() == Identifier)
-        return ND;
-    }
-    return nullptr;
-  }
+  lookup_in_current(std::string_view Identifier) const noexcept;
   MONOMUX_MEMBER_1(decl*,
                    lookup_in_current,
                    [[nodiscard]],
                    noexcept,
-                   const std::string&,
+                   std::string_view,
                    Identifier);
 };
 

@@ -8,7 +8,6 @@
 namespace monomux::ranges
 {
 
-/* NOLINTBEGIN(bugprone-macro-parantheses) */
 #define MONOMUX_RANGE_OVERLOAD_1(                                              \
   FUNCTION, TEMPLATE_PARAM, FUNCTION_PARAM_NAME, NODISCARD)                    \
   template <typename Range, typename TEMPLATE_PARAM>                           \
@@ -18,7 +17,6 @@ namespace monomux::ranges
     return std::FUNCTION(                                                      \
       begin(R), end(R), std::forward<TEMPLATE_PARAM>(FUNCTION_PARAM_NAME));    \
   }
-/* NOLINTEND(bugprone-macro-parantheses) */
 
 MONOMUX_RANGE_OVERLOAD_1(all_of, Predicate, P, [[nodiscard]]);
 MONOMUX_RANGE_OVERLOAD_1(any_of, Predicate, P, [[nodiscard]]);

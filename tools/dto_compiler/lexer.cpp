@@ -68,12 +68,10 @@ std::string_view to_string(token TK)
 
 std::string to_string(const all_token_infos_type& Info)
 {
-  /* NOLINTBEGIN(bugprone-macro-parantheses) */
 #define TOKEN(NAME)                                                            \
   if (const auto* NAME = std::get_if<token_info<token::NAME>>(&Info))          \
     return NAME->to_string();
 #include "Tokens.inc.h"
-  /* NOLINTEND(bugprone-macro-parantheses) */
 
   return "Unknown TokenKind!";
 }

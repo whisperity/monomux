@@ -178,12 +178,10 @@ std::string_view takeUntilAndConsume(std::string_view& Data,
   if (std::string_view::size_type P = View.find(LITERAL);                      \
       P == 0 && (View.remove_prefix(std::strlen(LITERAL)), P == 0))
 
-/* NOLINTBEGIN(bugprone-macro-parentheses) */
 #define EXTRACT_OR_NONE(VARIABLE, UNTIL_LITERAL)                               \
   auto VARIABLE = takeUntilAndConsume(View, UNTIL_LITERAL);                    \
   if ((VARIABLE).empty())                                                      \
     return std::nullopt;
-/* NOLINTEND(bugprone-macro-parentheses) */
 
 #define HEADER_OR_NONE(LITERAL)                                                \
   std::string_view View = consume(Buffer, LITERAL);                            \
